@@ -1,7 +1,11 @@
-import React from 'react';
+import Tilte from '@/components/atoms/Tilte';
 
 const ReassignedLeads = () => {
-  return <div>ReassignedLeads</div>;
+  return (
+    <div>
+      <Tilte name='Reassigned Leads' />
+    </div>
+  );
 };
 
 export default ReassignedLeads;

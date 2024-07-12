@@ -1,7 +1,11 @@
-import React from 'react';
+import Tilte from '@/components/atoms/Tilte';
 
 const LostLeads = () => {
-  return <div>LostLeads</div>;
+  return (
+    <div>
+      <Tilte name='Lost Leads' />
+    </div>
+  );
 };
 
 export default LostLeads;

@@ -1,7 +1,11 @@
-import React from 'react';
+import Tilte from '@/components/atoms/Tilte';
 
 const LeadManagement = () => {
-  return <div>LeadManagement</div>;
+  return (
+    <div>
+      <Tilte name='Lead Management' />
+    </div>
+  );
 };
 
 export default LeadManagement;
