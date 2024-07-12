@@ -1,8 +1,8 @@
-import { typeCards } from '@/types/typeStatictis.type';
+import { typeStatistis } from '@/types/typeStatistis.type';
 import Image from 'next/image';
 import React from 'react';
 
-const Cards = ({ title, value, date, icon, color }: typeCards) => {
+const Cards = ({ title, value, date, icon, color }: typeStatistis) => {
   return (
     <div>
       <div className='grid grid-cols-3  w-full border-t border-main-color-50 rounded-xl shadow-md shadow-main-color-100 transition-all hover:scale-105 p-5  '>

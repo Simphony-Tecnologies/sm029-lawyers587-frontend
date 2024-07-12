@@ -1,4 +1,4 @@
-export type typeCards = {
+export type typeStatistis = {
   title: string;
   value: number;
   date: string;

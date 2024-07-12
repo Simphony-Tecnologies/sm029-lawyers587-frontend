@@ -1,9 +1,9 @@
-import { typeCards } from '@/types/typeStatictis.type';
+import { typeStatistis } from '@/types/typeStatistis.type';
 import NewLeads from '@/assets/new-leads.png';
 import AssignedLeads from '@/assets/assigned-leads.png';
 import LeadsforReview from '@/assets/leads-for-review.png';
 import DeadLeads from '@/assets/dead-leads.png';
-export const statistics: typeCards[] = [
+export const statistics: typeStatistis[] = [
   {
     title: 'New Leads',
     value: 200,
