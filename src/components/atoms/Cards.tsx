@@ -5,7 +5,7 @@ import React from 'react';
 const Cards = ({ title, value, date, icon, color }: typeStatistis) => {
   return (
     <div>
-      <div className='grid grid-cols-3  w-full border-t border-main-color-50 rounded-xl shadow-md shadow-main-color-100 transition-all hover:scale-105 p-10  '>
+      <div className='grid grid-cols-3 bg-white w-full border-t border-main-color-50 rounded-xl shadow-md shadow-main-color-100 transition-all  p-10  '>
         <div className='flex flex-col col-span-2'>
           <h1 className='text-4xl text-primary text-opacity-70 font-semibold'>
             {title}
