@@ -2,7 +2,9 @@
 
 import Image from 'next/image';
 import Logo from '@/assets/logo.png';
+import LogoMobile from '@/assets/Logo-mobile.png';
 import Background from '@/assets/background.png';
+import MobileAuth from '@/assets/mobile-auth.png';
 import { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -28,52 +30,59 @@ const Page = () => {
   };
 
   return (
-    <div className="w-full h-screen  grid lg:grid-cols-2 gap-10">
+    <div className='w-full h-screen  flex flex-col md:grid md:grid-cols-2 gap-10'>
       <Toaster />
       <Image
         src={Background}
-        alt="Logo"
-        className="hidden lg:block w-full h-full object-cover object-center "
+        alt='Logo'
+        className='hidden md:block md:w-full md:h-full h-1/2 object-cover object-center '
         width={1920}
         height={1920}
       />
-      <div className="mx-auto w-full max-w-md h-full flex flex-col justify-center items-center gap-2  lg:p-10">
-        <p className="text-4xl text-primary mr-auto  font-extrabold">
+      <Image
+        src={MobileAuth}
+        alt='Logo'
+        className='md:hidden w-full md:h-full h-1/2 object-cover object-center '
+        width={1920}
+        height={1920}
+      />
+      <div className='mx-auto w-full max-w-md h-full flex flex-col md:justify-center items-center gap-2  md:p-10 px-10'>
+        <p className='text-4xl text-primary mr-auto  font-extrabold'>
           Hello Admin!
         </p>
-        <p className="text-2xl text-primary mr-auto  font-light mb-12">
+        <p className='text-2xl text-primary mr-auto  font-light mb-12'>
           Welcome
         </p>
         <form
           onSubmit={singIn}
-          className=" flex flex-col w-full gap-2 items-center"
+          className=' flex flex-col w-full gap-2 items-center'
         >
-          <div className="relative flex items-center w-full">
+          <div className='relative flex items-center w-full'>
             {email === '' && (
-              <i className="fi fi-rr-envelope absolute left-8 text-gray-400"></i>
+              <i className='fi fi-rr-envelope absolute left-8 text-gray-400'></i>
             )}
 
             <input
               onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              name="email"
-              id="email"
-              placeholder="          Email Address"
-              className="w-full  border border-text border-opacity-50 px-5 py-6 rounded-full placeholder:font-light text-text"
+              type='email'
+              name='email'
+              id='email'
+              placeholder='          Email Address'
+              className='w-full  border border-text border-opacity-50 px-5 lg:py-6 py-3 rounded-full placeholder:font-light text-text'
             />
           </div>
 
-          <div className="relative flex items-center w-full">
+          <div className='relative flex items-center w-full'>
             {password === '' && (
-              <i className="fi fi-rr-lock absolute left-8 text-gray-400  "></i>
+              <i className='fi fi-rr-lock absolute left-8 text-gray-400  '></i>
             )}
             <input
               onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              name="password"
-              id="password"
-              placeholder="          Password"
-              className="w-full  border border-text border-opacity-50 px-5 py-6 rounded-full placeholder:font-light text-text"
+              type='password'
+              name='password'
+              id='password'
+              placeholder='          Password'
+              className='w-full  border border-text border-opacity-50 px-5 lg:py-6 py-3 rounded-full placeholder:font-light text-text'
             />
           </div>
 
@@ -88,16 +97,21 @@ const Page = () => {
         </form>
         <p>
           <Link
-            href="/recovery"
-            className="text-gray-500 hover:underline cursor-pointer"
+            href='/recovery'
+            className='text-gray-500 hover:underline cursor-pointer'
           >
             Forgot password
           </Link>
         </p>
         <Image
           src={Logo}
-          alt="Logo"
-          className=" absolute right-10 bottom-10 w-28 ml-auto"
+          alt='Logo'
+          className='hidden lg:block absolute right-10 bottom-10 w-28 ml-auto'
+        />
+        <Image
+          src={LogoMobile}
+          alt='Logo mobile'
+          className='lg:hidden absolute  bottom-10 w-28 ml-auto'
         />
       </div>
     </div>
