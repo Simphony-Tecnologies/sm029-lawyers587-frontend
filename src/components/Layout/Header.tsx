@@ -6,7 +6,7 @@ type typeHeader = {
 };
 const Header = ({ name, type }: typeHeader) => {
   return (
-    <header className='bg-white p-4 flex justify-end items-center space-x-4 shadow'>
+    <header className='hidden bg-white p-4 lg:flex justify-end items-center space-x-4 shadow'>
       <MdHelp size={24} className='text-gray-500 cursor-pointer' />
       <MdNotifications size={24} className='text-gray-500 cursor-pointer' />
       <div className='flex items-center space-x-4'>

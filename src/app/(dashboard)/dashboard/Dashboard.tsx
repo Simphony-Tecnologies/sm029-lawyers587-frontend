@@ -7,7 +7,7 @@ const Dashboard = () => {
   return (
     <div className='flex flex-col'>
       <Tilte name='Dashboard' />
-      <div className='grid lg:grid-cols-2 gap-10'>
+      <div className='grid lg:grid-cols-2 lg:gap-10 gap-5'>
         {statistics.map((statistic: any, index: any) => (
           <Cards
             key={index}

@@ -6,12 +6,27 @@ import { routesSidebar } from '@/routes/routes';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { MdLogin, MdOutlineMenu } from 'react-icons/md';
-export default function Sidebar({ data }: { data?: any }) {
+import {
+  MdCancel,
+  MdHelp,
+  MdLogin,
+  MdOutlineCancel,
+  MdOutlineMenu,
+} from 'react-icons/md';
+import { useMobileStatus } from '@/store/useMobileStatus.store';
+type siderbar = {
+  name?: string;
+  type?: string;
+};
+export default function Sidebar({ name, type }: siderbar) {
   const router = useRouter();
-  const [toggleStatus, setToggleStatus] = useState(true);
+  const { statusMobile, setStatusMobile, toggleStatus, setToggleStatus } =
+    useMobileStatus();
+
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+
   const rol = 'admin';
+
   const pathName = decodeURIComponent(usePathname());
 
   const toggleSidebar = () => {
@@ -27,39 +42,62 @@ export default function Sidebar({ data }: { data?: any }) {
 
   return (
     <aside
-      className={`py-5 lg:h-screen flex justify-center items-center lg:grid lg:grid-rows-[auto_1fr_auto] gap-5 lg:gap-20 bg-white lg:bg-main-color-50  border-t shadow-[0_0_50px_#d9d9d9;] lg:shadow-none rounded-t-2xl lg:rounded-none duration-300 fixed bottom-0 lg:relative z-50 lg:z-10 border border-solid border-gray-200 ${
-        toggleStatus ? 'w-full lg:w-72' : 'w-full lg:w-20'
-      }`}
+      className={` py-5 h-screen  items-center lg:grid grid-rows-[auto_1fr_auto] gap-20 bg-white  border-t shadow-none  duration-300  z-10 border border-solid border-gray-200 transition-all ease-in-out  ${
+        toggleStatus ? 'w-72 ' : 'w-20'
+      } ${statusMobile} `}
     >
       <header
-        className={`pl-5 hidden lg:block duration-300 ${
-          toggleStatus ? 'w-full lg:w-72' : 'w-full lg:w-20 lg:pr-4'
+        className={`flex flex-col pl-5 gap-10 duration-300 ${
+          toggleStatus ? 'w-72' : 'w-20 pr-4'
         }`}
       >
         <div
-          className={`w-full h-10 flex px-3 items-center gap-2 duration-300 ${
+          className={`w-full h-10 flex lg:px-3 items-center gap-2 duration-300 justify-between lg:justify-start ${
             toggleStatus ? 'flex-row' : 'flex-col'
           }`}
         >
           <MdOutlineMenu
             size={24}
             onClick={toggleSidebar}
-            className={` hidden lg:flex text-xl text-secondary cursor-pointer duration-300 `}
+            className={` hidden lg:flex text-xl  text-secondary cursor-pointer duration-300 `}
           />
+
           {toggleStatus && (
-            <Image
-              priority
-              src={Logo}
-              alt='Logo'
-              className={`w-auto max-h-10 duration-500 `}
-            />
+            <div className='flex flex-col '>
+              <Image
+                priority
+                src={Logo}
+                alt='Logo'
+                className={`w-auto max-h-10 duration-500 mt-5 `}
+              />
+              <div className='text-sm text-gray-500'>
+                {type ? type : 'Super Admin'}
+              </div>
+            </div>
           )}
+
+          <MdOutlineCancel
+            onClick={() => setStatusMobile('hidden')}
+            className={`lg:hidden text-xl mr-5 text-secondary cursor-pointer duration-300  `}
+          />
+        </div>
+        <div className='flex justify-between'>
+          <div className='lg:hidden flex items-center space-x-4'>
+            <div className='w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white cursor-pointer'></div>
+            <div className='text-gray-800'>
+              <div className='font-semibold '>{name ? name : 'name'}</div>
+            </div>
+          </div>
+          <MdHelp
+            size={24}
+            className='lg:hidden text-gray-500 cursor-pointer mr-5'
+          />
         </div>
       </header>
 
       <main
-        className={`pl-5 lg:px-0 w-screen h-full flex flex-row lg:flex-col justify-between lg:justify-start gap-2.5 lg:gap-5 duration-300 ${
-          toggleStatus ? 'w-max lg:w-full ' : 'w-max lg:w-20 '
+        className={` h-full flex flex-col justify-start gap-5 duration-300 ${
+          toggleStatus ? 'w-72 ' : 'w-20 '
         }`}
       >
         {rol === 'admin' && (
@@ -67,8 +105,8 @@ export default function Sidebar({ data }: { data?: any }) {
             {routesSidebar.map((menu, index) => (
               <div
                 key={index}
-                className={`lg:pl-5 w-full duration-300 ${
-                  toggleStatus ? 'w-max lg:w-full ' : 'w-max lg:w-20 lg:pr-4'
+                className={`pl-5 w-full duration-300 ${
+                  toggleStatus ? 'w-72 ' : 'w-20 pr-4'
                 }`}
               >
                 {menu.rol.includes(rol) && (
@@ -80,7 +118,7 @@ export default function Sidebar({ data }: { data?: any }) {
                       menu.route === pathName
                         ? 'bg-primary bg-opacity-10 text-primary'
                         : ''
-                    } flex items-center gap-5 py-2 transition-all duration-300 ease-in-out hover:bg-primary hover:bg-opacity-20 rounded-l-lg w-max lg:w-full ${
+                    } flex items-center gap-5 py-2 transition-all duration-300 ease-in-out hover:bg-primary hover:bg-opacity-20 rounded-l-lg  w-full ${
                       toggleStatus
                         ? 'px-3 lg:px-5 '
                         : 'px-3 lg:px-2.5 rounded-lg'
@@ -96,9 +134,7 @@ export default function Sidebar({ data }: { data?: any }) {
                       {menu.icon && <menu.icon size={24} />}
                     </div>
                     <span
-                      className={`duration-300 hidden lg:block ${
-                        !toggleStatus && 'lg:hidden'
-                      }`}
+                      className={`duration-300  ${!toggleStatus && 'hidden'}`}
                     >
                       {menu.name}
                     </span>
@@ -109,8 +145,8 @@ export default function Sidebar({ data }: { data?: any }) {
                   menu.children.map((child, childIndex) => (
                     <div
                       key={childIndex}
-                      className={`pl-5 lg:pl-8 w-full duration-300 ${
-                        toggleStatus ? 'w-max lg:w-full' : 'w-max lg:w-20'
+                      className={`pl-8 w-full duration-300 ${
+                        toggleStatus ? 'w-full' : ' pl-0'
                       }`}
                     >
                       {child.rol.includes(rol) && (
@@ -120,22 +156,24 @@ export default function Sidebar({ data }: { data?: any }) {
                             child.route === pathName
                               ? 'bg-primary bg-opacity-10 text-primary'
                               : ''
-                          } flex items-center gap-5 py-2 transition-all duration-300 ease-in-out hover:bg-primary hover:bg-opacity-20 rounded-l-lg w-max lg:w-full ${
-                            toggleStatus ? 'px-3 lg:px-5' : 'px-3 lg:px-2.5'
+                          } flex items-center gap-5 py-2 transition-all duration-300 ease-in-out hover:bg-primary hover:bg-opacity-20 rounded-l-lg w-full ${
+                            toggleStatus ? 'px-5' : 'px-2.5 rounded-lg gap-2'
                           }`}
                         >
                           <div
                             className={`${
-                              menu.route === pathName
+                              `${menu.route}${child.route}` === pathName
                                 ? 'text-secondary '
                                 : 'text-red-400 '
                             }`}
                           >
-                            {child.icon && <child.icon size={24} />}
+                            {!toggleStatus && child.icon && (
+                              <child.icon size={20} />
+                            )}
                           </div>
                           <span
-                            className={`duration-300 hidden lg:block ${
-                              !toggleStatus && 'lg:hidden'
+                            className={`duration-300  ${
+                              !toggleStatus && 'hidden'
                             }`}
                           >
                             {child.name}
@@ -151,13 +189,13 @@ export default function Sidebar({ data }: { data?: any }) {
       </main>
 
       <footer
-        className={`pl-5 w-max lg:w-full hidden lg:flex justify-center items-center rounded-lg transform duration-300 cursor-pointer ${
-          toggleStatus ? 'w-max lg:w-full' : 'w-max lg:w-20 pr-4'
+        className={`pl-5 w-full  flex justify-center items-center rounded-lg transform duration-300 cursor-pointer ${
+          toggleStatus ? 'w-full' : 'w-20 pr-4'
         }`}
       >
         <button
           onClick={signOut}
-          className={`flex items-center gap-5 py-2 transition-all duration-300 ease-in-out hover:bg-primary hover:bg-opacity-20 rounded-l-lg w-max lg:w-full ${
+          className={`flex items-center gap-5 py-2 transition-all duration-300 ease-in-out hover:bg-primary hover:bg-opacity-20 rounded-l-lg w-full ${
             toggleStatus
               ? 'px-3 lg:px-5 '
               : 'px-3 lg:px-2.5 lg:pr-4 rounded-r-lg '
@@ -166,8 +204,8 @@ export default function Sidebar({ data }: { data?: any }) {
           <MdLogin size={24} className='text-secondary' />
 
           <span
-            className={`duration-300 hidden lg:block  ${
-              !toggleStatus && 'lg:hidden lg:text-[0px]'
+            className={`duration-300  block  ${
+              !toggleStatus && 'hidden text-[0px]'
             }`}
           >
             Sign out
