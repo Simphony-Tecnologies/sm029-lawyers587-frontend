@@ -10,9 +10,7 @@ function HeaderMobile() {
     setToggleStatus(true);
   };
   return (
-    <header className='lg:hidden bg-white p-4   items-center space-x-4 shadow flex justify-between'>
-      {/* <MdHelp size={24} className='text-gray-500 cursor-pointer' />
-  <MdNotifications size={24} className='text-gray-500 cursor-pointer' /> */}
+    <header className='lg:hidden bg-white p-4 items-center space-x-4 shadow flex justify-between'>
       <Image
         priority
         src={Logo}
