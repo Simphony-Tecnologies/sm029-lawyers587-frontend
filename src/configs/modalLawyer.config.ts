@@ -1,4 +1,4 @@
-export const modalLawyer = [
+export const modalLawyerInput = [
   {
     name: "Lawyer's Name",
     defaultValue: '',
@@ -28,5 +28,32 @@ export const modalLawyer = [
     name: 'Name of Law Firm',
     defaultValue: '',
     type: 'text',
+  },
+];
+export const modalLawyerStatistics = [
+  {
+    name: 'Total leads',
+    value: '-',
+    color: '#898989',
+  },
+  {
+    name: 'Leads Available for request',
+    value: '-',
+    color: '#898989',
+  },
+  {
+    name: 'Active Leads',
+    value: '-',
+    color: '#4AD991',
+  },
+  {
+    name: 'Lost Leads',
+    value: '-',
+    color: '#FF9066',
+  },
+  {
+    name: 'Missed Leads',
+    value: '-',
+    color: '#FEC53D',
   },
 ];
