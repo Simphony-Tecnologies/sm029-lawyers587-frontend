@@ -1,5 +1,5 @@
 import Cards from '@/components/atoms/Cards';
-import Tilte from '@/components/atoms/Tilte';
+import Tilte from '@/components/organisms/Tilte';
 import { statistics } from '@/configs/statistics.confing';
 import React from 'react';
 

@@ -1,4 +1,4 @@
-import Tilte from '@/components/atoms/Tilte';
+import Tilte from '@/components/organisms/Tilte';
 
 const LostLeads = () => {
   return (

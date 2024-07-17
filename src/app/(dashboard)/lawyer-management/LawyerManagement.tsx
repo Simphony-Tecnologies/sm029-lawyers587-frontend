@@ -1,6 +1,6 @@
 'use client';
 import Input from '@/components/atoms/Input';
-import Tilte from '@/components/atoms/Tilte';
+import Tilte from '@/components/organisms/Tilte';
 import Modal from '@/components/organisms/Modal';
 import SortableTable from '@/components/organisms/SortableTable';
 import {
@@ -10,53 +10,50 @@ import {
 import { database } from '@/services/database';
 import { useState, useEffect } from 'react';
 import { MdOutlineImage, MdSaveAlt } from 'react-icons/md';
-type LawyerData = {
-  code: string;
-  lawyer_name: string;
-  email: string;
-  phone_number: string;
-  service_type: string;
-  leads_pulled: number;
-  active_leads: number;
-  no_leads_lost: number;
-  last_active: number;
-  status: 'Assignable' | 'Unassignable';
-};
+import SearchInput from '@/components/atoms/SearchInput';
+
 const LawyerManagement = () => {
   const [data, setData] = useState<LawyerData[]>([]);
   const [columns, setColumns] = useState([]);
   const [error, setError] = useState(null);
   let [isOpen, setIsOpen] = useState(false);
   const [dataIndex, setDataIndex] = useState<LawyerData>();
+  const [searchText, setSearchText] = useState<string>('');
+  const [searchedResults, setSearchedResults] = useState<LawyerData[]>([]);
+  const fetchData = async () => {
+    try {
+      const response = await database.getData(
+        process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT || ''
+      );
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await database.getData(
-          process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT || ''
-        );
-        console.log(response);
-
-        if (!response.success) {
-          throw new Error('Network response was not ok');
-        }
-
-        const data = response.data;
-
-        setData(data);
-
-        if (data.length > 0) {
-          const firstItem = data[0];
-          const titles: any = Object.keys(firstItem);
-          setColumns(titles);
-        }
-      } catch (error: any) {
-        setError(error.message);
+      if (!response.success) {
+        throw new Error('Network response was not ok');
       }
-    };
 
+      const data = response.data;
+      // if (searchText) {
+      //   return setData(searchedResults);
+      // }
+      setData(data);
+
+      if (data.length > 0) {
+        const firstItem = data[0];
+        const titles: any = Object.keys(firstItem);
+        setColumns(titles);
+      }
+    } catch (error: any) {
+      setError(error.message);
+    }
+  };
+  useEffect(() => {
     fetchData();
   }, []);
+  useEffect(() => {
+    if (searchText) {
+      return setData(searchedResults);
+    }
+    fetchData();
+  }, [searchText]);
 
   const statusColors = {
     Assignable: '#00B69B',
@@ -67,12 +64,12 @@ const LawyerManagement = () => {
     setIsOpen(true);
     if (data) {
       setDataIndex(data[index]);
-      modalLawyerInput[0].defaultValue = data[index].lawyer_name;
-      modalLawyerInput[1].defaultValue = data[index].service_type;
+      modalLawyerInput[0].defaultValue = data[index].firstName;
+      modalLawyerInput[1].defaultValue = data[index].service_type.name;
       modalLawyerInput[2].defaultValue = data[index].email;
-      modalLawyerInput[3].defaultValue = data[index].phone_number;
-      modalLawyerInput[4].defaultValue = data[index].leads_pulled.toString();
-      modalLawyerInput[5].defaultValue = data[index].active_leads.toString();
+      modalLawyerInput[3].defaultValue = data[index].phone;
+      modalLawyerInput[4].defaultValue = data[index].max_leads;
+      //modalLawyerInput[5].defaultValue = data[index].active_leads;
     }
   };
 
@@ -181,10 +178,16 @@ const LawyerManagement = () => {
           </div>
         </footer>
       </Modal>
-      <Tilte name='Lawyer Management' />
+      <Tilte
+        name='Lawyer Management'
+        search={true}
+        setSearchText={setSearchText}
+        setSearchedResults={setSearchedResults}
+        dataFilter={data}
+      />
       <SortableTable
         columns={columns}
-        data={data}
+        data={data as any}
         statusColors={statusColors}
         onEdit={handleEdit}
         onDelete={handleDelete}
