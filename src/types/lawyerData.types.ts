@@ -1,5 +1,7 @@
 type LawyerData = {
   code: string;
+  id: number;
+  password: string;
   created_at: string;
   email: string;
   firstName: string;

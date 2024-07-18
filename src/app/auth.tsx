@@ -9,6 +9,7 @@ import { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { database } from '@/services/database';
 
 const Page = () => {
   const router = useRouter();
@@ -24,9 +25,24 @@ const Page = () => {
       setLoading(false);
       return toast.error('You must provide all fields');
     }
-    console.log(email, password);
-    setLoading(false);
+
+    const login = await database.auth(email, password);
+
+    if (login.code === 401) {
+      setLoading(false);
+      return toast.error('error password');
+    }
+    if (login.code === 404) {
+      setLoading(false);
+      return toast.error('The email is not existing');
+    }
+    if (!login.success) {
+      setLoading(false);
+      return toast.error('Error in authenticating');
+    }
     router.push('/dashboard');
+
+    setLoading(false);
   };
 
   return (

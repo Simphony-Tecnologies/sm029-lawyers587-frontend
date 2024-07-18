@@ -13,6 +13,7 @@ import {
   MdOutlineMenu,
 } from 'react-icons/md';
 import { useMobileStatus } from '@/store/useMobileStatus.store';
+import { database } from '@/services/database';
 type siderbar = {
   name?: string;
   type?: string;
@@ -35,7 +36,8 @@ export default function Sidebar({ name, type }: siderbar) {
     setOpenDropdown(openDropdown === route ? null : route);
   };
 
-  const signOut = async () => {
+  const signOut = () => {
+    database.signout();
     router.push('/');
   };
 
@@ -62,14 +64,14 @@ export default function Sidebar({ name, type }: siderbar) {
           />
 
           {toggleStatus && (
-            <div className="flex flex-col ">
+            <div className='flex flex-col '>
               <Image
                 priority
                 src={Logo}
-                alt="Logo"
+                alt='Logo'
                 className={`w-auto max-h-10 duration-500 mt-5 `}
               />
-              <div className="text-sm text-gray-500">
+              <div className='text-sm text-gray-500'>
                 {type ? type : 'Super Admin'}
               </div>
             </div>
@@ -80,16 +82,16 @@ export default function Sidebar({ name, type }: siderbar) {
             className={`lg:hidden text-xl mr-5 text-secondary cursor-pointer duration-300  `}
           />
         </div>
-        <div className="flex justify-between">
-          <div className="lg:hidden flex items-center space-x-4">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white cursor-pointer"></div>
-            <div className="text-gray-800">
-              <div className="font-semibold ">{name ? name : 'name'}</div>
+        <div className='flex justify-between'>
+          <div className='lg:hidden flex items-center space-x-4'>
+            <div className='w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white cursor-pointer'></div>
+            <div className='text-gray-800'>
+              <div className='font-semibold '>{name ? name : 'name'}</div>
             </div>
           </div>
           <MdHelp
             size={24}
-            className="lg:hidden text-gray-500 cursor-pointer mr-5"
+            className='lg:hidden text-gray-500 cursor-pointer mr-5'
           />
         </div>
       </header>
@@ -200,7 +202,7 @@ export default function Sidebar({ name, type }: siderbar) {
               : 'px-3 lg:px-2.5 lg:pr-4 rounded-r-lg '
           }duration-300 cursor-pointer`}
         >
-          <MdLogin size={24} className="text-secondary" />
+          <MdLogin size={24} className='text-secondary' />
 
           <span
             className={`duration-300  block  ${
