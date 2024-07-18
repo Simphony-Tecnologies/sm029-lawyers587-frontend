@@ -111,4 +111,30 @@ export const database = {
       };
     }
   },
+  CreateLawyer: async (sendData: object): Promise<ResponseEndpoint> => {
+    try {
+      const url: string = process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT || '';
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sendData),
+      });
+      const data = await response.json();
+
+      return {
+        success: true,
+        code: 200,
+        data: data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 400,
+        data: [],
+        messages: 'error connecting to database',
+      };
+    }
+  },
 };

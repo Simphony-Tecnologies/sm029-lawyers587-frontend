@@ -10,16 +10,18 @@ import {
 import { database } from '@/services/database';
 import { useState, useEffect } from 'react';
 import { MdOutlineImage, MdSaveAlt } from 'react-icons/md';
-import SearchInput from '@/components/atoms/SearchInput';
-
+import Button from '@/components/atoms/Button';
+import toast from 'react-hot-toast';
 const LawyerManagement = () => {
   const [data, setData] = useState<LawyerData[]>([]);
   const [columns, setColumns] = useState([]);
   const [error, setError] = useState(null);
-  let [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isOpenNew, setIsOpenNew] = useState(false);
   const [dataIndex, setDataIndex] = useState<LawyerData>();
   const [searchText, setSearchText] = useState<string>('');
   const [searchedResults, setSearchedResults] = useState<LawyerData[]>([]);
+  const [dataServiceType, setDataServiceType] = useState([]);
   const fetchData = async () => {
     try {
       const response = await database.getData(
@@ -31,9 +33,7 @@ const LawyerManagement = () => {
       }
 
       const data = response.data;
-      // if (searchText) {
-      //   return setData(searchedResults);
-      // }
+
       setData(data);
 
       if (data.length > 0) {
@@ -45,8 +45,64 @@ const LawyerManagement = () => {
       setError(error.message);
     }
   };
+
+  const statusColors = {
+    Assignable: '#00B69B',
+    Unassignable: '#FF4240',
+  };
+  const formaterSelect = (data: { name: string; id: string }[]) =>
+    data.map((item) => ({
+      name: item.name,
+      value: item.id,
+    }));
+  const handleEdit = (index: number) => {
+    setIsOpen(true);
+
+    if (data) {
+      setDataIndex(data[index]);
+      modalLawyerInput[0].defaultValue = data[index].firstName;
+      modalLawyerInput[1].defaultValue = data[index].lastName;
+      modalLawyerInput[2].values = formaterSelect(dataServiceType);
+    }
+  };
+  console.log(dataServiceType);
+
+  const handleDelete = (index: number) => {
+    const newData = data.filter((_, i) => i !== index);
+    setData(newData);
+  };
+  const createlawyer = async (e: any) => {
+    e.preventDefault();
+
+    const data = {
+      firstName: e.target.name.value,
+      lastName: e.target.lastname.value,
+      email: e.target.email.value,
+      phone: e.target.phone.value,
+      code: 'ABCD1234',
+      service_type_id: e.target.service_type_id.value,
+      role_id: e.target.role_id.value,
+      password: e.target.password.value,
+      max_leads: e.target.password.value,
+      is_active: true,
+    };
+    await database.CreateLawyer(data);
+    fetchData();
+    setIsOpenNew(false);
+  };
+  const getServiceType = async () => {
+    const resType = await database.getData(
+      process.env.NEXT_PUBLIC_URL_SERVICE_TYPE || ''
+    );
+    if (!resType.success) {
+      return toast.error('Error to get service type');
+    }
+    setDataServiceType(resType.data);
+    modalLawyerInput[2].values = formaterSelect(resType.data);
+  };
   useEffect(() => {
     fetchData();
+    getServiceType();
   }, []);
   useEffect(() => {
     if (searchText) {
@@ -54,32 +110,8 @@ const LawyerManagement = () => {
     }
     fetchData();
   }, [searchText]);
-
-  const statusColors = {
-    Assignable: '#00B69B',
-    Unassignable: '#FF4240',
-  };
-
-  const handleEdit = (index: number) => {
-    setIsOpen(true);
-    if (data) {
-      setDataIndex(data[index]);
-      modalLawyerInput[0].defaultValue = data[index].firstName;
-      modalLawyerInput[1].defaultValue = data[index].service_type.name;
-      modalLawyerInput[2].defaultValue = data[index].email;
-      modalLawyerInput[3].defaultValue = data[index].phone;
-      modalLawyerInput[4].defaultValue = data[index].max_leads;
-      //modalLawyerInput[5].defaultValue = data[index].active_leads;
-    }
-  };
-
-  const handleDelete = (index: number) => {
-    const newData = data.filter((_, i) => i !== index);
-    setData(newData);
-  };
-
   return (
-    <div className='container mx-auto p-4'>
+    <div className='container mx-auto p-4 flex flex-col gap-5'>
       <Modal title='Lawyer Details' isOpen={isOpen} setIsOpen={setIsOpen}>
         <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200'>
           <div className='flex flex-col gap-5'>
@@ -92,11 +124,15 @@ const LawyerManagement = () => {
               <MdSaveAlt size={24} />
             </div>
             <form className='grid grid-cols-2 gap-5'>
-              {modalLawyerInput.map((res, index) => (
+              {modalLawyerInput.map((res: any, index) => (
                 <Input
                   key={index}
                   name={res.name}
+                  label={res.label}
+                  required={res.required}
+                  type={res.type}
                   defaultValue={res.defaultValue}
+                  values={res.values}
                 />
               ))}
               <div className='col-span-2'>
@@ -178,6 +214,44 @@ const LawyerManagement = () => {
           </div>
         </footer>
       </Modal>
+      <Modal title='New Lawyer ' isOpen={isOpenNew} setIsOpen={setIsOpenNew}>
+        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200'>
+          <div className='flex flex-col gap-5'>
+            <div className='text-gray-500 text-sm'>Code: {dataIndex?.code}</div>
+            <div className='flex items-center gap-2'>
+              <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
+                <MdOutlineImage size={32} />
+              </div>
+              <p className='hover:underline cursor-pointer'>Change image</p>
+              <MdSaveAlt size={24} />
+            </div>
+            <form onSubmit={createlawyer} className='grid grid-cols-2 gap-5'>
+              {modalLawyerInput.map((res: any, index) => (
+                <Input
+                  key={index}
+                  name={res.name}
+                  label={res.label}
+                  required={res.required}
+                  type={res.type}
+                  values={res.values}
+                />
+              ))}
+              <div className='col-span-2'>
+                <label className='font-bold' htmlFor='Notes'>
+                  Notes
+                </label>
+                <textarea
+                  name='Notes'
+                  className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
+                />
+              </div>
+              <div className='col-span-2 flex justify-end'>
+                <Button name='Save' type='submit' />
+              </div>
+            </form>
+          </div>
+        </div>
+      </Modal>
       <Tilte
         name='Lawyer Management'
         search={true}
@@ -185,6 +259,14 @@ const LawyerManagement = () => {
         setSearchedResults={setSearchedResults}
         dataFilter={data}
       />
+      <div className='flex justify-end '>
+        <Button
+          name='+ New Lawyer'
+          type='button'
+          onClick={() => setIsOpenNew(true)}
+        />
+      </div>
+
       <SortableTable
         columns={columns}
         data={data as any}

@@ -127,7 +127,7 @@ const SortableTable = ({
                     key={column}
                     className='px-4 py-2 border-b border-gray-200'
                   >
-                    {column === 'date' ? (
+                    {column === 'created_at ' ? (
                       dayjs(item[column] as string).format('MM/DD/YYYY')
                     ) : column === 'last_active' ? (
                       dayjs.unix(item[column] as number).format('HH:mm A')
