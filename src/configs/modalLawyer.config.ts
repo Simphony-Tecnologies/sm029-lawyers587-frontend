@@ -1,4 +1,25 @@
-export const modalLawyerInput = [
+type select = {
+  name: string;
+  value: string;
+};
+
+type ModalLawyerInput = {
+  label: string;
+  name: string;
+  defaultValue?: string | number;
+  type:
+    | 'text'
+    | 'number'
+    | 'select'
+    | 'date'
+    | 'email'
+    | 'password'
+    | 'file'
+    | 'datetime-local';
+  required: boolean;
+  values?: select[];
+};
+export const modalLawyerInput: ModalLawyerInput[] = [
   {
     label: 'name',
     name: 'firstName',
@@ -8,7 +29,7 @@ export const modalLawyerInput = [
   },
   {
     label: 'lastname',
-    name: 'lastName',
+    name: 'lastname',
     defaultValue: '',
     type: 'text',
     required: true,
@@ -16,10 +37,15 @@ export const modalLawyerInput = [
   {
     label: 'area of law',
     name: 'service_type_id',
-    defaultValue: '',
     type: 'select',
     required: true,
-    values: [],
+    defaultValue: 0,
+    values: [
+      {
+        name: '',
+        value: '',
+      },
+    ],
   },
   {
     label: 'phone number',
@@ -35,7 +61,7 @@ export const modalLawyerInput = [
     type: 'text',
     required: true,
   },
-  ,
+
   {
     label: 'password',
     name: 'password',
@@ -54,9 +80,10 @@ export const modalLawyerInput = [
   {
     label: 'Role',
     name: 'role_id',
-    defaultValue: '',
-    type: 'number',
+    type: 'select',
+    defaultValue: 0,
     required: true,
+    values: [],
   },
   {
     label: 'Active',

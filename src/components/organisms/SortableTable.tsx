@@ -1,4 +1,3 @@
-// components/SortableTable.tsx
 import React, { useState } from 'react';
 import dayjs from 'dayjs';
 import {
@@ -84,6 +83,10 @@ const SortableTable = ({
     setCurrentPage((prevPage) => prevPage + 1);
   };
 
+  const calculateGlobalIndex = (localIndex: number) => {
+    return (currentPage - 1) * itemsPerPage + localIndex;
+  };
+
   return (
     <div className='flex flex-col gap-10'>
       <div className='relative overflow-x-auto shadow-sm sm:rounded-lg border'>
@@ -120,17 +123,19 @@ const SortableTable = ({
             </tr>
           </thead>
           <tbody>
-            {paginatedData.map((item, index) => (
-              <tr key={index}>
+            {paginatedData.map((item: any, index) => (
+              <tr key={item.code}>
                 {columns.map((column) => (
                   <td
                     key={column}
                     className='px-4 py-2 border-b border-gray-200'
                   >
-                    {column === 'created_at ' ? (
+                    {column === 'created_at' ? (
                       dayjs(item[column] as string).format('MM/DD/YYYY')
                     ) : column === 'last_active' ? (
                       dayjs.unix(item[column] as number).format('HH:mm A')
+                    ) : column === 'service_type' ? (
+                      item[column].name
                     ) : column === 'status' && statusColors ? (
                       <span
                         className={`px-2 py-1 rounded font-semibold ${
@@ -152,7 +157,7 @@ const SortableTable = ({
                   <td className='px-4 py-2 border-b border-gray-200'>
                     {onEdit && (
                       <button
-                        onClick={() => onEdit(index)}
+                        onClick={() => onEdit(calculateGlobalIndex(index))}
                         className='text-white bg-customGreen bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customGreen'
                       >
                         <MdEdit />
@@ -160,7 +165,7 @@ const SortableTable = ({
                     )}
                     {onDelete && (
                       <button
-                        onClick={() => onDelete(index)}
+                        onClick={() => onDelete(calculateGlobalIndex(index))}
                         className='text-white bg-customRed bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customRed'
                       >
                         <MdOutlineDelete />

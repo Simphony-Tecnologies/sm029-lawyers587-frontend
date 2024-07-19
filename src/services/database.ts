@@ -93,9 +93,7 @@ export const database = {
     try {
       const response = await fetch(source);
       const dataFull = await response.json();
-      const data = dataFull.map(
-        ({ id, password, ...rest }: LawyerData) => rest
-      );
+      const data = dataFull.map(({ password, ...rest }: LawyerData) => rest);
 
       return {
         success: true,

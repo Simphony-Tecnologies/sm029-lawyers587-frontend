@@ -22,6 +22,21 @@ const LawyerManagement = () => {
   const [searchText, setSearchText] = useState<string>('');
   const [searchedResults, setSearchedResults] = useState<LawyerData[]>([]);
   const [dataServiceType, setDataServiceType] = useState([]);
+  const [withOutFormat, setWithOutFormat] = useState<LawyerData[]>([]);
+  const formatResponse = (data: any) => {
+    return {
+      code: data.id,
+      lawyer_name: `${data.firstName} ${data.lastName}`,
+      email: data.email,
+      phone_number: data.phone,
+      service_type: data.service_type,
+      leads_pulled: `0/${data.max_leads}`,
+      active_leads: 0,
+      no_leads_lost: 0,
+      last_active: Math.floor(new Date(data.last_login).getTime() / 1000),
+      status: data.is_active ? 'Assignable' : 'Unassignable',
+    };
+  };
   const fetchData = async () => {
     try {
       const response = await database.getData(
@@ -31,13 +46,13 @@ const LawyerManagement = () => {
       if (!response.success) {
         throw new Error('Network response was not ok');
       }
-
       const data = response.data;
-
-      setData(data);
+      setWithOutFormat(data);
+      const dataFormat = data.map(formatResponse);
+      setData(dataFormat);
 
       if (data.length > 0) {
-        const firstItem = data[0];
+        const firstItem = dataFormat[0];
         const titles: any = Object.keys(firstItem);
         setColumns(titles);
       }
@@ -58,14 +73,15 @@ const LawyerManagement = () => {
   const handleEdit = (index: number) => {
     setIsOpen(true);
 
-    if (data) {
+    if (data && data[index]) {
       setDataIndex(data[index]);
-      modalLawyerInput[0].defaultValue = data[index].firstName;
-      modalLawyerInput[1].defaultValue = data[index].lastName;
+      modalLawyerInput[0].defaultValue = withOutFormat[index].firstName;
+      modalLawyerInput[1].defaultValue = withOutFormat[index].lastName;
       modalLawyerInput[2].values = formaterSelect(dataServiceType);
+      modalLawyerInput[2].defaultValue = withOutFormat[index].service_type.id;
+      modalLawyerInput[7].defaultValue = withOutFormat[index].role.id;
     }
   };
-  console.log(dataServiceType);
 
   const handleDelete = (index: number) => {
     const newData = data.filter((_, i) => i !== index);
@@ -75,7 +91,7 @@ const LawyerManagement = () => {
     e.preventDefault();
 
     const data = {
-      firstName: e.target.name.value,
+      firstName: e.target.firstName.value,
       lastName: e.target.lastname.value,
       email: e.target.email.value,
       phone: e.target.phone.value,
@@ -86,6 +102,7 @@ const LawyerManagement = () => {
       max_leads: e.target.password.value,
       is_active: true,
     };
+
     await database.CreateLawyer(data);
     fetchData();
     setIsOpenNew(false);
@@ -100,9 +117,21 @@ const LawyerManagement = () => {
     setDataServiceType(resType.data);
     modalLawyerInput[2].values = formaterSelect(resType.data);
   };
+  const getRole = async () => {
+    const roles = await database.getData(
+      process.env.NEXT_PUBLIC_URL_ROLES || ''
+    );
+
+    if (!roles.success) {
+      return toast.error('Error to get role');
+    }
+    //setDataServiceType(resType.data);
+    modalLawyerInput[7].values = formaterSelect(roles.data);
+  };
   useEffect(() => {
-    fetchData();
     getServiceType();
+    getRole();
+    fetchData();
   }, []);
   useEffect(() => {
     if (searchText) {
@@ -124,7 +153,7 @@ const LawyerManagement = () => {
               <MdSaveAlt size={24} />
             </div>
             <form className='grid grid-cols-2 gap-5'>
-              {modalLawyerInput.map((res: any, index) => (
+              {modalLawyerInput.map((res: any, index: number) => (
                 <Input
                   key={index}
                   name={res.name}
@@ -226,7 +255,7 @@ const LawyerManagement = () => {
               <MdSaveAlt size={24} />
             </div>
             <form onSubmit={createlawyer} className='grid grid-cols-2 gap-5'>
-              {modalLawyerInput.map((res: any, index) => (
+              {modalLawyerInput.map((res: any, index: number) => (
                 <Input
                   key={index}
                   name={res.name}

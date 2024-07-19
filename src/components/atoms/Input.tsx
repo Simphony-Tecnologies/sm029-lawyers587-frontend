@@ -23,9 +23,12 @@ const Input = ({
       {type === 'select' ? (
         <select
           className='flex flex-row w-full max-w-lg border border-gray-300 p-1 rounded-lg placeholder:font-light text-text '
-          name=''
-          id=''
+          name={name}
+          defaultValue={defaultValue}
         >
+          <option value='' disabled>
+            select
+          </option>
           {values.map((value: any, index: number) => (
             <option value={value.value} key={index}>
               {value.name}
