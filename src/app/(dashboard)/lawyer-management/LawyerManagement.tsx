@@ -14,6 +14,7 @@ import Button from '@/components/atoms/Button';
 import toast from 'react-hot-toast';
 const LawyerManagement = () => {
   const [data, setData] = useState<LawyerData[]>([]);
+
   const [columns, setColumns] = useState([]);
   const [error, setError] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -99,7 +100,7 @@ const LawyerManagement = () => {
       service_type_id: e.target.service_type_id.value,
       role_id: e.target.role_id.value,
       password: e.target.password.value,
-      max_leads: e.target.password.value,
+      max_leads: e.target.max_leads.value,
       is_active: true,
     };
 
@@ -140,19 +141,19 @@ const LawyerManagement = () => {
     fetchData();
   }, [searchText]);
   return (
-    <div className='container mx-auto p-4 flex flex-col gap-5'>
-      <Modal title='Lawyer Details' isOpen={isOpen} setIsOpen={setIsOpen}>
-        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200'>
-          <div className='flex flex-col gap-5'>
-            <div className='text-gray-500 text-sm'>Code: {dataIndex?.code}</div>
-            <div className='flex items-center gap-2'>
-              <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
+    <div className="container mx-auto p-4 flex flex-col gap-5">
+      <Modal title="Lawyer Details" isOpen={isOpen} setIsOpen={setIsOpen}>
+        <div className="p-5 border-2 border-t-none border-solid rounded-lg border-gray-200">
+          <div className="flex flex-col gap-5">
+            <div className="text-gray-500 text-sm">Code: {dataIndex?.code}</div>
+            <div className="flex items-center gap-2">
+              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer">
                 <MdOutlineImage size={32} />
               </div>
-              <p className='hover:underline cursor-pointer'>Change image</p>
+              <p className="hover:underline cursor-pointer">Change image</p>
               <MdSaveAlt size={24} />
             </div>
-            <form className='grid grid-cols-2 gap-5'>
+            <form className="grid grid-cols-2 gap-5">
               {modalLawyerInput.map((res: any, index: number) => (
                 <Input
                   key={index}
@@ -164,56 +165,56 @@ const LawyerManagement = () => {
                   values={res.values}
                 />
               ))}
-              <div className='col-span-2'>
-                <label className='font-bold' htmlFor='Notes'>
+              <div className="col-span-2">
+                <label className="font-bold" htmlFor="Notes">
                   Notes
                 </label>
                 <textarea
-                  name='Notes'
-                  className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
+                  name="Notes"
+                  className="border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 "
                 />
               </div>
-              <div className=''>
-                <p className='text-primary font-bold'>Password</p>
-                <p className='hover:underline cursor-pointer '>
+              <div className="">
+                <p className="text-primary font-bold">Password</p>
+                <p className="hover:underline cursor-pointer ">
                   Update password
                 </p>
               </div>
 
-              <button className='relative'>
-                <p className='rounded-md bg-primary text-white inline-block bottom-0 absolute right-0 px-4'>
+              <button className="relative">
+                <p className="rounded-md bg-primary text-white inline-block bottom-0 absolute right-0 px-4">
                   save
                 </p>
               </button>
             </form>
           </div>
         </div>
-        <footer className='flex flex-col gap-6 mt-6'>
+        <footer className="flex flex-col gap-6 mt-6">
           <p>
             Info about the leads assigned to this lawyer{' '}
-            <span className='text-gray-500'>
+            <span className="text-gray-500">
               Since May 1st to present Last active 12:56pm
             </span>
           </p>
-          <div className='flex  gap-2 flex-wrap'>
+          <div className="flex  gap-2 flex-wrap">
             {modalLawyerStatistics.map((res, index) => (
               <div
                 key={index}
-                className='flex gap-4 px-4 py-1.5 rounded-lg'
+                className="flex gap-4 px-4 py-1.5 rounded-lg"
                 style={{
                   background: `${res.color}20`,
                   color: res.color,
                 }}
               >
-                <p className=' '>{res.name}</p>
+                <p className=" ">{res.name}</p>
                 <p>: {res.value}</p>
               </div>
             ))}
           </div>
-          <div className='flex gap-4 items-center'>
+          <div className="flex gap-4 items-center">
             <p>Status:</p>
             <p
-              className='px-4 py-1 rounded-lg'
+              className="px-4 py-1 rounded-lg"
               style={{
                 backgroundColor: `${
                   dataIndex?.status === 'Assignable'
@@ -243,18 +244,18 @@ const LawyerManagement = () => {
           </div>
         </footer>
       </Modal>
-      <Modal title='New Lawyer ' isOpen={isOpenNew} setIsOpen={setIsOpenNew}>
-        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200'>
-          <div className='flex flex-col gap-5'>
-            <div className='text-gray-500 text-sm'>Code: {dataIndex?.code}</div>
-            <div className='flex items-center gap-2'>
-              <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
+      <Modal title="New Lawyer " isOpen={isOpenNew} setIsOpen={setIsOpenNew}>
+        <div className="p-5 border-2 border-t-none border-solid rounded-lg border-gray-200">
+          <div className="flex flex-col gap-5">
+            <div className="text-gray-500 text-sm">Code: {dataIndex?.code}</div>
+            <div className="flex items-center gap-2">
+              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer">
                 <MdOutlineImage size={32} />
               </div>
-              <p className='hover:underline cursor-pointer'>Change image</p>
+              <p className="hover:underline cursor-pointer">Change image</p>
               <MdSaveAlt size={24} />
             </div>
-            <form onSubmit={createlawyer} className='grid grid-cols-2 gap-5'>
+            <form onSubmit={createlawyer} className="grid grid-cols-2 gap-5">
               {modalLawyerInput.map((res: any, index: number) => (
                 <Input
                   key={index}
@@ -265,33 +266,33 @@ const LawyerManagement = () => {
                   values={res.values}
                 />
               ))}
-              <div className='col-span-2'>
-                <label className='font-bold' htmlFor='Notes'>
+              <div className="col-span-2">
+                <label className="font-bold" htmlFor="Notes">
                   Notes
                 </label>
                 <textarea
-                  name='Notes'
-                  className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
+                  name="Notes"
+                  className="border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 "
                 />
               </div>
-              <div className='col-span-2 flex justify-end'>
-                <Button name='Save' type='submit' />
+              <div className="col-span-2 flex justify-end">
+                <Button name="Save" type="submit" />
               </div>
             </form>
           </div>
         </div>
       </Modal>
       <Tilte
-        name='Lawyer Management'
+        name="Lawyer Management"
         search={true}
         setSearchText={setSearchText}
         setSearchedResults={setSearchedResults}
         dataFilter={data}
       />
-      <div className='flex justify-end '>
+      <div className="flex justify-end ">
         <Button
-          name='+ New Lawyer'
-          type='button'
+          name="+ New Lawyer"
+          type="button"
           onClick={() => setIsOpenNew(true)}
         />
       </div>
