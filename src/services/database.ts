@@ -71,7 +71,7 @@ export const database = {
       return {
         success: true,
         code: 200,
-        data: data.role.name,
+        data: data.data.role.name,
       };
     } catch (error: any) {
       return {
@@ -89,11 +89,51 @@ export const database = {
       message: 'Signed out successfully',
     };
   },
+  getLawyer: async (id: any) => {
+    try {
+      const url:
+        | string
+        | undefined = `${process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT}/${id}`;
+      const response: Response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        const error: any = new Error(
+          errorData.message || 'Authentication failed'
+        );
+        error.statusCode = response.status;
+        throw error;
+      }
+      const data = await response.json();
+      // const data = dataFull.data.map(
+      //   ({ password, ...rest }: LawyerData) => rest
+      // );
+      return {
+        success: true,
+        code: 200,
+        data: data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        code: error.statusCode || 500,
+        data: null,
+        messages: error.message || 'An unexpected error occurred',
+      };
+    }
+  },
   getData: async (source: string): Promise<ResponseEndpoint> => {
     try {
       const response = await fetch(source);
       const dataFull = await response.json();
-      const data = dataFull.map(({ password, ...rest }: LawyerData) => rest);
+
+      const data = dataFull.data.map(
+        ({ password, ...rest }: LawyerData) => rest
+      );
 
       return {
         success: true,
@@ -132,6 +172,59 @@ export const database = {
         code: 400,
         data: [],
         messages: 'error connecting to database',
+      };
+    }
+  },
+  UpdateLawyer: async (
+    sendData: LawyerData,
+    id?: number | undefined
+  ): Promise<ResponseEndpoint> => {
+    try {
+      const url: string = `${process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT}/${id}`;
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sendData),
+      });
+      const data = await response.json();
+
+      return {
+        success: true,
+        code: data.statusCode,
+        data: data,
+        messages: data.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 400,
+        data: [],
+        messages: 'error updating lawyer',
+      };
+    }
+  },
+  DeleteLawyer: async (id?: number | undefined): Promise<ResponseEndpoint> => {
+    try {
+      const url: string = `${process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT}/${id}`;
+      const response = await fetch(url, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+
+      return {
+        success: data.success,
+        code: data.statusCode,
+        data: data,
+        messages: data.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 400,
+        data: [],
+        messages: 'error deleted lawyer',
       };
     }
   },

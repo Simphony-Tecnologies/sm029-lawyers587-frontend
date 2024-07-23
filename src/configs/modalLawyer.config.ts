@@ -1,6 +1,6 @@
 type select = {
   name: string;
-  value: string;
+  value: string | boolean | number;
 };
 
 type ModalLawyerInput = {
@@ -18,6 +18,7 @@ type ModalLawyerInput = {
     | 'datetime-local';
   required: boolean;
   values?: select[];
+  mode?: string;
 };
 export const modalLawyerInput: ModalLawyerInput[] = [
   {
@@ -39,7 +40,7 @@ export const modalLawyerInput: ModalLawyerInput[] = [
     name: 'service_type_id',
     type: 'select',
     required: true,
-    defaultValue: 0,
+    defaultValue: '',
     values: [
       {
         name: '',
@@ -68,6 +69,7 @@ export const modalLawyerInput: ModalLawyerInput[] = [
     defaultValue: '',
     type: 'password',
     required: true,
+    mode: 'edit',
   },
 
   {
@@ -78,19 +80,30 @@ export const modalLawyerInput: ModalLawyerInput[] = [
     required: true,
   },
   {
+    label: 'Name of Law Firm',
+    name: 'name_of_law_firm',
+    defaultValue: '',
+    type: 'text',
+    required: false,
+  },
+  {
     label: 'Role',
     name: 'role_id',
     type: 'select',
-    defaultValue: 0,
+    defaultValue: 2,
     required: true,
     values: [],
   },
   {
     label: 'Active',
-    name: 'Active',
+    name: 'is_active',
+    type: 'select',
     defaultValue: '',
-    type: 'text',
     required: true,
+    values: [
+      { value: true, name: 'active' },
+      { value: false, name: 'inactive' },
+    ],
   },
 ];
 export const modalLawyerStatistics = [
