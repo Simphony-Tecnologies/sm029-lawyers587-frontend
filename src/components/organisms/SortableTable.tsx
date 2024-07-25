@@ -1,3 +1,4 @@
+'use client';
 import React, { useState } from 'react';
 import dayjs from 'dayjs';
 import {
@@ -33,7 +34,7 @@ const SortableTable = ({
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
-  const totalPages = Math.ceil(data.length / itemsPerPage);
+  const totalPages = Math.ceil(data ? data.length : 0 / itemsPerPage);
 
   const onSort = (column: string) => {
     let direction: SortDirection = 'ascending';
@@ -59,7 +60,7 @@ const SortableTable = ({
     return sorted;
   }, [data, sortConfig]);
 
-  const paginatedData = sortedData.slice(
+  const paginatedData = sortedData?.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -89,11 +90,11 @@ const SortableTable = ({
 
   return (
     <div className='flex flex-col gap-10'>
-      <div className='relative overflow-x-auto shadow-sm sm:rounded-lg border'>
+      <div className=' overflow-x-auto shadow-sm sm:rounded-lg border'>
         <table className='min-w-full bg-white'>
           <thead className='bg-gray-50'>
             <tr>
-              {columns.map((column) => (
+              {columns?.map((column) => (
                 <th
                   key={column}
                   onClick={() => onSort(column)}
@@ -123,18 +124,18 @@ const SortableTable = ({
             </tr>
           </thead>
           <tbody>
-            {paginatedData.map((item: any, index) => (
+            {paginatedData?.map((item: any, index) => (
               <tr key={item.code}>
-                {columns.map((column) => (
+                {columns?.map((column) => (
                   <td
                     key={column}
                     className='px-4 py-2 border-b border-gray-200'
                   >
-                    {column === 'created_at' ? (
+                    {column === 'date' ? (
                       dayjs(item[column] as string).format('MM/DD/YYYY')
                     ) : column === 'last_active' ? (
                       dayjs.unix(item[column] as number).format('HH:mm A')
-                    ) : column === 'service_type' ? (
+                    ) : column === 'service type' ? (
                       item[column].name
                     ) : column === 'status' && statusColors ? (
                       <span
@@ -192,7 +193,7 @@ const SortableTable = ({
               </option>
             ))}
           </select>
-          <span className='ml-2'>of {data.length}</span>
+          <span className='ml-2'>of {data?.length}</span>
         </div>
         <div>
           <button

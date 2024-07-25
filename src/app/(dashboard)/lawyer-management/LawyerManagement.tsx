@@ -12,6 +12,8 @@ import { useState, useEffect } from 'react';
 import { MdOutlineImage, MdSaveAlt } from 'react-icons/md';
 import Button from '@/components/atoms/Button';
 import toast from 'react-hot-toast';
+import Image from 'next/image';
+import { modalUpdatePassword } from '@/configs/modalUpdatePassword.confing';
 const LawyerManagement = () => {
   const [data, setData] = useState<LawyerData[]>([]);
 
@@ -26,17 +28,20 @@ const LawyerManagement = () => {
   const [dataServiceType, setDataServiceType] = useState([]);
   const [withOutFormat, setWithOutFormat] = useState<LawyerData[]>([]);
   const [isOpenDelete, setIsOpenDelete] = useState(false);
+  const [file, setFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isOpenPassword, setIsopenPassword] = useState(false);
   const formatResponse = (data: any) => {
     return {
       code: data.id,
-      lawyer_name: `${data.firstName} ${data.lastName}`,
+      'lawyer name': `${data.firstName} ${data.lastName}`,
       email: data.email,
-      phone_number: data.phone,
-      service_type: data.service_type,
-      leads_pulled: `0/${data.max_leads}`,
-      active_leads: 0,
-      no_leads_lost: 0,
-      last_active: Math.floor(new Date(data.last_login).getTime() / 1000),
+      'phone number': data.phone,
+      'service type': data.service_type,
+      'leads pulled': `0/${data.max_leads}`,
+      'active leads': 0,
+      'no leads lost': 0,
+      'last active': Math.floor(new Date(data.last_login).getTime() / 1000),
       status: data.is_active ? 'Assignable' : 'Unassignable',
     };
   };
@@ -75,6 +80,7 @@ const LawyerManagement = () => {
     }));
   const handleEdit = async (index: number) => {
     setIsOpen(true);
+    setImagePreview(null);
     modalLawyerInput[0].defaultValue = withOutFormat[index].firstName;
     modalLawyerInput[1].defaultValue = withOutFormat[index].lastName;
     modalLawyerInput[2].values = formaterSelect(dataServiceType);
@@ -101,11 +107,7 @@ const LawyerManagement = () => {
     if (!dataId.success) {
       return toast.error('Error to get lawyer');
     }
-
     setDataIndex(dataId.data.data);
-
-    // const newData = data.filter((_, i) => i !== index);
-    // setData(newData);
   };
   const DeleteLawyer = async () => {
     const dataDelete = await database.DeleteLawyer(dataIndex.id);
@@ -180,6 +182,43 @@ const LawyerManagement = () => {
     modalLawyerInput[8].values = formaterSelect(roles.data);
     //modalLawyerInput[7].defaultValue = 2;
   };
+  const updateImage = (e: any) => {
+    e.preventDefault();
+    const input = e.target;
+
+    if (input.files && input.files[0]) {
+      const maxFileSize = 10485760;
+      if (input.files[0].size > maxFileSize) {
+        toast.error('Error to update image size');
+        return null;
+      }
+      setFile(input.files[0]);
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        setImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(input.files[0]);
+      input.value = '';
+    }
+  };
+  const updatePassword = async (e: any) => {
+    e.preventDefault();
+    const newPassword = e.target.new.value;
+    const confirmPassword = e.target.confirm.value;
+    if (newPassword !== confirmPassword) {
+      return toast.error('Passwords do not match');
+    }
+    const data = {
+      password: newPassword,
+    };
+    const updateData = await database.UpdateLawyer(data as any, dataIndex.id);
+    if (updateData.code === 401) {
+      return toast.error(updateData.messages);
+    }
+    fetchData();
+    toast.success("Lawyers' password updated successfully");
+    setIsopenPassword(false);
+  };
   useEffect(() => {
     getServiceType();
     getRole();
@@ -198,10 +237,30 @@ const LawyerManagement = () => {
           <div className='flex flex-col gap-5'>
             <div className='text-gray-500 text-sm'>Code: {dataIndex?.id}</div>
             <div className='flex items-center gap-2'>
-              <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
-                <MdOutlineImage size={32} />
+              {imagePreview ? (
+                <Image
+                  src={imagePreview}
+                  alt='Preview'
+                  width={300}
+                  height={300}
+                  className='object-cover rounded-full w-20 h-20  '
+                />
+              ) : (
+                <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
+                  <MdOutlineImage size={32} />
+                </div>
+              )}
+              <div className='relative'>
+                <input
+                  type='file'
+                  accept='image/*'
+                  className='absolute inset-0  cursor-pointer opacity-0'
+                  name='Change image'
+                  onChange={updateImage}
+                />
+                <p className='underline cursor-pointer '>Change image</p>
               </div>
-              <p className='hover:underline cursor-pointer'>Change image</p>
+
               <MdSaveAlt size={24} />
             </div>
             <form onSubmit={UpdateLawyer} className='grid grid-cols-2 gap-5'>
@@ -230,7 +289,10 @@ const LawyerManagement = () => {
               </div>
               <div className=''>
                 <p className='text-primary font-bold'>Password</p>
-                <p className='hover:underline cursor-pointer '>
+                <p
+                  onClick={() => setIsopenPassword(true)}
+                  className='hover:underline cursor-pointer '
+                >
                   Update password
                 </p>
               </div>
@@ -303,10 +365,30 @@ const LawyerManagement = () => {
           <div className='flex flex-col gap-5'>
             <div className='text-gray-500 text-sm'>Code: {dataIndex?.code}</div>
             <div className='flex items-center gap-2'>
-              <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
-                <MdOutlineImage size={32} />
+              {imagePreview ? (
+                <Image
+                  src={imagePreview}
+                  alt='Preview'
+                  width={300}
+                  height={300}
+                  className='object-cover rounded-full w-20 h-20  '
+                />
+              ) : (
+                <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
+                  <MdOutlineImage size={32} />
+                </div>
+              )}
+              <div className='relative'>
+                <input
+                  type='file'
+                  accept='image/*'
+                  className='absolute inset-0  cursor-pointer opacity-0'
+                  name='Change image'
+                  onChange={updateImage}
+                />
+                <p className='underline cursor-pointer '>Change image</p>
               </div>
-              <p className='hover:underline cursor-pointer'>Change image</p>
+
               <MdSaveAlt size={24} />
             </div>
             <form onSubmit={createlawyer} className='grid grid-cols-2 gap-5'>
@@ -362,6 +444,29 @@ const LawyerManagement = () => {
           </div>
         </div>
       </Modal>
+      <Modal
+        title='Update password'
+        isOpen={isOpenPassword}
+        setIsOpen={setIsopenPassword}
+        className='max-w-sm'
+      >
+        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200 '>
+          <form className='flex flex-col gap-5' onSubmit={updatePassword}>
+            {modalUpdatePassword.map((res: any, index: number) => (
+              <Input
+                key={index}
+                name={res.name}
+                label={res.label}
+                type={res.type}
+                required={res.required}
+              />
+            ))}
+            <div className='flex justify-end'>
+              <Button name='Save' type='submit' />
+            </div>
+          </form>
+        </div>
+      </Modal>
       <Tilte
         name='Lawyer Management'
         search={true}
@@ -373,7 +478,10 @@ const LawyerManagement = () => {
         <Button
           name='+ New Lawyer'
           type='button'
-          onClick={() => setIsOpenNew(true)}
+          onClick={() => {
+            setIsOpenNew(true);
+            setImagePreview(null);
+          }}
         />
       </div>
 
