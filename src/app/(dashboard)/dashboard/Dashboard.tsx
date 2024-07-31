@@ -1,9 +1,20 @@
+'use client';
 import Cards from '@/components/atoms/Cards';
 import Tilte from '@/components/organisms/Tilte';
 import { statistics } from '@/configs/statistics.confing';
+import { useLeadsStore } from '@/store/useLead.store';
 import React from 'react';
 
 const Dashboard = () => {
+  const { dataLeads } = useLeadsStore();
+  const getLastElement = (arr: any) => arr[arr.length - 1];
+  const lastElement = getLastElement(dataLeads);
+
+  if (lastElement) {
+    statistics[0].value = dataLeads.length;
+    statistics[0].date = lastElement.date;
+  }
+
   return (
     <div className='flex flex-col'>
       <Tilte name='Dashboard' />

@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 import {
   MdEdit,
   MdImportExport,
@@ -8,6 +9,8 @@ import {
   MdOutlineArrowForwardIos,
   MdOutlineDelete,
 } from 'react-icons/md';
+
+import SkeletonTable from '../atoms/SkeletonTable';
 
 type SortDirection = 'ascending' | 'descending';
 
@@ -22,6 +25,8 @@ type SortableTableProps = {
   statusColors?: { [key: string]: string };
   onEdit?: (index: number) => void;
   onDelete?: (index: number) => void;
+  onStatus?: (index: number) => void;
+  onRoute?: (index: number) => void;
 };
 
 const SortableTable = ({
@@ -30,12 +35,14 @@ const SortableTable = ({
   statusColors,
   onEdit,
   onDelete,
+  onStatus,
+  onRoute,
 }: SortableTableProps) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const totalPages = Math.ceil(data ? data.length : 0 / itemsPerPage);
-
+  dayjs.extend(utc);
   const onSort = (column: string) => {
     let direction: SortDirection = 'ascending';
     if (sortConfig?.key === column && sortConfig.direction === 'ascending') {
@@ -90,6 +97,7 @@ const SortableTable = ({
 
   return (
     <div className='flex flex-col gap-10'>
+      {/* {columns.length <= 0 && <SkeletonTable />} */}
       <div className=' overflow-x-auto shadow-sm sm:rounded-lg border'>
         <table className='min-w-full bg-white'>
           <thead className='bg-gray-50'>
@@ -98,7 +106,7 @@ const SortableTable = ({
                 <th
                   key={column}
                   onClick={() => onSort(column)}
-                  className='px-4 py-2 border-b-2 border-gray-200 cursor-pointer'
+                  className={`px-4 py-2 border-b-2 border-gray-200 cursor-pointer`}
                 >
                   <div className='uppercase flex items-center text-start'>
                     {column}
@@ -125,22 +133,41 @@ const SortableTable = ({
           </thead>
           <tbody>
             {paginatedData?.map((item: any, index) => (
-              <tr key={item.code}>
+              <tr
+                key={item.code}
+                className={`${onRoute && 'hover:bg-gray-200 cursor-pointer'}`}
+              >
                 {columns?.map((column) => (
                   <td
+                    onClick={() =>
+                      onRoute && onRoute(calculateGlobalIndex(index))
+                    }
                     key={column}
-                    className='px-4 py-2 border-b border-gray-200'
+                    className={` px-4 py-2 border-b border-gray-200`}
                   >
                     {column === 'date' ? (
-                      dayjs(item[column] as string).format('MM/DD/YYYY')
-                    ) : column === 'last_active' ? (
-                      dayjs.unix(item[column] as number).format('HH:mm A')
+                      dayjs
+                        .utc(item[column] as string)
+                        .local()
+                        .format('MM/DD/YYYY')
+                    ) : column === 'last active' ? (
+                      item[column] === null ? (
+                        ''
+                      ) : (
+                        dayjs
+                          .utc(item[column] as number)
+                          .local()
+                          .format('MM/DD/YYYY')
+                      )
                     ) : column === 'service type' ? (
                       item[column].name
                     ) : column === 'status' && statusColors ? (
-                      <span
-                        className={`px-2 py-1 rounded font-semibold ${
-                          statusColors[item[column]]
+                      <p
+                        onClick={() =>
+                          onStatus && onStatus(calculateGlobalIndex(index))
+                        }
+                        className={`px-2 py-1 rounded font-semibold max-w-30 w-full  text-center ${
+                          onStatus && 'cursor-pointer'
                         }`}
                         style={{
                           backgroundColor: statusColors[item[column]] + 20,
@@ -148,7 +175,7 @@ const SortableTable = ({
                         }}
                       >
                         {item[column]}
-                      </span>
+                      </p>
                     ) : (
                       item[column]?.toString()
                     )}

@@ -13,26 +13,26 @@ export const routesSidebar: dataItem[] = [
     route: '/lawyer-management',
     icon: MdBusiness,
     rol: ['admin'],
-    children: [
-      {
-        name: 'assigned Leads',
-        route: '/assigned-leads',
-        icon: MdBusiness,
-        rol: ['admin'],
-      },
-      {
-        name: 'Lost Leads',
-        route: '/lost-leads',
-        icon: MdBusiness,
-        rol: ['admin'],
-      },
-      {
-        name: 'Reassigned Leads',
-        route: '/reassigned-leads',
-        icon: MdBusiness,
-        rol: ['admin'],
-      },
-    ],
+    // children: [
+    //   {
+    //     name: 'assigned Leads',
+    //     route: '/assigned-leads',
+    //     icon: MdBusiness,
+    //     rol: ['admin'],
+    //   },
+    //   {
+    //     name: 'Lost Leads',
+    //     route: '/lost-leads',
+    //     icon: MdBusiness,
+    //     rol: ['admin'],
+    //   },
+    //   {
+    //     name: 'Reassigned Leads',
+    //     route: '/reassigned-leads',
+    //     icon: MdBusiness,
+    //     rol: ['admin'],
+    //   },
+    // ],
   },
 
   {

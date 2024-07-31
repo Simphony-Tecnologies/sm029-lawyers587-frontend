@@ -14,6 +14,7 @@ import Button from '@/components/atoms/Button';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
 import { modalUpdatePassword } from '@/configs/modalUpdatePassword.confing';
+import { useRouter } from 'next/navigation';
 const LawyerManagement = () => {
   const [data, setData] = useState<LawyerData[]>([]);
 
@@ -31,6 +32,7 @@ const LawyerManagement = () => {
   const [file, setFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isOpenPassword, setIsopenPassword] = useState(false);
+  const router = useRouter();
   const formatResponse = (data: any) => {
     return {
       code: data.id,
@@ -41,7 +43,7 @@ const LawyerManagement = () => {
       'leads pulled': `0/${data.max_leads}`,
       'active leads': 0,
       'no leads lost': 0,
-      'last active': Math.floor(new Date(data.last_login).getTime() / 1000),
+      'last active': data.last_login,
       status: data.is_active ? 'Assignable' : 'Unassignable',
     };
   };
@@ -90,7 +92,7 @@ const LawyerManagement = () => {
     modalLawyerInput[6].defaultValue = withOutFormat[index].max_leads;
     modalLawyerInput[8].defaultValue = withOutFormat[index].role.id;
     modalLawyerInput[9].defaultValue = withOutFormat[index].is_active;
-
+    modalLawyerInput[7].defaultValue = withOutFormat[index].law_firm;
     const dataId = await database.getLawyer(withOutFormat[index].id);
 
     if (!dataId.success) {
@@ -131,6 +133,8 @@ const LawyerManagement = () => {
       role_id: e.target.role_id.value,
       password: e.target.password.value,
       max_leads: e.target.max_leads.value,
+      law_firm: e.target.name_of_law_firm.value,
+      notes: e.target.notes.value,
       is_active: true,
     };
 
@@ -219,6 +223,11 @@ const LawyerManagement = () => {
     toast.success("Lawyers' password updated successfully");
     setIsopenPassword(false);
   };
+  const handleRoute = async (index: number) => {
+    const dataId = await database.getLawyer(withOutFormat[index].id);
+
+    router.push(`lawyer-management/${dataId.data.data.id}`);
+  };
   useEffect(() => {
     getServiceType();
     getRole();
@@ -230,6 +239,7 @@ const LawyerManagement = () => {
     }
     fetchData();
   }, [searchText]);
+
   return (
     <div className='container mx-auto p-4 flex flex-col gap-5'>
       <Modal title='Lawyer Details' isOpen={isOpen} setIsOpen={setIsOpen}>
@@ -283,6 +293,7 @@ const LawyerManagement = () => {
                   Notes
                 </label>
                 <textarea
+                  defaultValue={dataIndex?.notes}
                   name='Notes'
                   className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
                 />
@@ -405,11 +416,11 @@ const LawyerManagement = () => {
               ))}
 
               <div className='col-span-2'>
-                <label className='font-bold' htmlFor='Notes'>
+                <label className='font-bold' htmlFor='notes'>
                   Notes
                 </label>
                 <textarea
-                  name='Notes'
+                  name='notes'
                   className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
                 />
               </div>
@@ -491,6 +502,7 @@ const LawyerManagement = () => {
         statusColors={statusColors}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onRoute={handleRoute}
       />
     </div>
   );

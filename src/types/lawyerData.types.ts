@@ -8,7 +8,7 @@ type LawyerData = {
   lastName: string;
   is_active: string;
   phone: string;
-  last_login: string;
+  last_login: Date;
   max_leads: string;
   role: {
     id: number;
@@ -18,5 +18,7 @@ type LawyerData = {
     id: number;
     name: string;
   };
+  law_firm: string;
+  notes: string;
   status: 'Assignable' | 'Unassignable';
 };

@@ -1,4 +1,5 @@
 import { typeStatistis } from '@/types/typeStatistis.type';
+import { formatLastUpdate } from '@/utils/typeDate';
 import Image from 'next/image';
 import React from 'react';
 
@@ -17,7 +18,7 @@ const Cards = ({ title, value, date, icon, color }: typeStatistis) => {
             {value}
           </p>
           <p className='text-primary text-opacity-70 font-normal lg:text-2xl text-xl whitespace-nowrap'>
-            {date}
+            {formatLastUpdate(date)}
           </p>
         </div>
         <div>

@@ -105,7 +105,7 @@ export default function Sidebar({ name, type }: siderbar) {
           toggleStatus ? 'w-72 ' : 'w-20 '
         }`}
       >
-        {rol === 'admin' && (
+        {
           <>
             {routesSidebar.map((menu, index) => (
               <div
@@ -191,7 +191,7 @@ export default function Sidebar({ name, type }: siderbar) {
               </div>
             ))}
           </>
-        )}
+        }
       </main>
 
       <footer
