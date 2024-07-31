@@ -6,7 +6,7 @@ import { useLeadsStore } from '@/store/useLead.store';
 import React from 'react';
 
 const Dashboard = () => {
-  const { dataLeads } = useLeadsStore();
+  const { dataLeads }: any = useLeadsStore();
   const getLastElement = (arr: any) => arr[arr.length - 1];
   const lastElement = getLastElement(dataLeads);
 
@@ -16,7 +16,7 @@ const Dashboard = () => {
   }
 
   return (
-    <div className='flex flex-col'>
+    <div className='flex flex-col gap-5'>
       <Tilte name='Dashboard' />
       <div className='grid lg:grid-cols-2 lg:gap-10 gap-5'>
         {statistics.map((statistic: any, index: any) => (

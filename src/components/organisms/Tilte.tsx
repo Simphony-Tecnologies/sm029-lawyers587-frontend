@@ -16,8 +16,8 @@ const Tilte = ({
   setSearchedResults,
 }: title) => {
   return (
-    <div className='text-3xl font-semibold  pb-5 flex gap-5 lg:flex-row flex-col justify-between '>
-      <h1>{name}</h1>
+    <div className='text-3xl font-semibold   flex gap-5 lg:flex-row flex-col justify-between '>
+      <h1 className='text-primary'>{name}</h1>
       {search && (
         <SearchInput
           dataFilter={dataFilter}

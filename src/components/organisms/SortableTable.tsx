@@ -27,6 +27,8 @@ type SortableTableProps = {
   onDelete?: (index: number) => void;
   onStatus?: (index: number) => void;
   onRoute?: (index: number) => void;
+  onSelectRow?: (index: number) => void;
+  selectedRows?: any;
 };
 
 const SortableTable = ({
@@ -37,12 +39,16 @@ const SortableTable = ({
   onDelete,
   onStatus,
   onRoute,
+  onSelectRow,
+  selectedRows,
 }: SortableTableProps) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+
   const totalPages = Math.ceil(data ? data.length : 0 / itemsPerPage);
   dayjs.extend(utc);
+
   const onSort = (column: string) => {
     let direction: SortDirection = 'ascending';
     if (sortConfig?.key === column && sortConfig.direction === 'ascending') {
@@ -72,10 +78,6 @@ const SortableTable = ({
     currentPage * itemsPerPage
   );
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
   const handleItemsPerPageChange = (
     e: React.ChangeEvent<HTMLSelectElement>
   ) => {
@@ -98,10 +100,15 @@ const SortableTable = ({
   return (
     <div className='flex flex-col gap-10'>
       {/* {columns.length <= 0 && <SkeletonTable />} */}
-      <div className=' overflow-x-auto shadow-sm sm:rounded-lg border'>
+      <div className='overflow-x-auto shadow-sm sm:rounded-lg border'>
         <table className='min-w-full bg-white'>
           <thead className='bg-gray-50'>
             <tr>
+              {onSelectRow && (
+                <th className='px-4 py-2 border-b-2 border-gray-200'>
+                  <input type='checkbox' disabled />
+                </th>
+              )}
               {columns?.map((column) => (
                 <th
                   key={column}
@@ -137,13 +144,24 @@ const SortableTable = ({
                 key={item.code}
                 className={`${onRoute && 'hover:bg-gray-200 cursor-pointer'}`}
               >
+                {onSelectRow && (
+                  <td className='px-4 py-2 border-b border-gray-200'>
+                    <input
+                      type='checkbox'
+                      checked={
+                        selectedRows[calculateGlobalIndex(index)] || false
+                      }
+                      onChange={() => onSelectRow(calculateGlobalIndex(index))}
+                    />
+                  </td>
+                )}
                 {columns?.map((column) => (
                   <td
                     onClick={() =>
                       onRoute && onRoute(calculateGlobalIndex(index))
                     }
                     key={column}
-                    className={` px-4 py-2 border-b border-gray-200`}
+                    className={`px-4 py-2 border-b border-gray-200`}
                   >
                     {column === 'date' ? (
                       dayjs
@@ -166,7 +184,7 @@ const SortableTable = ({
                         onClick={() =>
                           onStatus && onStatus(calculateGlobalIndex(index))
                         }
-                        className={`px-2 py-1 rounded font-semibold max-w-30 w-full  text-center ${
+                        className={`px-2 py-1 rounded font-semibold max-w-30 w-full text-center ${
                           onStatus && 'cursor-pointer'
                         }`}
                         style={{
@@ -226,8 +244,8 @@ const SortableTable = ({
           <button
             onClick={goToPreviousPage}
             disabled={currentPage === 1}
-            className={`px-3 py-1 border rounded-l-md  ${
-              currentPage === 1 ? 'bg-gray-300 cursor-default' : 'bg-white '
+            className={`px-3 py-1 border rounded-l-md ${
+              currentPage === 1 ? 'bg-gray-300 cursor-default' : 'bg-white'
             }`}
           >
             <MdOutlineArrowBackIos />
@@ -238,7 +256,7 @@ const SortableTable = ({
             className={`px-3 py-1 border rounded-r-md ${
               currentPage === totalPages
                 ? 'bg-gray-300 cursor-default'
-                : 'bg-white '
+                : 'bg-white'
             }`}
           >
             <MdOutlineArrowForwardIos />

@@ -31,7 +31,7 @@ export async function middleware(req: any) {
     '/lead-management',
     '/dashboard',
   ];
-  const protectedRoutesLawyer = ['/all-leads'];
+  const protectedRoutesLawyer = ['/all-leads', '/select-lead'];
 
   if (role === 'admin' && currentUser && req.nextUrl.pathname === '/') {
     return NextResponse.redirect(new URL('/dashboard', req.url));

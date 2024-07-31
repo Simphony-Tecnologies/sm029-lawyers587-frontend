@@ -8,7 +8,7 @@ import Modal from '@/components/organisms/Modal';
 import { useLeadsStore } from '@/store/useLead.store';
 const LeadManagement = () => {
   const [isOpenAssign, setIsOpenAssign] = useState(false);
-  const { columns, dataLeads, error } = useLeadsStore();
+  const { columns, dataLeads, error }: any = useLeadsStore();
 
   const statusColors = {
     NEW: '#8280FF',
@@ -18,7 +18,7 @@ const LeadManagement = () => {
   };
 
   return (
-    <div>
+    <div className='flex flex-col gap-5'>
       <Tilte name='Lead Management' />
       <Modal
         title='Assing Lead'
