@@ -3,17 +3,34 @@ import Cards from '@/components/atoms/Cards';
 import Tilte from '@/components/organisms/Tilte';
 import { statistics } from '@/configs/statistics.confing';
 import { useLeadsStore } from '@/store/useLead.store';
-import React from 'react';
+import React, { useEffect } from 'react';
 
 const Dashboard = () => {
   const { dataLeads }: any = useLeadsStore();
   const getLastElement = (arr: any) => arr[arr.length - 1];
-  const lastElement = getLastElement(dataLeads);
+  const setData = [
+    { value: 'NEW', index: 0 },
+    { value: 'ASSIGNED', index: 1 },
+    { value: 'REASSIGNED', index: 2 },
+    { value: 'LOST', index: 3 },
+  ];
 
-  if (lastElement) {
-    statistics[0].value = dataLeads.length;
-    statistics[0].date = lastElement.date;
-  }
+  const filterLeads = (value: string, index: number) => {
+    if (dataLeads) {
+      const leads = dataLeads.filter((res: any) => res.status === value);
+      if (leads) {
+        const lastNewLead = getLastElement(leads);
+        statistics[index].value = leads.length;
+        statistics[index].date = lastNewLead?.date;
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (dataLeads) {
+      setData.forEach((res) => filterLeads(res.value, res.index));
+    }
+  }, [dataLeads]);
 
   return (
     <div className='flex flex-col gap-5'>

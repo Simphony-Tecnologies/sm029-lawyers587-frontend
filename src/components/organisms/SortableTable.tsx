@@ -184,7 +184,7 @@ const SortableTable = ({
                         onClick={() =>
                           onStatus && onStatus(calculateGlobalIndex(index))
                         }
-                        className={`px-2 py-1 rounded font-semibold max-w-30 w-full text-center ${
+                        className={`px-2 py-1 rounded font-semibold max-w-30 w-full text-center  capitalize-first ${
                           onStatus && 'cursor-pointer'
                         }`}
                         style={{
