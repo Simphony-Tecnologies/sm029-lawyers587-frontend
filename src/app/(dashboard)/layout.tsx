@@ -6,7 +6,7 @@ import { useLeadsStore } from '@/store/useLead.store';
 import { ReactNode, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 export default function Layout({ children }: { children: ReactNode }) {
-  const { fetchLeads }: any = useLeadsStore();
+  const { fetchLeads } = useLeadsStore();
   useEffect(() => {
     fetchLeads();
   }, []);

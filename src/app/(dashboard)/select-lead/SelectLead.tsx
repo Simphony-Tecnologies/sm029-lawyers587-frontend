@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 const SelectLead = () => {
   const { user } = useAuth();
-  const { columns, dataLeads, fetchLeads } = useLeadsStore();
+  const { dataLeads, fetchLeads } = useLeadsStore();
 
   const [selectedRows, setSelectedRows] = useState<{ [key: number]: boolean }>(
     {}
@@ -17,10 +17,13 @@ const SelectLead = () => {
   const [newData, setNewData] = useState<any>([]);
   const [leadsAssigned, setLeadsAssigned] = useState([]);
   const [selectRowLeads, setSelectRowLeads] = useState([]);
+  const [columns, setColumns] = useState([]);
 
   const availableLeads =
-    leadsAssigned.length > 0 ? user?.max_leads - leadsAssigned.length : 0;
-  console.log(availableLeads);
+    leadsAssigned.length >= 0
+      ? parseInt(user?.max_leads) - leadsAssigned.length
+      : 0;
+
   const [resultLeads, setResultLeads] = useState(0);
 
   const statusColors = {
@@ -40,9 +43,9 @@ const SelectLead = () => {
     const selectRow: any = Object.keys(selectedRows)
       .filter((index) => selectedRows[Number(index)])
       .map((index) => newData[Number(index)]);
-    console.log(selectRow);
 
     setSelectRowLeads(selectRow);
+
     const resut = availableLeads - selectRow.length;
     setResultLeads(resut);
     if (resut < 0) {
@@ -51,7 +54,7 @@ const SelectLead = () => {
   };
   const filterByService = (data: any[], serviceType: string) => {
     return data.filter(
-      (item) => item.service === serviceType && item.status !== 'ASSIGNED'
+      (item) => item.service === serviceType && item.status == 'NEW'
     );
   };
   const getLawyer = async () => {
@@ -80,6 +83,7 @@ const SelectLead = () => {
 
     const promises = selectRowLeads.map(async (lead) => {
       const leadId = lead['lead id'];
+
       if (!leadId) {
         toast.error('Lead id is missing for lead:', lead);
         return null;
@@ -103,36 +107,55 @@ const SelectLead = () => {
     await Promise.all(promises);
     fetchLeads();
     const DataFilter = filterByService(dataLeads, user?.service_type?.name);
-    setNewData(DataFilter);
+
+    const filteredDataLeads = DataFilter.map(
+      ({
+        email,
+        'phone number': phoneNumber,
+        'description lead': descriptionLead,
+        ...rest
+      }) => rest
+    );
+    setNewData(filteredDataLeads);
     toast.success('Leads successfully added');
   };
-
   useEffect(() => {
     getLawyer();
   }, [user]);
+
   useEffect(() => {
     const DataFilter = filterByService(dataLeads, user?.service_type?.name);
-    setNewData(DataFilter);
+    const filteredDataLeads = DataFilter.map(
+      ({
+        email,
+        'phone number': phoneNumber,
+        'description lead': descriptionLead,
+        ...rest
+      }) => rest
+    );
+    setNewData(filteredDataLeads);
+    if (filteredDataLeads.length > 0) {
+      const titles: any = Object.keys(filteredDataLeads[0]);
+      setColumns(titles);
+    }
     getSelectedRowsData();
   }, [selectedRows, dataLeads, availableLeads]);
 
   return (
     <div className='flex flex-col gap-5'>
-      <header>
-        <Tilte name={`${user?.firstName} ${user?.lastName}`}>
-          <div className='flex justify-center items-center gap-5'>
-            <div className='bg-gray-200 px-4 py-1 rounded-md'>
-              Available leads{' '}
-              <span className='text-red-500'>{resultLeads}</span> out of{' '}
-              {user?.max_leads}
-            </div>
-            <Button type='button' name='Pull leads' onClick={postAssignLeads} />
+      <Tilte
+        name={`${user?.firstName} ${user?.lastName}`}
+        des={user?.service_type?.name}
+      >
+        <div className='flex justify-center items-center gap-5'>
+          <div className='bg-gray-200 px-4 py-1 rounded-md'>
+            Available leads <span className='text-red-500'>{resultLeads}</span>{' '}
+            out of {user?.max_leads}
           </div>
-        </Tilte>
-        <div className='text-primary capitalize'>
-          {user?.service_type?.name}
+          <Button type='button' name='Pull leads' onClick={postAssignLeads} />
         </div>
-      </header>
+      </Tilte>
+
       <SortableTable
         columns={columns}
         data={newData}

@@ -141,7 +141,7 @@ const SortableTable = ({
           <tbody>
             {paginatedData?.map((item: any, index) => (
               <tr
-                key={item.code}
+                key={index}
                 className={`${onRoute && 'hover:bg-gray-200 cursor-pointer'}`}
               >
                 {onSelectRow && (

@@ -13,7 +13,7 @@ const LeadManagement = () => {
   const statusColors = {
     NEW: '#8280FF',
     ASSIGNED: '#4AD991',
-    CLOSED: '#FF9066',
+    EXPIRED: '#FF9066',
     PROBLEMATIC: '#FEC53D',
   };
 

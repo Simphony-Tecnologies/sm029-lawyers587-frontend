@@ -6,7 +6,6 @@ import toast from 'react-hot-toast';
 
 const IdLawyer = ({ params }: { params: { id: string } }) => {
   const [lawyerData, setLawyerData] = useState([]);
-  console.log(lawyerData);
 
   const [columns, setColumns] = useState([]);
   const statusColors = {
@@ -18,12 +17,10 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
 
   const getLawyer = async () => {
     const dataLawyer = await database.getLeadsAssigned();
-    console.log(dataLawyer);
 
     if (!dataLawyer.success) {
       return toast.error('Error to get leads assigned');
     }
-    console.log(params.id);
 
     const firstItem = dataLawyer.data;
     const filterItems = firstItem.filter(
