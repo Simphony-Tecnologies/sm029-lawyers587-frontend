@@ -2,6 +2,7 @@
 import SortableTable from '@/components/organisms/SortableTable';
 import { database } from '@/services/database';
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
 const IdLawyer = ({ params }: { params: { id: string } }) => {
   const [lawyerData, setLawyerData] = useState([]);
@@ -16,19 +17,22 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   };
 
   const getLawyer = async () => {
-    console.log(params.id);
-    const url = process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED || '';
-    const dataLawyer = await database.getData(url);
+    const dataLawyer = await database.getLeadsAssigned();
     console.log(dataLawyer);
 
-    if (dataLawyer.success) {
-      console.log('entro');
-
-      const firstItem = dataLawyer.data;
-      setLawyerData(firstItem);
-      const titles: any = Object.keys(firstItem[0]);
-      setColumns(titles);
+    if (!dataLawyer.success) {
+      return toast.error('Error to get leads assigned');
     }
+    console.log(params.id);
+
+    const firstItem = dataLawyer.data;
+    const filterItems = firstItem.filter(
+      (item: any) => item.lawyer_id === parseInt(params.id)
+    );
+
+    setLawyerData(filterItems);
+    const titles: any = Object.keys(firstItem[0]);
+    setColumns(titles);
   };
   useEffect(() => {
     getLawyer();

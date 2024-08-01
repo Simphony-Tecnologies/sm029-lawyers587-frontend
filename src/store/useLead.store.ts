@@ -9,7 +9,7 @@ interface LeadsStore {
   fetchLeads: () => Promise<void>;
 }
 
-export const useLeadsStore = create((set) => ({
+export const useLeadsStore = create<LeadsStore>((set) => ({
   columns: [],
   dataLeads: [],
   error: null,

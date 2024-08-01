@@ -6,6 +6,7 @@ type title = {
   dataFilter?: any;
   setSearchText?: any;
   setSearchedResults?: any;
+  children?: React.ReactNode;
 };
 
 const Tilte = ({
@@ -14,10 +15,11 @@ const Tilte = ({
   dataFilter,
   setSearchText,
   setSearchedResults,
+  children,
 }: title) => {
   return (
-    <div className='text-3xl font-semibold   flex gap-5 lg:flex-row flex-col justify-between '>
-      <h1 className='text-primary'>{name}</h1>
+    <div className=' font-semibold   flex gap-5 lg:flex-row flex-col justify-between '>
+      <h1 className='text-primary text-3xl'>{name}</h1>
       {search && (
         <SearchInput
           dataFilter={dataFilter}
@@ -25,6 +27,8 @@ const Tilte = ({
           setSearchedResults={setSearchedResults}
         />
       )}
+
+      {children}
     </div>
   );
 };
