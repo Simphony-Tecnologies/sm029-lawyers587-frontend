@@ -8,7 +8,7 @@ type modal = {
   isOpen: any;
   className?: string;
 };
-export default function MyModal({
+export default function Modal({
   children,
   title,
   setIsOpen,

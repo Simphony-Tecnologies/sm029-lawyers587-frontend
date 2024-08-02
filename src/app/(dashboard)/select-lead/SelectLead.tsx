@@ -117,6 +117,7 @@ const SelectLead = () => {
       }) => rest
     );
     setNewData(filteredDataLeads);
+    setSelectRowLeads([]);
     toast.success('Leads successfully added');
   };
   useEffect(() => {

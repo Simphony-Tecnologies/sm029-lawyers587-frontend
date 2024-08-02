@@ -29,6 +29,7 @@ type SortableTableProps = {
   onRoute?: (index: number) => void;
   onSelectRow?: (index: number) => void;
   selectedRows?: any;
+  onContact?: (index: number) => void;
 };
 
 const SortableTable = ({
@@ -41,6 +42,7 @@ const SortableTable = ({
   onRoute,
   onSelectRow,
   selectedRows,
+  onContact,
 }: SortableTableProps) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -136,6 +138,11 @@ const SortableTable = ({
                   Actions
                 </th>
               )}
+              {onContact && (
+                <th className='px-4 py-2 border-b-2 border-gray-200 uppercase text-start'>
+                  CONTACT
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -145,14 +152,26 @@ const SortableTable = ({
                 className={`${onRoute && 'hover:bg-gray-200 cursor-pointer'}`}
               >
                 {onSelectRow && (
-                  <td className='px-4 py-2 border-b border-gray-200'>
-                    <input
-                      type='checkbox'
-                      checked={
-                        selectedRows[calculateGlobalIndex(index)] || false
-                      }
-                      onChange={() => onSelectRow(calculateGlobalIndex(index))}
-                    />
+                  <td className='px-4 py-2 border-b border-gray-200 mx-auto'>
+                    <div className='flex text-center justify-center  '>
+                      <input
+                        id={`checkbox-${calculateGlobalIndex(index)}`} // Usa un id único
+                        className='peer hidden'
+                        type='checkbox'
+                        checked={
+                          selectedRows[calculateGlobalIndex(index)] || false
+                        }
+                        onChange={() =>
+                          onSelectRow(calculateGlobalIndex(index))
+                        }
+                      />
+                      <label
+                        htmlFor={`checkbox-${calculateGlobalIndex(index)}`} // Asegúrate de que el label apunte al id único
+                        className='flex items-center justify-center w-6 h-6 border border-green-500 rounded bg-white cursor-pointer relative  text-white peer-checked:text-green-500'
+                      >
+                        <i className='fi fi-rr-check absolute  text-lg  peer-checked:block '></i>
+                      </label>
+                    </div>
                   </td>
                 )}
                 {columns?.map((column) => (
@@ -217,6 +236,16 @@ const SortableTable = ({
                         <MdOutlineDelete />
                       </button>
                     )}
+                  </td>
+                )}
+                {onContact && (
+                  <td className='px-4 py-2 border-b border-gray-200'>
+                    <p
+                      onClick={() => onContact(calculateGlobalIndex(index))}
+                      className='hover:underline cursor-pointer'
+                    >
+                      Contact
+                    </p>
                   </td>
                 )}
               </tr>
