@@ -28,8 +28,10 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     );
 
     setLawyerData(filterItems);
-    const titles: any = Object.keys(firstItem[0]);
-    setColumns(titles);
+    if (filterItems.length > 0) {
+      const titles: any = Object.keys(firstItem[0]);
+      setColumns(titles);
+    }
   };
   useEffect(() => {
     getLawyer();

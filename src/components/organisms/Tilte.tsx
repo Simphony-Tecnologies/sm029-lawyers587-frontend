@@ -1,4 +1,5 @@
 import SearchInput from '../atoms/SearchInput';
+import SkeletonText from '../atoms/SkeletonText';
 
 type title = {
   name: string;
@@ -20,23 +21,30 @@ const Tilte = ({
   des,
 }: title) => {
   return (
-    <div className=' font-semibold   flex gap-5 lg:flex-row flex-col justify-between '>
-      <div>
-        <h1 className='text-primary text-3xl'>{name}</h1>
-        {des && (
-          <div className='text-primary capitalize font-normal'>{des}</div>
-        )}
-      </div>
-      {search && (
-        <SearchInput
-          dataFilter={dataFilter}
-          setSearchText={setSearchText}
-          setSearchedResults={setSearchedResults}
-        />
-      )}
+    <>
+      {name === 'undefined undefined' ? (
+        <SkeletonText lines={2} />
+      ) : (
+        <div className=' font-semibold   flex gap-5 lg:flex-row flex-col justify-between '>
+          <div>
+            <h1 className='text-primary text-3xl'>{name}</h1>
+            {des && (
+              <div className='text-primary capitalize font-normal'>{des}</div>
+            )}
+          </div>
 
-      {children}
-    </div>
+          {search && (
+            <SearchInput
+              dataFilter={dataFilter}
+              setSearchText={setSearchText}
+              setSearchedResults={setSearchedResults}
+            />
+          )}
+
+          {children}
+        </div>
+      )}
+    </>
   );
 };
 

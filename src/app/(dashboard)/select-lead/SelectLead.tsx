@@ -9,6 +9,8 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 const SelectLead = () => {
   const { user } = useAuth();
+  const [userId, setUserId] = useState<any>(null);
+
   const { dataLeads, fetchLeads } = useLeadsStore();
 
   const [selectedRows, setSelectedRows] = useState<{ [key: number]: boolean }>(
@@ -20,8 +22,8 @@ const SelectLead = () => {
   const [columns, setColumns] = useState([]);
 
   const availableLeads =
-    leadsAssigned.length >= 0
-      ? parseInt(user?.max_leads) - leadsAssigned.length
+    leadsAssigned.length >= 0 && userId
+      ? parseInt(userId?.max_leads) - leadsAssigned.length
       : 0;
 
   const [resultLeads, setResultLeads] = useState(0);
@@ -58,13 +60,18 @@ const SelectLead = () => {
     );
   };
   const getLawyer = async () => {
-    const dataLawyer: any = await database.getLeadsAssigned();
+    if (Object.keys(user).length > 0) {
+      const dataLawyer = await database.getLawyer(user.id);
+      setUserId(dataLawyer.data.data);
+    }
 
-    if (!dataLawyer.success) {
+    const dataLeadsLawyer: any = await database.getLeadsAssigned();
+
+    if (!dataLeadsLawyer.success) {
       return toast.error('error getting Leads Assigned');
     }
 
-    const filterLedas = dataLawyer.data.filter(
+    const filterLedas = dataLeadsLawyer.data.filter(
       (item: any) => item.lawyer_id === user.id
     );
 
@@ -117,9 +124,12 @@ const SelectLead = () => {
       }) => rest
     );
     setNewData(filteredDataLeads);
+
     setSelectRowLeads([]);
+    setSelectedRows([]);
     toast.success('Leads successfully added');
   };
+
   useEffect(() => {
     getLawyer();
   }, [user]);
@@ -151,7 +161,7 @@ const SelectLead = () => {
         <div className='flex justify-center items-center gap-5'>
           <div className='bg-gray-200 px-4 py-1 rounded-md'>
             Available leads <span className='text-red-500'>{resultLeads}</span>{' '}
-            out of {user?.max_leads}
+            out of {userId?.max_leads}
           </div>
           <Button type='button' name='Pull leads' onClick={postAssignLeads} />
         </div>

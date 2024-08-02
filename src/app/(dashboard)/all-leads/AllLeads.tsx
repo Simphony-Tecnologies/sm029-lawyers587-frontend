@@ -63,7 +63,6 @@ const AllLeads = () => {
     }
   };
   const handleContact = (index: number) => {
-    console.log(index);
     setIsOpenLead(true);
     setSelectedLead(lawyerData[index]);
   };

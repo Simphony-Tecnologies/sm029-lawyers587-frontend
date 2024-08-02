@@ -1,12 +1,14 @@
 'use client';
 import Cards from '@/components/atoms/Cards';
 import Tilte from '@/components/organisms/Tilte';
-import { statistics } from '@/configs/statistics.confing';
+import { statistics as initialStatistics } from '@/configs/statistics.confing';
 import { useLeadsStore } from '@/store/useLead.store';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const Dashboard = () => {
-  const { dataLeads }: any = useLeadsStore();
+  const { dataLeads } = useLeadsStore();
+  const [statistics, setStatistics] = useState(initialStatistics);
+
   const getLastElement = (arr: any) => arr[arr.length - 1];
   const setData = [
     { value: 'NEW', index: 0 },
@@ -18,18 +20,24 @@ const Dashboard = () => {
   const filterLeads = (value: string, index: number) => {
     if (dataLeads) {
       const leads = dataLeads.filter((res: any) => res.status === value);
-      if (leads) {
-        const lastNewLead = getLastElement(leads);
-        statistics[index].value = leads.length;
-        statistics[index].date = lastNewLead?.date;
+      const lastNewLead = getLastElement(leads);
+
+      if (lastNewLead) {
+        setStatistics((prevStatistics) => {
+          const updatedStatistics = [...prevStatistics];
+          updatedStatistics[index] = {
+            ...updatedStatistics[index],
+            value: leads.length,
+            date: lastNewLead.date,
+          };
+          return updatedStatistics;
+        });
       }
     }
   };
 
   useEffect(() => {
-    if (dataLeads) {
-      setData.forEach((res) => filterLeads(res.value, res.index));
-    }
+    if (dataLeads) setData.forEach((res) => filterLeads(res.value, res.index));
   }, [dataLeads]);
 
   return (

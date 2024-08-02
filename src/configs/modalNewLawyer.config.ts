@@ -1,26 +1,4 @@
-type select = {
-  name: string;
-  value: string | boolean | number;
-};
-
-type ModalLawyerInput = {
-  label: string;
-  name: string;
-  defaultValue?: string | number;
-  type:
-    | 'text'
-    | 'number'
-    | 'select'
-    | 'date'
-    | 'email'
-    | 'password'
-    | 'file'
-    | 'datetime-local';
-  required: boolean;
-  values?: select[];
-  mode?: string;
-};
-export const modalLawyerInput: ModalLawyerInput[] = [
+export const modalNewLawyerInput = [
   {
     label: 'name',
     name: 'firstName',
@@ -104,32 +82,5 @@ export const modalLawyerInput: ModalLawyerInput[] = [
       { value: true, name: 'active' },
       { value: false, name: 'inactive' },
     ],
-  },
-];
-export const modalLawyerStatistics = [
-  {
-    name: 'Total leads',
-    value: '-',
-    color: '#898989',
-  },
-  {
-    name: 'Leads Available for request',
-    value: '-',
-    color: '#898989',
-  },
-  {
-    name: 'Active Leads',
-    value: '-',
-    color: '#4AD991',
-  },
-  {
-    name: 'Lost Leads',
-    value: '-',
-    color: '#FF9066',
-  },
-  {
-    name: 'Missed Leads',
-    value: '-',
-    color: '#FEC53D',
   },
 ];

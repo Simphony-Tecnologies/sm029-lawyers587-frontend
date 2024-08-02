@@ -1,5 +1,5 @@
 import type { dataItem } from '@/types/routes.interface';
-import { MdBusiness, MdDashboard, MdWork } from 'react-icons/md';
+import { MdBusiness, MdChecklist, MdDashboard, MdWork } from 'react-icons/md';
 
 export const routesSidebar: dataItem[] = [
   {
@@ -50,7 +50,7 @@ export const routesSidebar: dataItem[] = [
   {
     name: 'Select lead',
     route: '/select-lead',
-
+    icon: MdChecklist,
     rol: ['lawyer'],
   },
 ];

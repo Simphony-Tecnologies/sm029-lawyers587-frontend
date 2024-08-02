@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import Image from 'next/image';
 import { modalUpdatePassword } from '@/configs/modalUpdatePassword.confing';
 import { useRouter } from 'next/navigation';
+import { modalNewLawyerInput } from '@/configs/modalNewLawyer.config';
 const LawyerManagement = () => {
   const [data, setData] = useState<LawyerData[]>([]);
 
@@ -33,6 +34,7 @@ const LawyerManagement = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const [isOpenPassword, setIsopenPassword] = useState(false);
   const router = useRouter();
+
   const formatResponse = (data: any) => {
     return {
       code: data.id,
@@ -154,6 +156,8 @@ const LawyerManagement = () => {
       role_id: parseInt(e.target.role_id.value),
       max_leads: e.target.max_leads.value,
       is_active: e.target.is_active.value === 'true',
+      law_firm: e.target.name_of_law_firm.value,
+      notes: e.target.notes.value,
     };
 
     const updateData = await database.UpdateLawyer(data as any, dataIndex.id);
@@ -173,6 +177,7 @@ const LawyerManagement = () => {
     }
     setDataServiceType(resType.data);
     modalLawyerInput[2].values = formaterSelect(resType.data);
+    modalNewLawyerInput[2].values = formaterSelect(resType.data);
   };
   const getRole = async () => {
     const roles = await database.getData(
@@ -184,6 +189,8 @@ const LawyerManagement = () => {
     }
     //setDataServiceType(resType.data);
     modalLawyerInput[8].values = formaterSelect(roles.data);
+    modalNewLawyerInput[8].values = formaterSelect(roles.data);
+
     //modalLawyerInput[7].defaultValue = 2;
   };
   const updateImage = (e: any) => {
@@ -228,6 +235,11 @@ const LawyerManagement = () => {
 
     router.push(`lawyer-management/${dataId.data.data.id}`);
   };
+  const newLawyer = () => {
+    setIsOpenNew(true);
+    setImagePreview(null);
+  };
+
   useEffect(() => {
     getServiceType();
     getRole();
@@ -294,7 +306,7 @@ const LawyerManagement = () => {
                 </label>
                 <textarea
                   defaultValue={dataIndex?.notes}
-                  name='Notes'
+                  name='notes'
                   className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
                 />
               </div>
@@ -403,7 +415,7 @@ const LawyerManagement = () => {
               <MdSaveAlt size={24} />
             </div>
             <form onSubmit={createlawyer} className='grid grid-cols-2 gap-5'>
-              {modalLawyerInput.map((res: any, index: number) => (
+              {modalNewLawyerInput.map((res: any, index: number) => (
                 <Input
                   key={index}
                   name={res.name}
@@ -486,14 +498,7 @@ const LawyerManagement = () => {
         dataFilter={data}
       />
       <div className='flex justify-end '>
-        <Button
-          name='+ New Lawyer'
-          type='button'
-          onClick={() => {
-            setIsOpenNew(true);
-            setImagePreview(null);
-          }}
-        />
+        <Button name='+ New Lawyer' type='button' onClick={newLawyer} />
       </div>
 
       <SortableTable
