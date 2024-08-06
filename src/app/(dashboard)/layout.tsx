@@ -7,7 +7,7 @@ import { ReactNode, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 export default function Layout({ children }: { children: ReactNode }) {
   const { fetchLeads, dataLeads } = useLeadsStore();
-  const review = dataLeads.length <= 0;
+  const review = !dataLeads;
 
   useEffect(() => {
     fetchLeads();

@@ -16,7 +16,7 @@ const SelectLead = () => {
   const [selectedRows, setSelectedRows] = useState<{ [key: number]: boolean }>(
     {}
   );
-  const [newData, setNewData] = useState<any>([]);
+  const [newData, setNewData] = useState<any>(null);
   const [leadsAssigned, setLeadsAssigned] = useState([]);
   const [selectRowLeads, setSelectRowLeads] = useState([]);
   const [columns, setColumns] = useState([]);
@@ -55,6 +55,7 @@ const SelectLead = () => {
     }
   };
   const filterByService = (data: any[], serviceType: string) => {
+    if (!data) return [];
     return data.filter(
       (item) => item.service === serviceType && item.status == 'NEW'
     );

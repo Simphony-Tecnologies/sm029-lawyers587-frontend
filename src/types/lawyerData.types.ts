@@ -21,4 +21,4 @@ type LawyerData = {
   law_firm: string;
   notes: string;
   status: 'Assignable' | 'Unassignable';
-};
+} | null;

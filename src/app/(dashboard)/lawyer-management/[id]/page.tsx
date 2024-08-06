@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
 const IdLawyer = ({ params }: { params: { id: string } }) => {
-  const [lawyerData, setLawyerData] = useState([]);
+  const [lawyerData, setLawyerData] = useState(null);
 
   const [columns, setColumns] = useState([]);
   const statusColors = {

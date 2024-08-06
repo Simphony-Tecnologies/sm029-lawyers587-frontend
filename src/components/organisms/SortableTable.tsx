@@ -21,7 +21,7 @@ type SortConfig = {
 
 type SortableTableProps = {
   columns: string[];
-  data: { [key: string]: string | number }[];
+  data: { [key: string]: string | number }[] | null;
   statusColors?: { [key: string]: string };
   onEdit?: (index: number) => void;
   onDelete?: (index: number) => void;
@@ -62,7 +62,7 @@ const SortableTable = ({
   const sortedData = React.useMemo(() => {
     if (!sortConfig) return data;
 
-    const sorted = [...data].sort((a, b) => {
+    const sorted = [...(data as any)].sort((a, b) => {
       if (a[sortConfig.key] < b[sortConfig.key]) {
         return sortConfig.direction === 'ascending' ? -1 : 1;
       }
@@ -98,10 +98,14 @@ const SortableTable = ({
   const calculateGlobalIndex = (localIndex: number) => {
     return (currentPage - 1) * itemsPerPage + localIndex;
   };
-
+  if (!data) {
+    return <SkeletonTable />;
+  }
+  if (data.length <= 0) {
+    return <div>No data found</div>;
+  }
   return (
     <div className='flex flex-col gap-10'>
-      {/* {columns.length <= 0 && <SkeletonTable />} */}
       <div className='overflow-x-auto shadow-sm sm:rounded-lg border'>
         <table className='min-w-full bg-white'>
           <thead className='bg-gray-50'>

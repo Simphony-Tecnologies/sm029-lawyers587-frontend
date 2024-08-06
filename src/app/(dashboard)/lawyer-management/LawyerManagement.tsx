@@ -17,7 +17,7 @@ import { modalUpdatePassword } from '@/configs/modalUpdatePassword.confing';
 import { useRouter } from 'next/navigation';
 import { modalNewLawyerInput } from '@/configs/modalNewLawyer.config';
 const LawyerManagement = () => {
-  const [data, setData] = useState<LawyerData[]>([]);
+  const [data, setData] = useState<LawyerData[]>(null);
 
   const [columns, setColumns] = useState([]);
   const [error, setError] = useState(null);

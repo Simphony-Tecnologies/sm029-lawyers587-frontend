@@ -11,7 +11,7 @@ interface LeadsStore {
 
 export const useLeadsStore = create<LeadsStore>((set) => ({
   columns: [],
-  dataLeads: [],
+  dataLeads: null,
   error: null,
   fetchLeads: async () => {
     try {

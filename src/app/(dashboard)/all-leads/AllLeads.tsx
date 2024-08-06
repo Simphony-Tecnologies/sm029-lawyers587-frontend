@@ -16,7 +16,7 @@ const AllLeads = () => {
   const { user } = useAuth();
   const { dataLeads, fetchLeads } = useLeadsStore();
   const [isOpenLead, setIsOpenLead] = useState(false);
-  const [lawyerData, setLawyerData] = useState([]);
+  const [lawyerData, setLawyerData] = useState(null);
   const [columns, setColumns] = useState([]);
   const [selectedLead, setSelectedLead] = useState<any>({});
 
@@ -64,7 +64,7 @@ const AllLeads = () => {
   };
   const handleContact = (index: number) => {
     setIsOpenLead(true);
-    setSelectedLead(lawyerData[index]);
+    if (lawyerData) setSelectedLead(lawyerData[index]);
   };
   useEffect(() => {
     getLawyer();
