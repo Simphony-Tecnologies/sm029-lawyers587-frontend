@@ -81,9 +81,10 @@ const LawyerManagement = () => {
       name: item.name,
       value: item.id,
     }));
-  const handleEdit = async (index: number) => {
+  const handleEdit = (index: number) => {
     setIsOpen(true);
     setImagePreview(null);
+    setDataIndex(withOutFormat[index]);
     modalLawyerInput[0].defaultValue = withOutFormat[index].firstName;
     modalLawyerInput[1].defaultValue = withOutFormat[index].lastName;
     modalLawyerInput[2].values = formaterSelect(dataServiceType);
@@ -94,13 +95,11 @@ const LawyerManagement = () => {
     modalLawyerInput[8].defaultValue = withOutFormat[index].role.id;
     modalLawyerInput[9].defaultValue = withOutFormat[index].is_active;
     modalLawyerInput[7].defaultValue = withOutFormat[index].law_firm;
-    const dataId = await database.getLawyer(withOutFormat[index].id);
+    // const dataId = await database.getLawyer(withOutFormat[index].id);
 
-    if (!dataId.success) {
-      return toast.error('Error to get lawyer');
-    }
-
-    setDataIndex(dataId.data.data);
+    // if (!dataId.success) {
+    //   return toast.error('Error to get lawyer');
+    // }
   };
 
   const handleDelete = async (index: number) => {

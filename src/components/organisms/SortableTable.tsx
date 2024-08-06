@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import {
@@ -9,7 +9,6 @@ import {
   MdOutlineArrowForwardIos,
   MdOutlineDelete,
 } from 'react-icons/md';
-
 import SkeletonTable from '../atoms/SkeletonTable';
 
 type SortDirection = 'ascending' | 'descending';
@@ -47,8 +46,19 @@ const SortableTable = ({
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [indexedData, setIndexedData] = useState<any[]>([]);
 
-  const totalPages = Math.ceil(data ? data.length : 0 / itemsPerPage);
+  useEffect(() => {
+    if (data) {
+      const dataWithIndex = data.map((item, index) => ({
+        ...item,
+        originalIndex: index,
+      }));
+      setIndexedData(dataWithIndex);
+    }
+  }, [data]);
+
+  const totalPages = Math.ceil((data ? data.length : 0) / itemsPerPage);
   dayjs.extend(utc);
 
   const onSort = (column: string) => {
@@ -60,9 +70,9 @@ const SortableTable = ({
   };
 
   const sortedData = React.useMemo(() => {
-    if (!sortConfig) return data;
+    if (!sortConfig) return indexedData;
 
-    const sorted = [...(data as any)].sort((a, b) => {
+    const sorted = [...indexedData].sort((a, b) => {
       if (a[sortConfig.key] < b[sortConfig.key]) {
         return sortConfig.direction === 'ascending' ? -1 : 1;
       }
@@ -73,7 +83,7 @@ const SortableTable = ({
     });
 
     return sorted;
-  }, [data, sortConfig]);
+  }, [indexedData, sortConfig]);
 
   const paginatedData = sortedData?.slice(
     (currentPage - 1) * itemsPerPage,
@@ -98,12 +108,15 @@ const SortableTable = ({
   const calculateGlobalIndex = (localIndex: number) => {
     return (currentPage - 1) * itemsPerPage + localIndex;
   };
+
   if (!data) {
     return <SkeletonTable />;
   }
+
   if (data.length <= 0) {
     return <div>No data found</div>;
   }
+
   return (
     <div className='flex flex-col gap-10'>
       <div className='overflow-x-auto shadow-sm sm:rounded-lg border'>
@@ -119,16 +132,14 @@ const SortableTable = ({
                 <th
                   key={column}
                   onClick={() => onSort(column)}
-                  className={`px-4 py-2 border-b-2 border-gray-200 cursor-pointer`}
+                  className='px-4 py-2 border-b-2 border-gray-200 cursor-pointer'
                 >
                   <div className='uppercase flex items-center text-start'>
                     {column}
                     {sortConfig?.key === column && (
                       <span>
                         {sortConfig.direction === 'ascending' ? (
-                          <div className='text-gray-500'>
-                            <MdImportExport />
-                          </div>
+                          <MdImportExport className='text-gray-500' />
                         ) : (
                           <MdImportExport />
                         )}
@@ -150,41 +161,35 @@ const SortableTable = ({
             </tr>
           </thead>
           <tbody>
-            {paginatedData?.map((item: any, index) => (
+            {paginatedData?.map((item: any, localIndex) => (
               <tr
-                key={index}
+                key={calculateGlobalIndex(localIndex)}
                 className={`${onRoute && 'hover:bg-gray-200 cursor-pointer'}`}
               >
                 {onSelectRow && (
                   <td className='px-4 py-2 border-b border-gray-200 mx-auto'>
-                    <div className='flex text-center justify-center  '>
+                    <div className='flex text-center justify-center'>
                       <input
-                        id={`checkbox-${calculateGlobalIndex(index)}`} // Usa un id único
+                        id={`checkbox-${item.originalIndex}`} // Usa un id único basado en el índice original
                         className='peer hidden'
                         type='checkbox'
-                        checked={
-                          selectedRows[calculateGlobalIndex(index)] || false
-                        }
-                        onChange={() =>
-                          onSelectRow(calculateGlobalIndex(index))
-                        }
+                        checked={selectedRows[item.originalIndex] || false}
+                        onChange={() => onSelectRow(item.originalIndex)}
                       />
                       <label
-                        htmlFor={`checkbox-${calculateGlobalIndex(index)}`} // Asegúrate de que el label apunte al id único
-                        className='flex items-center justify-center w-6 h-6 border border-green-500 rounded bg-white cursor-pointer relative  text-white peer-checked:text-green-500'
+                        htmlFor={`checkbox-${item.originalIndex}`} // Asegúrate de que el label apunte al id único
+                        className='flex items-center justify-center w-6 h-6 border border-green-500 rounded bg-white cursor-pointer relative text-white peer-checked:text-green-500'
                       >
-                        <i className='fi fi-rr-check absolute  text-lg  peer-checked:block '></i>
+                        <i className='fi fi-rr-check absolute text-lg peer-checked:block hidden'></i>
                       </label>
                     </div>
                   </td>
                 )}
                 {columns?.map((column) => (
                   <td
-                    onClick={() =>
-                      onRoute && onRoute(calculateGlobalIndex(index))
-                    }
+                    onClick={() => onRoute && onRoute(item.originalIndex)}
                     key={column}
-                    className={`px-4 py-2 border-b border-gray-200`}
+                    className='px-4 py-2 border-b border-gray-200'
                   >
                     {column === 'date' ? (
                       dayjs
@@ -204,14 +209,12 @@ const SortableTable = ({
                       item[column].name
                     ) : column === 'status' && statusColors ? (
                       <p
-                        onClick={() =>
-                          onStatus && onStatus(calculateGlobalIndex(index))
-                        }
-                        className={`px-2 py-1 rounded font-semibold max-w-30 w-full text-center  capitalize-first ${
+                        onClick={() => onStatus && onStatus(item.originalIndex)}
+                        className={`px-2 py-1 rounded font-semibold max-w-30 w-full text-center capitalize-first ${
                           onStatus && 'cursor-pointer'
                         }`}
                         style={{
-                          backgroundColor: statusColors[item[column]] + 20,
+                          backgroundColor: `${statusColors[item[column]]}20`,
                           color: statusColors[item[column]],
                         }}
                       >
@@ -226,7 +229,7 @@ const SortableTable = ({
                   <td className='px-4 py-2 border-b border-gray-200'>
                     {onEdit && (
                       <button
-                        onClick={() => onEdit(calculateGlobalIndex(index))}
+                        onClick={() => onEdit(item.originalIndex)}
                         className='text-white bg-customGreen bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customGreen'
                       >
                         <MdEdit />
@@ -234,7 +237,7 @@ const SortableTable = ({
                     )}
                     {onDelete && (
                       <button
-                        onClick={() => onDelete(calculateGlobalIndex(index))}
+                        onClick={() => onDelete(item.originalIndex)}
                         className='text-white bg-customRed bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customRed'
                       >
                         <MdOutlineDelete />
@@ -245,7 +248,7 @@ const SortableTable = ({
                 {onContact && (
                   <td className='px-4 py-2 border-b border-gray-200'>
                     <p
-                      onClick={() => onContact(calculateGlobalIndex(index))}
+                      onClick={() => onContact(item.originalIndex)}
                       className='hover:underline cursor-pointer'
                     >
                       Contact
