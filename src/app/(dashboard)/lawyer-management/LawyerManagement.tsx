@@ -17,8 +17,7 @@ import { modalUpdatePassword } from '@/configs/modalUpdatePassword.confing';
 import { useRouter } from 'next/navigation';
 import { modalNewLawyerInput } from '@/configs/modalNewLawyer.config';
 const LawyerManagement = () => {
-  const [data, setData] = useState<LawyerData[]>(null);
-
+  const [data, setData] = useState<any>(null);
   const [columns, setColumns] = useState([]);
   const [error, setError] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -28,7 +27,7 @@ const LawyerManagement = () => {
   const [searchText, setSearchText] = useState<string>('');
   const [searchedResults, setSearchedResults] = useState<LawyerData[]>([]);
   const [dataServiceType, setDataServiceType] = useState([]);
-  const [withOutFormat, setWithOutFormat] = useState<LawyerData[]>([]);
+  const [withOutFormat, setWithOutFormat] = useState<any>([]);
   const [isOpenDelete, setIsOpenDelete] = useState(false);
   const [file, setFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);

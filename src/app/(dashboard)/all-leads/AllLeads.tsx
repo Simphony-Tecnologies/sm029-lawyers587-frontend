@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 const AllLeads = () => {
   dayjs.extend(utc);
   const { user } = useAuth();
+  const [userId, setUserId] = useState<any>(null);
   const { dataLeads, fetchLeads } = useLeadsStore();
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [lawyerData, setLawyerData] = useState(null);
@@ -37,6 +38,10 @@ const AllLeads = () => {
     'Contact',
   ];
   const getLawyer = async () => {
+    if (Object.keys(user).length > 0) {
+      const dataLawyer = await database.getLawyer(user.id);
+      setUserId(dataLawyer.data.data);
+    }
     const dataLawyer = await database.getLeadsAssigned();
 
     if (!dataLawyer.success) {
@@ -47,6 +52,7 @@ const AllLeads = () => {
     const filterItems = firstItem.filter(
       (item: any) => item.lawyer_id === parseInt(user.id)
     );
+    if (!dataLeads) return [];
     if (dataLeads.length > 0) {
       const filterLeads = dataLeads.filter((item: any) =>
         filterItems
@@ -135,7 +141,7 @@ const AllLeads = () => {
       </Modal>
       <Tilte
         name={`${user?.firstName} ${user?.lastName}`}
-        des={user?.service_type?.name}
+        des={userId?.service_type?.name}
       />
 
       <SortableTable

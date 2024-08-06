@@ -136,7 +136,7 @@ const SelectLead = () => {
   }, [user]);
 
   useEffect(() => {
-    const DataFilter = filterByService(dataLeads, user?.service_type?.name);
+    const DataFilter = filterByService(dataLeads, userId?.service_type?.name);
     const filteredDataLeads = DataFilter.map(
       ({
         email,
@@ -157,7 +157,7 @@ const SelectLead = () => {
     <div className='flex flex-col gap-5'>
       <Tilte
         name={`${user?.firstName} ${user?.lastName}`}
-        des={user?.service_type?.name}
+        des={userId?.service_type?.name}
       >
         <div className='flex justify-center items-center gap-5'>
           <div className='bg-gray-200 px-4 py-1 rounded-md'>
