@@ -131,9 +131,7 @@ export const database = {
       const response = await fetch(source);
       const dataFull = await response.json();
 
-      const data = dataFull.data.map(
-        ({ password, ...rest }: LawyerData) => rest
-      );
+      const data = dataFull.data.map(({ password, ...rest }: any) => rest);
 
       return {
         success: true,
