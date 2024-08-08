@@ -99,22 +99,17 @@ const LawyerManagement = () => {
     setDataLawyerLeads(dataLawyer.data);
   };
   const getTotalLeads = (data: any) => {
-    console.log(data);
-
     data.map(async (res: any) => {
-      console.log(dataLawyerLeads);
-
       const filterItems = dataLawyerLeads.filter(
         (item: any) => item['lawyer_id'] === parseInt(res.id)
       );
-      console.log(filterItems);
+
       if (!!dataLeads && dataLeads.length > 0) {
         const filterLeads = dataLeads.filter((item: any) =>
           filterItems
             .map((filterItem: any) => filterItem.lead)
             .includes(item['lead id'])
         );
-        console.log(filterLeads.length);
 
         res.totalLeads = filterLeads.length;
         res.activeLeads = filterLeads.filter(
