@@ -12,9 +12,16 @@ import { useState, useEffect } from 'react';
 import { MdOutlineImage, MdSaveAlt } from 'react-icons/md';
 import Button from '@/components/atoms/Button';
 import toast from 'react-hot-toast';
+import Image from 'next/image';
+import { modalUpdatePassword } from '@/configs/modalUpdatePassword.confing';
+import { useRouter } from 'next/navigation';
+import { modalNewLawyerInput } from '@/configs/modalNewLawyer.config';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import { useLeadsStore } from '@/store/useLead.store';
+import SkeletonText from '@/components/atoms/SkeletonText';
 const LawyerManagement = () => {
-  const [data, setData] = useState<LawyerData[]>([]);
-
+  const [data, setData] = useState<any>(null);
   const [columns, setColumns] = useState([]);
   const [error, setError] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -24,20 +31,37 @@ const LawyerManagement = () => {
   const [searchText, setSearchText] = useState<string>('');
   const [searchedResults, setSearchedResults] = useState<LawyerData[]>([]);
   const [dataServiceType, setDataServiceType] = useState([]);
-  const [withOutFormat, setWithOutFormat] = useState<LawyerData[]>([]);
+  const [withOutFormat, setWithOutFormat] = useState<any>([]);
   const [isOpenDelete, setIsOpenDelete] = useState(false);
+  const [file, setFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isOpenPassword, setIsopenPassword] = useState(false);
+  const [lawyerStatistic, setLawyerStatistic] = useState(modalLawyerStatistics);
+  const [assignable, setAssignable] = useState<any>(null);
+  const { dataLeads } = useLeadsStore();
+  const [dataLawyerLeads, setDataLawyerLeads] = useState([]);
+  const [dataProject, setDataProject] = useState(0);
+  const router = useRouter();
+  dayjs.extend(utc);
   const formatResponse = (data: any) => {
     return {
       code: data.id,
-      lawyer_name: `${data.firstName} ${data.lastName}`,
+      'lawyer name': `${data.firstName} ${data.lastName}`,
       email: data.email,
-      phone_number: data.phone,
-      service_type: data.service_type,
-      leads_pulled: `0/${data.max_leads}`,
-      active_leads: 0,
-      no_leads_lost: 0,
-      last_active: Math.floor(new Date(data.last_login).getTime() / 1000),
-      status: data.is_active ? 'Assignable' : 'Unassignable',
+      'phone number': data.phone,
+      'service type': data.service_type,
+      'leads pulled': `${data.totalLeads ? data.totalLeads : 0}/${
+        data.max_leads
+      }`,
+      'active leads': `${data.activeLeads ? data.activeLeads : 0}`,
+      'no leads lost': `${data.lost ? data.lost : 0}`,
+      'last active': data.last_login,
+      status:
+        data.status === undefined
+          ? null
+          : data.status
+          ? 'Assignable'
+          : 'Unassignable',
     };
   };
   const fetchData = async () => {
@@ -51,7 +75,10 @@ const LawyerManagement = () => {
       }
       const data = response.data;
       setWithOutFormat(data);
+      getTotalLeads(data);
+
       const dataFormat = data.map(formatResponse);
+
       setData(dataFormat);
 
       if (data.length > 0) {
@@ -63,7 +90,44 @@ const LawyerManagement = () => {
       setError(error.message);
     }
   };
+  const getDataLeads = async () => {
+    const dataLawyer = await database.getLeadsAssigned();
 
+    if (!dataLawyer.success) {
+      return toast.error('Error to get leads assigned');
+    }
+    setDataLawyerLeads(dataLawyer.data);
+  };
+  const getTotalLeads = (data: any) => {
+    data.map(async (res: any) => {
+      const filterItems = dataLawyerLeads.filter(
+        (item: any) => item['lawyer_id'] === parseInt(res.id)
+      );
+
+      if (!!dataLeads && dataLeads.length > 0) {
+        const filterLeads = dataLeads.filter((item: any) =>
+          filterItems
+            .map((filterItem: any) => filterItem.lead)
+            .includes(item['lead id'])
+        );
+
+        res.totalLeads = filterLeads.length;
+        res.activeLeads = filterLeads.filter(
+          (item: any) =>
+            item.status === 'ASSIGNED' || item.status === 'IN PROGRESS'
+        ).length;
+        res.lost = filterLeads.filter(
+          (item: any) => item.status === 'EXPIRED'
+        ).length;
+        res.status =
+          parseInt(res.max_leads) - parseInt(filterLeads.length) > 0
+            ? true
+            : false;
+        setDataProject(res);
+        dataProject;
+      }
+    });
+  };
   const statusColors = {
     Assignable: '#00B69B',
     Unassignable: '#FF4240',
@@ -75,6 +139,8 @@ const LawyerManagement = () => {
     }));
   const handleEdit = async (index: number) => {
     setIsOpen(true);
+    setImagePreview(null);
+    setDataIndex(withOutFormat[index]);
     modalLawyerInput[0].defaultValue = withOutFormat[index].firstName;
     modalLawyerInput[1].defaultValue = withOutFormat[index].lastName;
     modalLawyerInput[2].values = formaterSelect(dataServiceType);
@@ -84,14 +150,56 @@ const LawyerManagement = () => {
     modalLawyerInput[6].defaultValue = withOutFormat[index].max_leads;
     modalLawyerInput[8].defaultValue = withOutFormat[index].role.id;
     modalLawyerInput[9].defaultValue = withOutFormat[index].is_active;
+    modalLawyerInput[7].defaultValue = withOutFormat[index].law_firm;
+    const dataLawyer = await database.getLeadsAssigned();
 
-    const dataId = await database.getLawyer(withOutFormat[index].id);
-
-    if (!dataId.success) {
-      return toast.error('Error to get lawyer');
+    if (!dataLawyer.success) {
+      return toast.error('Error to get leads assigned');
     }
 
-    setDataIndex(dataId.data.data);
+    const firstItem = dataLawyer.data;
+    const filterItems = firstItem.filter(
+      (item: any) => item.lawyer_id === parseInt(withOutFormat[index].id)
+    );
+    if (!!dataLeads && dataLeads.length > 0) {
+      const filterLeads = dataLeads.filter((item: any) =>
+        filterItems
+          .map((filterItem: any) => filterItem.lead)
+          .includes(item['lead id'])
+      );
+      const updatedStatistics = [...lawyerStatistic];
+      //setLawyerDataLead(filterLeads);
+      updatedStatistics[0].value = filterLeads.length;
+      updatedStatistics[1].value =
+        parseInt(withOutFormat[index].max_leads) - parseInt(filterLeads.length);
+      updatedStatistics[2].value = filterLeads.filter(
+        (item: any) =>
+          item.status === 'ASSIGNED' ||
+          item.status === 'IN PROGRESS' ||
+          item.status === 'CLOSED'
+      ).length;
+      updatedStatistics[3].value = filterLeads.filter(
+        (item: any) => item.status === 'EXPIRED'
+      ).length;
+      updatedStatistics[4].value = filterLeads.filter(
+        (item: any) =>
+          item.status === 'REASSIGNED' || item.status === 'PROBLEMATIC'
+      ).length;
+
+      setLawyerStatistic(updatedStatistics);
+      const isAssignable =
+        parseInt(withOutFormat[index].max_leads) -
+          parseInt(filterLeads.length) >
+        0
+          ? true
+          : false;
+      const toBeAssigned =
+        parseInt(withOutFormat[index].max_leads) - parseInt(filterLeads.length);
+      setAssignable({
+        isAssignable: isAssignable,
+        toBeAssigned: toBeAssigned,
+      });
+    }
   };
 
   const handleDelete = async (index: number) => {
@@ -101,11 +209,7 @@ const LawyerManagement = () => {
     if (!dataId.success) {
       return toast.error('Error to get lawyer');
     }
-
     setDataIndex(dataId.data.data);
-
-    // const newData = data.filter((_, i) => i !== index);
-    // setData(newData);
   };
   const DeleteLawyer = async () => {
     const dataDelete = await database.DeleteLawyer(dataIndex.id);
@@ -129,6 +233,8 @@ const LawyerManagement = () => {
       role_id: e.target.role_id.value,
       password: e.target.password.value,
       max_leads: e.target.max_leads.value,
+      law_firm: e.target.name_of_law_firm.value,
+      notes: e.target.notes.value,
       is_active: true,
     };
 
@@ -148,6 +254,9 @@ const LawyerManagement = () => {
       role_id: parseInt(e.target.role_id.value),
       max_leads: e.target.max_leads.value,
       is_active: e.target.is_active.value === 'true',
+      law_firm: e.target.name_of_law_firm.value,
+      notes: e.target.notes.value,
+      updated_at: new Date(),
     };
 
     const updateData = await database.UpdateLawyer(data as any, dataIndex.id);
@@ -167,6 +276,7 @@ const LawyerManagement = () => {
     }
     setDataServiceType(resType.data);
     modalLawyerInput[2].values = formaterSelect(resType.data);
+    modalNewLawyerInput[2].values = formaterSelect(resType.data);
   };
   const getRole = async () => {
     const roles = await database.getData(
@@ -178,19 +288,73 @@ const LawyerManagement = () => {
     }
     //setDataServiceType(resType.data);
     modalLawyerInput[8].values = formaterSelect(roles.data);
+    modalNewLawyerInput[8].values = formaterSelect(roles.data);
+
     //modalLawyerInput[7].defaultValue = 2;
   };
+  const updateImage = (e: any) => {
+    e.preventDefault();
+    const input = e.target;
+
+    if (input.files && input.files[0]) {
+      const maxFileSize = 10485760;
+      if (input.files[0].size > maxFileSize) {
+        toast.error('Error to update image size');
+        return null;
+      }
+      setFile(input.files[0]);
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        setImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(input.files[0]);
+      input.value = '';
+    }
+  };
+  const updatePassword = async (e: any) => {
+    e.preventDefault();
+    const newPassword = e.target.new.value;
+    const confirmPassword = e.target.confirm.value;
+    if (newPassword !== confirmPassword) {
+      return toast.error('Passwords do not match');
+    }
+    const data = {
+      password: newPassword,
+    };
+    const updateData = await database.UpdateLawyer(data as any, dataIndex.id);
+    if (updateData.code === 401) {
+      return toast.error(updateData.messages);
+    }
+    fetchData();
+    toast.success("Lawyers' password updated successfully");
+    setIsopenPassword(false);
+  };
+  const handleRoute = async (index: number) => {
+    const dataId = await database.getLawyer(withOutFormat[index].id);
+
+    router.push(`lawyer-management/${dataId.data.data.id}`);
+  };
+  const newLawyer = () => {
+    setIsOpenNew(true);
+    setImagePreview(null);
+  };
+
   useEffect(() => {
     getServiceType();
     getRole();
-    fetchData();
   }, []);
+  useEffect(() => {
+    fetchData();
+    getDataLeads();
+  }, [dataLeads, dataProject]);
+
   useEffect(() => {
     if (searchText) {
       return setData(searchedResults);
     }
     fetchData();
   }, [searchText]);
+
   return (
     <div className='container mx-auto p-4 flex flex-col gap-5'>
       <Modal title='Lawyer Details' isOpen={isOpen} setIsOpen={setIsOpen}>
@@ -198,10 +362,30 @@ const LawyerManagement = () => {
           <div className='flex flex-col gap-5'>
             <div className='text-gray-500 text-sm'>Code: {dataIndex?.id}</div>
             <div className='flex items-center gap-2'>
-              <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
-                <MdOutlineImage size={32} />
+              {imagePreview ? (
+                <Image
+                  src={imagePreview}
+                  alt='Preview'
+                  width={300}
+                  height={300}
+                  className='object-cover rounded-full w-20 h-20  '
+                />
+              ) : (
+                <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
+                  <MdOutlineImage size={32} />
+                </div>
+              )}
+              <div className='relative'>
+                <input
+                  type='file'
+                  accept='image/*'
+                  className='absolute inset-0  cursor-pointer opacity-0'
+                  name='Change image'
+                  onChange={updateImage}
+                />
+                <p className='underline cursor-pointer '>Change image</p>
               </div>
-              <p className='hover:underline cursor-pointer'>Change image</p>
+
               <MdSaveAlt size={24} />
             </div>
             <form onSubmit={UpdateLawyer} className='grid grid-cols-2 gap-5'>
@@ -224,13 +408,17 @@ const LawyerManagement = () => {
                   Notes
                 </label>
                 <textarea
-                  name='Notes'
+                  defaultValue={dataIndex?.notes}
+                  name='notes'
                   className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
                 />
               </div>
               <div className=''>
                 <p className='text-primary font-bold'>Password</p>
-                <p className='hover:underline cursor-pointer '>
+                <p
+                  onClick={() => setIsopenPassword(true)}
+                  className='hover:underline cursor-pointer '
+                >
                   Update password
                 </p>
               </div>
@@ -247,11 +435,20 @@ const LawyerManagement = () => {
           <p>
             Info about the leads assigned to this lawyer{' '}
             <span className='text-gray-500'>
-              Since May 1st to present Last active 12:56pm
+              Since{' '}
+              {dayjs
+                .utc(dataIndex?.created_at)
+                .local()
+                .format('MM/DD/YYYY hh:mm:ss a')}{' '}
+              to present Last active{' '}
+              {dayjs
+                .utc(dataIndex?.last_login)
+                .local()
+                .format('MM/DD/YYYY hh:mm:ss a')}
             </span>
           </p>
           <div className='flex  gap-2 flex-wrap'>
-            {modalLawyerStatistics.map((res, index) => (
+            {lawyerStatistic.map((res, index) => (
               <div
                 key={index}
                 className='flex gap-4 px-4 py-1.5 rounded-lg'
@@ -267,34 +464,42 @@ const LawyerManagement = () => {
           </div>
           <div className='flex gap-4 items-center'>
             <p>Status:</p>
-            <p
-              className='px-4 py-1 rounded-lg'
-              style={{
-                backgroundColor: `${
-                  dataIndex?.status === 'Assignable'
-                    ? statusColors.Assignable + 20
-                    : statusColors.Unassignable + 20
-                }`,
-                color: `${
-                  dataIndex?.status === 'Assignable'
-                    ? statusColors.Assignable
-                    : statusColors.Unassignable
-                }`,
-              }}
-            >
-              {dataIndex?.status}
-            </p>
-            <p
-              style={
-                dataIndex?.status === 'Assignable'
-                  ? { color: '#4AD991' }
-                  : { color: statusColors.Unassignable }
-              }
-            >
-              {dataIndex?.status === 'Assignable'
-                ? ' +10 leads to be assigned '
-                : 'This lawyer is at the limit of assigned leads'}
-            </p>
+            {assignable === null ? (
+              <div className='w-full'>
+                <SkeletonText />
+              </div>
+            ) : (
+              <>
+                <p
+                  className='px-4 py-1 rounded-lg'
+                  style={{
+                    backgroundColor: `${
+                      !!assignable.isAssignable
+                        ? statusColors.Assignable + 20
+                        : statusColors.Unassignable + 20
+                    }`,
+                    color: `${
+                      !!assignable.isAssignable
+                        ? statusColors.Assignable
+                        : statusColors.Unassignable
+                    }`,
+                  }}
+                >
+                  {!!assignable.isAssignable ? 'Assignable' : 'Unassignable'}
+                </p>
+                <p
+                  style={
+                    !!assignable.isAssignable
+                      ? { color: '#4AD991' }
+                      : { color: statusColors.Unassignable }
+                  }
+                >
+                  {!!assignable.isAssignable
+                    ? `${assignable.toBeAssigned} leads to be assigned`
+                    : 'This lawyer is at the limit of assigned leads'}
+                </p>
+              </>
+            )}
           </div>
         </footer>
       </Modal>
@@ -303,14 +508,34 @@ const LawyerManagement = () => {
           <div className='flex flex-col gap-5'>
             <div className='text-gray-500 text-sm'>Code: {dataIndex?.code}</div>
             <div className='flex items-center gap-2'>
-              <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
-                <MdOutlineImage size={32} />
+              {imagePreview ? (
+                <Image
+                  src={imagePreview}
+                  alt='Preview'
+                  width={300}
+                  height={300}
+                  className='object-cover rounded-full w-20 h-20  '
+                />
+              ) : (
+                <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
+                  <MdOutlineImage size={32} />
+                </div>
+              )}
+              <div className='relative'>
+                <input
+                  type='file'
+                  accept='image/*'
+                  className='absolute inset-0  cursor-pointer opacity-0'
+                  name='Change image'
+                  onChange={updateImage}
+                />
+                <p className='underline cursor-pointer '>Change image</p>
               </div>
-              <p className='hover:underline cursor-pointer'>Change image</p>
+
               <MdSaveAlt size={24} />
             </div>
             <form onSubmit={createlawyer} className='grid grid-cols-2 gap-5'>
-              {modalLawyerInput.map((res: any, index: number) => (
+              {modalNewLawyerInput.map((res: any, index: number) => (
                 <Input
                   key={index}
                   name={res.name}
@@ -323,11 +548,11 @@ const LawyerManagement = () => {
               ))}
 
               <div className='col-span-2'>
-                <label className='font-bold' htmlFor='Notes'>
+                <label className='font-bold' htmlFor='notes'>
                   Notes
                 </label>
                 <textarea
-                  name='Notes'
+                  name='notes'
                   className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
                 />
               </div>
@@ -362,6 +587,29 @@ const LawyerManagement = () => {
           </div>
         </div>
       </Modal>
+      <Modal
+        title='Update password'
+        isOpen={isOpenPassword}
+        setIsOpen={setIsopenPassword}
+        className='max-w-sm'
+      >
+        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200 '>
+          <form className='flex flex-col gap-5' onSubmit={updatePassword}>
+            {modalUpdatePassword.map((res: any, index: number) => (
+              <Input
+                key={index}
+                name={res.name}
+                label={res.label}
+                type={res.type}
+                required={res.required}
+              />
+            ))}
+            <div className='flex justify-end'>
+              <Button name='Save' type='submit' />
+            </div>
+          </form>
+        </div>
+      </Modal>
       <Tilte
         name='Lawyer Management'
         search={true}
@@ -370,11 +618,7 @@ const LawyerManagement = () => {
         dataFilter={data}
       />
       <div className='flex justify-end '>
-        <Button
-          name='+ New Lawyer'
-          type='button'
-          onClick={() => setIsOpenNew(true)}
-        />
+        <Button name='+ New Lawyer' type='button' onClick={newLawyer} />
       </div>
 
       <SortableTable
@@ -383,6 +627,7 @@ const LawyerManagement = () => {
         statusColors={statusColors}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onRoute={handleRoute}
       />
     </div>
   );

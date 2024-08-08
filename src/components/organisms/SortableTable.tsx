@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+'use client';
+import React, { useState, useEffect } from 'react';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 import {
   MdEdit,
   MdImportExport,
@@ -7,6 +9,8 @@ import {
   MdOutlineArrowForwardIos,
   MdOutlineDelete,
 } from 'react-icons/md';
+import SkeletonTable from '../atoms/SkeletonTable';
+import SkeletonText from '../atoms/SkeletonText';
 
 type SortDirection = 'ascending' | 'descending';
 
@@ -17,10 +21,15 @@ type SortConfig = {
 
 type SortableTableProps = {
   columns: string[];
-  data: { [key: string]: string | number }[];
+  data: { [key: string]: string | number }[] | null;
   statusColors?: { [key: string]: string };
   onEdit?: (index: number) => void;
   onDelete?: (index: number) => void;
+  onStatus?: (index: number) => void;
+  onRoute?: (index: number) => void;
+  onSelectRow?: (index: number) => void;
+  selectedRows?: any;
+  onContact?: (index: number) => void;
 };
 
 const SortableTable = ({
@@ -29,11 +38,29 @@ const SortableTable = ({
   statusColors,
   onEdit,
   onDelete,
+  onStatus,
+  onRoute,
+  onSelectRow,
+  selectedRows,
+  onContact,
 }: SortableTableProps) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
-  const totalPages = Math.ceil(data.length / itemsPerPage);
+  const [indexedData, setIndexedData] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (data) {
+      const dataWithIndex = data.map((item, index) => ({
+        ...item,
+        originalIndex: index,
+      }));
+      setIndexedData(dataWithIndex);
+    }
+  }, [data]);
+
+  const totalPages = Math.ceil((data ? data.length : 0) / itemsPerPage);
+  dayjs.extend(utc);
 
   const onSort = (column: string) => {
     let direction: SortDirection = 'ascending';
@@ -44,9 +71,9 @@ const SortableTable = ({
   };
 
   const sortedData = React.useMemo(() => {
-    if (!sortConfig) return data;
+    if (!sortConfig) return indexedData;
 
-    const sorted = [...data].sort((a, b) => {
+    const sorted = [...indexedData].sort((a, b) => {
       if (a[sortConfig.key] < b[sortConfig.key]) {
         return sortConfig.direction === 'ascending' ? -1 : 1;
       }
@@ -57,16 +84,12 @@ const SortableTable = ({
     });
 
     return sorted;
-  }, [data, sortConfig]);
+  }, [indexedData, sortConfig]);
 
-  const paginatedData = sortedData.slice(
+  const paginatedData = sortedData?.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
 
   const handleItemsPerPageChange = (
     e: React.ChangeEvent<HTMLSelectElement>
@@ -87,13 +110,26 @@ const SortableTable = ({
     return (currentPage - 1) * itemsPerPage + localIndex;
   };
 
+  if (!data) {
+    return <SkeletonTable />;
+  }
+
+  if (data.length <= 0) {
+    return <div>No data found</div>;
+  }
+
   return (
     <div className='flex flex-col gap-10'>
-      <div className='relative overflow-x-auto shadow-sm sm:rounded-lg border'>
+      <div className='overflow-x-auto shadow-sm sm:rounded-lg border'>
         <table className='min-w-full bg-white'>
           <thead className='bg-gray-50'>
             <tr>
-              {columns.map((column) => (
+              {onSelectRow && (
+                <th className='px-4 py-2 border-b-2 border-gray-200'>
+                  <input type='checkbox' disabled />
+                </th>
+              )}
+              {columns?.map((column) => (
                 <th
                   key={column}
                   onClick={() => onSort(column)}
@@ -104,9 +140,7 @@ const SortableTable = ({
                     {sortConfig?.key === column && (
                       <span>
                         {sortConfig.direction === 'ascending' ? (
-                          <div className='text-gray-500'>
-                            <MdImportExport />
-                          </div>
+                          <MdImportExport className='text-gray-500' />
                         ) : (
                           <MdImportExport />
                         )}
@@ -120,34 +154,84 @@ const SortableTable = ({
                   Actions
                 </th>
               )}
+              {onContact && (
+                <th className='px-4 py-2 border-b-2 border-gray-200 uppercase text-start'>
+                  CONTACT
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
-            {paginatedData.map((item: any, index) => (
-              <tr key={item.code}>
-                {columns.map((column) => (
+            {paginatedData?.map((item: any, localIndex) => (
+              <tr key={calculateGlobalIndex(localIndex)}>
+                {onSelectRow && (
+                  <td className='px-4 py-2 border-b border-gray-200 mx-auto'>
+                    <div className='flex text-center justify-center'>
+                      <input
+                        id={`checkbox-${item.originalIndex}`} // Usa un id único basado en el índice original
+                        className='peer hidden'
+                        type='checkbox'
+                        checked={selectedRows[item.originalIndex] || false}
+                        onChange={() => onSelectRow(item.originalIndex)}
+                      />
+                      <label
+                        htmlFor={`checkbox-${item.originalIndex}`} // Asegúrate de que el label apunte al id único
+                        className='flex items-center justify-center w-6 h-6 border border-green-500 rounded bg-white cursor-pointer relative text-white peer-checked:text-green-500'
+                      >
+                        <i className='fi fi-rr-check absolute text-lg peer-checked:block hidden'></i>
+                      </label>
+                    </div>
+                  </td>
+                )}
+                {columns?.map((column) => (
                   <td
                     key={column}
                     className='px-4 py-2 border-b border-gray-200'
                   >
-                    {column === 'created_at' ? (
-                      dayjs(item[column] as string).format('MM/DD/YYYY')
-                    ) : column === 'last_active' ? (
-                      dayjs.unix(item[column] as number).format('HH:mm A')
-                    ) : column === 'service_type' ? (
+                    {column === 'date' ? (
+                      dayjs
+                        .utc(item[column] as string)
+                        .local()
+                        .format('MM/DD/YYYY')
+                    ) : column === 'lawyer name' ? (
+                      <p
+                        onClick={() => onRoute && onRoute(item.originalIndex)}
+                        className={`${
+                          onRoute && 'hover:underline cursor-pointer'
+                        }`}
+                      >
+                        {item[column]}
+                      </p>
+                    ) : column === 'last active' ? (
+                      item[column] === null ? (
+                        ''
+                      ) : (
+                        dayjs
+                          .utc(item[column] as number)
+                          .local()
+                          .format('MM/DD/YYYY')
+                      )
+                    ) : column === 'service type' ? (
                       item[column].name
                     ) : column === 'status' && statusColors ? (
-                      <span
-                        className={`px-2 py-1 rounded font-semibold ${
-                          statusColors[item[column]]
+                      <p
+                        onClick={() => onStatus && onStatus(item.originalIndex)}
+                        className={`px-2 py-1 rounded font-semibold max-w-30 w-full text-center capitalize-first ${
+                          onStatus && 'cursor-pointer'
                         }`}
                         style={{
-                          backgroundColor: statusColors[item[column]] + 20,
+                          backgroundColor: `${statusColors[item[column]]}20`,
                           color: statusColors[item[column]],
                         }}
                       >
-                        {item[column]}
-                      </span>
+                        {item[column] === null ? (
+                          <div className='w-full'>
+                            <SkeletonText />
+                          </div>
+                        ) : (
+                          item[column]
+                        )}
+                      </p>
                     ) : (
                       item[column]?.toString()
                     )}
@@ -157,7 +241,7 @@ const SortableTable = ({
                   <td className='px-4 py-2 border-b border-gray-200'>
                     {onEdit && (
                       <button
-                        onClick={() => onEdit(calculateGlobalIndex(index))}
+                        onClick={() => onEdit(item.originalIndex)}
                         className='text-white bg-customGreen bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customGreen'
                       >
                         <MdEdit />
@@ -165,12 +249,22 @@ const SortableTable = ({
                     )}
                     {onDelete && (
                       <button
-                        onClick={() => onDelete(calculateGlobalIndex(index))}
+                        onClick={() => onDelete(item.originalIndex)}
                         className='text-white bg-customRed bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customRed'
                       >
                         <MdOutlineDelete />
                       </button>
                     )}
+                  </td>
+                )}
+                {onContact && (
+                  <td className='px-4 py-2 border-b border-gray-200'>
+                    <p
+                      onClick={() => onContact(item.originalIndex)}
+                      className='hover:underline cursor-pointer'
+                    >
+                      Contact
+                    </p>
                   </td>
                 )}
               </tr>
@@ -192,14 +286,14 @@ const SortableTable = ({
               </option>
             ))}
           </select>
-          <span className='ml-2'>of {data.length}</span>
+          <span className='ml-2'>of {data?.length}</span>
         </div>
         <div>
           <button
             onClick={goToPreviousPage}
             disabled={currentPage === 1}
-            className={`px-3 py-1 border rounded-l-md  ${
-              currentPage === 1 ? 'bg-gray-300 cursor-default' : 'bg-white '
+            className={`px-3 py-1 border rounded-l-md ${
+              currentPage === 1 ? 'bg-gray-300 cursor-default' : 'bg-white'
             }`}
           >
             <MdOutlineArrowBackIos />
@@ -210,7 +304,7 @@ const SortableTable = ({
             className={`px-3 py-1 border rounded-r-md ${
               currentPage === totalPages
                 ? 'bg-gray-300 cursor-default'
-                : 'bg-white '
+                : 'bg-white'
             }`}
           >
             <MdOutlineArrowForwardIos />

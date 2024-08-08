@@ -6,8 +6,15 @@ type modal = {
   title?: string;
   setIsOpen: any;
   isOpen: any;
+  className?: string;
 };
-export default function MyModal({ children, title, setIsOpen, isOpen }: modal) {
+export default function Modal({
+  children,
+  title,
+  setIsOpen,
+  isOpen,
+  className = 'max-w-lg',
+}: modal) {
   function close() {
     setIsOpen(false);
   }
@@ -19,7 +26,7 @@ export default function MyModal({ children, title, setIsOpen, isOpen }: modal) {
           <div className='flex min-h-full items-center justify-center p-4'>
             <DialogPanel
               transition
-              className='w-full max-w-lg rounded-xl bg-white  backdrop-blur-2xl duration-300 ease-out data-[closed]:transform-[scale(95%)] data-[closed]:opacity-0  '
+              className={`w-full rounded-xl bg-white  backdrop-blur-2xl duration-300 ease-out data-[closed]:transform-[scale(95%)] data-[closed]:opacity-0 ${className} `}
             >
               <DialogTitle
                 as='h3'

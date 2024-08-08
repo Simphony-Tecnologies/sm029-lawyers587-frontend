@@ -1,7 +1,7 @@
 export type typeStatistis = {
   title: string;
   value: number;
-  date: string;
+  date: Date | string;
   icon?: any;
   color: string;
 };

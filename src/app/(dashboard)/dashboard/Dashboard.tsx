@@ -1,11 +1,48 @@
+'use client';
 import Cards from '@/components/atoms/Cards';
 import Tilte from '@/components/organisms/Tilte';
-import { statistics } from '@/configs/statistics.confing';
-import React from 'react';
+import { statistics as initialStatistics } from '@/configs/statistics.confing';
+import { useLeadsStore } from '@/store/useLead.store';
+import React, { useEffect, useState } from 'react';
 
 const Dashboard = () => {
+  const { dataLeads } = useLeadsStore();
+  const [statistics, setStatistics] = useState(initialStatistics);
+
+  //const getLastElement = (arr: any) => arr[arr.length - 1];
+  const getLastElement = (arr: any) => arr[0];
+  const setData = [
+    { value: 'NEW', index: 0 },
+    { value: 'ASSIGNED', index: 1 },
+    { value: 'EXPIRED', index: 2 },
+    { value: 'LOST', index: 3 },
+  ];
+
+  const filterLeads = (value: string, index: number) => {
+    if (dataLeads) {
+      const leads = dataLeads.filter((res: any) => res.status === value);
+      const lastNewLead = getLastElement(leads);
+
+      if (lastNewLead) {
+        setStatistics((prevStatistics) => {
+          const updatedStatistics = [...prevStatistics];
+          updatedStatistics[index] = {
+            ...updatedStatistics[index],
+            value: leads.length,
+            date: lastNewLead.date,
+          };
+          return updatedStatistics;
+        });
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (dataLeads) setData.forEach((res) => filterLeads(res.value, res.index));
+  }, [dataLeads]);
+
   return (
-    <div className='flex flex-col'>
+    <div className='flex flex-col gap-5'>
       <Tilte name='Dashboard' />
       <div className='grid lg:grid-cols-2 lg:gap-10 gap-5'>
         {statistics.map((statistic: any, index: any) => (

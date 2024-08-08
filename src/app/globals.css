@@ -3,6 +3,14 @@
 @tailwind utilities;
 
 i {
-    display: flex;
-    align-items: center;
-  }
+  display: flex;
+  align-items: center;
+}
+
+.capitalize-first::first-letter {
+  text-transform: uppercase;
+}
+
+.capitalize-first {
+  text-transform: lowercase;
+}

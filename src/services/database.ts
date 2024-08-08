@@ -131,9 +131,28 @@ export const database = {
       const response = await fetch(source);
       const dataFull = await response.json();
 
-      const data = dataFull.data.map(
-        ({ password, ...rest }: LawyerData) => rest
-      );
+      const data = dataFull.data.map(({ password, ...rest }: any) => rest);
+
+      return {
+        success: true,
+        code: 200,
+        data: data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 400,
+        data: [],
+        messages: 'error connecting to database',
+      };
+    }
+  },
+  getLeadsAssigned: async (): Promise<ResponseEndpoint> => {
+    const url = process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED || '';
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
 
       return {
         success: true,
@@ -165,6 +184,35 @@ export const database = {
         success: true,
         code: 200,
         data: data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 400,
+        data: [],
+        messages: 'error connecting to database',
+      };
+    }
+  },
+  insertData: async (
+    url: string,
+    sendData: object
+  ): Promise<ResponseEndpoint> => {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sendData),
+      });
+      const data = await response.json();
+
+      return {
+        success: true,
+        code: data.statusCode,
+        data: data,
+        messages: data.message,
       };
     } catch (error) {
       return {

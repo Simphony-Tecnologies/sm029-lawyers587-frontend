@@ -1,5 +1,5 @@
 import type { dataItem } from '@/types/routes.interface';
-import { MdBusiness, MdDashboard, MdWork } from 'react-icons/md';
+import { MdBusiness, MdChecklist, MdDashboard, MdWork } from 'react-icons/md';
 
 export const routesSidebar: dataItem[] = [
   {
@@ -13,26 +13,26 @@ export const routesSidebar: dataItem[] = [
     route: '/lawyer-management',
     icon: MdBusiness,
     rol: ['admin'],
-    children: [
-      {
-        name: 'assigned Leads',
-        route: '/assigned-leads',
-        icon: MdBusiness,
-        rol: ['admin'],
-      },
-      {
-        name: 'Lost Leads',
-        route: '/lost-leads',
-        icon: MdBusiness,
-        rol: ['admin'],
-      },
-      {
-        name: 'Reassigned Leads',
-        route: '/reassigned-leads',
-        icon: MdBusiness,
-        rol: ['admin'],
-      },
-    ],
+    // children: [
+    //   {
+    //     name: 'assigned Leads',
+    //     route: '/assigned-leads',
+    //     icon: MdBusiness,
+    //     rol: ['admin'],
+    //   },
+    //   {
+    //     name: 'Lost Leads',
+    //     route: '/lost-leads',
+    //     icon: MdBusiness,
+    //     rol: ['admin'],
+    //   },
+    //   {
+    //     name: 'Reassigned Leads',
+    //     route: '/reassigned-leads',
+    //     icon: MdBusiness,
+    //     rol: ['admin'],
+    //   },
+    // ],
   },
 
   {
@@ -45,6 +45,12 @@ export const routesSidebar: dataItem[] = [
     name: 'All Leads',
     route: '/all-leads',
     icon: MdDashboard,
+    rol: ['lawyer'],
+  },
+  {
+    name: 'Select lead',
+    route: '/select-lead',
+    icon: MdChecklist,
     rol: ['lawyer'],
   },
 ];
