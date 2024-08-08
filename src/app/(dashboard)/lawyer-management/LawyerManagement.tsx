@@ -346,7 +346,7 @@ const LawyerManagement = () => {
   useEffect(() => {
     fetchData();
     getDataLeads();
-  }, [dataLeads]);
+  }, [dataLeads, dataProject]);
 
   useEffect(() => {
     if (searchText) {

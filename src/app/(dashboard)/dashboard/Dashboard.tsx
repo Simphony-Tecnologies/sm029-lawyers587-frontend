@@ -14,8 +14,8 @@ const Dashboard = () => {
   const setData = [
     { value: 'NEW', index: 0 },
     { value: 'ASSIGNED', index: 1 },
-    { value: 'REASSIGNED', index: 2 },
-    { value: 'EXPIRED', index: 3 },
+    { value: 'EXPIRED', index: 2 },
+    { value: 'LOST', index: 3 },
   ];
 
   const filterLeads = (value: string, index: number) => {
