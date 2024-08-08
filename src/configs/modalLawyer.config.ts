@@ -106,7 +106,12 @@ export const modalLawyerInput: ModalLawyerInput[] = [
     ],
   },
 ];
-export const modalLawyerStatistics = [
+type statictics = {
+  name: string;
+  value: string | number;
+  color: string;
+};
+export const modalLawyerStatistics: statictics[] = [
   {
     name: 'Total leads',
     value: '-',

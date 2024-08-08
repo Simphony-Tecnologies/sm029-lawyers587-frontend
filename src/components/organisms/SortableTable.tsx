@@ -10,6 +10,7 @@ import {
   MdOutlineDelete,
 } from 'react-icons/md';
 import SkeletonTable from '../atoms/SkeletonTable';
+import SkeletonText from '../atoms/SkeletonText';
 
 type SortDirection = 'ascending' | 'descending';
 
@@ -162,10 +163,7 @@ const SortableTable = ({
           </thead>
           <tbody>
             {paginatedData?.map((item: any, localIndex) => (
-              <tr
-                key={calculateGlobalIndex(localIndex)}
-                className={`${onRoute && 'hover:bg-gray-200 cursor-pointer'}`}
-              >
+              <tr key={calculateGlobalIndex(localIndex)}>
                 {onSelectRow && (
                   <td className='px-4 py-2 border-b border-gray-200 mx-auto'>
                     <div className='flex text-center justify-center'>
@@ -187,7 +185,6 @@ const SortableTable = ({
                 )}
                 {columns?.map((column) => (
                   <td
-                    onClick={() => onRoute && onRoute(item.originalIndex)}
                     key={column}
                     className='px-4 py-2 border-b border-gray-200'
                   >
@@ -196,6 +193,15 @@ const SortableTable = ({
                         .utc(item[column] as string)
                         .local()
                         .format('MM/DD/YYYY')
+                    ) : column === 'lawyer name' ? (
+                      <p
+                        onClick={() => onRoute && onRoute(item.originalIndex)}
+                        className={`${
+                          onRoute && 'hover:underline cursor-pointer'
+                        }`}
+                      >
+                        {item[column]}
+                      </p>
                     ) : column === 'last active' ? (
                       item[column] === null ? (
                         ''
@@ -218,7 +224,13 @@ const SortableTable = ({
                           color: statusColors[item[column]],
                         }}
                       >
-                        {item[column]}
+                        {item[column] === null ? (
+                          <div className='w-full'>
+                            <SkeletonText />
+                          </div>
+                        ) : (
+                          item[column]
+                        )}
                       </p>
                     ) : (
                       item[column]?.toString()

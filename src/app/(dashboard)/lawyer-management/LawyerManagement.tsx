@@ -16,6 +16,10 @@ import Image from 'next/image';
 import { modalUpdatePassword } from '@/configs/modalUpdatePassword.confing';
 import { useRouter } from 'next/navigation';
 import { modalNewLawyerInput } from '@/configs/modalNewLawyer.config';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import { useLeadsStore } from '@/store/useLead.store';
+import SkeletonText from '@/components/atoms/SkeletonText';
 const LawyerManagement = () => {
   const [data, setData] = useState<any>(null);
   const [columns, setColumns] = useState([]);
@@ -32,8 +36,13 @@ const LawyerManagement = () => {
   const [file, setFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isOpenPassword, setIsopenPassword] = useState(false);
+  const [lawyerStatistic, setLawyerStatistic] = useState(modalLawyerStatistics);
+  const [assignable, setAssignable] = useState<any>(null);
+  const { dataLeads } = useLeadsStore();
+  const [dataLawyerLeads, setDataLawyerLeads] = useState([]);
+  const [dataProject, setDataProject] = useState(0);
   const router = useRouter();
-
+  dayjs.extend(utc);
   const formatResponse = (data: any) => {
     return {
       code: data.id,
@@ -41,11 +50,18 @@ const LawyerManagement = () => {
       email: data.email,
       'phone number': data.phone,
       'service type': data.service_type,
-      'leads pulled': `0/${data.max_leads}`,
-      'active leads': 0,
-      'no leads lost': 0,
+      'leads pulled': `${data.totalLeads ? data.totalLeads : 0}/${
+        data.max_leads
+      }`,
+      'active leads': `${data.activeLeads ? data.activeLeads : 0}`,
+      'no leads lost': `${data.lost ? data.lost : 0}`,
       'last active': data.last_login,
-      status: data.is_active ? 'Assignable' : 'Unassignable',
+      status:
+        data.status === undefined
+          ? null
+          : data.status
+          ? 'Assignable'
+          : 'Unassignable',
     };
   };
   const fetchData = async () => {
@@ -59,7 +75,10 @@ const LawyerManagement = () => {
       }
       const data = response.data;
       setWithOutFormat(data);
+      getTotalLeads(data);
+
       const dataFormat = data.map(formatResponse);
+
       setData(dataFormat);
 
       if (data.length > 0) {
@@ -71,7 +90,49 @@ const LawyerManagement = () => {
       setError(error.message);
     }
   };
+  const getDataLeads = async () => {
+    const dataLawyer = await database.getLeadsAssigned();
 
+    if (!dataLawyer.success) {
+      return toast.error('Error to get leads assigned');
+    }
+    setDataLawyerLeads(dataLawyer.data);
+  };
+  const getTotalLeads = (data: any) => {
+    console.log(data);
+
+    data.map(async (res: any) => {
+      console.log(dataLawyerLeads);
+
+      const filterItems = dataLawyerLeads.filter(
+        (item: any) => item['lawyer_id'] === parseInt(res.id)
+      );
+      console.log(filterItems);
+      if (!!dataLeads && dataLeads.length > 0) {
+        const filterLeads = dataLeads.filter((item: any) =>
+          filterItems
+            .map((filterItem: any) => filterItem.lead)
+            .includes(item['lead id'])
+        );
+        console.log(filterLeads.length);
+
+        res.totalLeads = filterLeads.length;
+        res.activeLeads = filterLeads.filter(
+          (item: any) =>
+            item.status === 'ASSIGNED' || item.status === 'IN PROGRESS'
+        ).length;
+        res.lost = filterLeads.filter(
+          (item: any) => item.status === 'EXPIRED'
+        ).length;
+        res.status =
+          parseInt(res.max_leads) - parseInt(filterLeads.length) > 0
+            ? true
+            : false;
+        setDataProject(res);
+        dataProject;
+      }
+    });
+  };
   const statusColors = {
     Assignable: '#00B69B',
     Unassignable: '#FF4240',
@@ -81,7 +142,7 @@ const LawyerManagement = () => {
       name: item.name,
       value: item.id,
     }));
-  const handleEdit = (index: number) => {
+  const handleEdit = async (index: number) => {
     setIsOpen(true);
     setImagePreview(null);
     setDataIndex(withOutFormat[index]);
@@ -95,11 +156,55 @@ const LawyerManagement = () => {
     modalLawyerInput[8].defaultValue = withOutFormat[index].role.id;
     modalLawyerInput[9].defaultValue = withOutFormat[index].is_active;
     modalLawyerInput[7].defaultValue = withOutFormat[index].law_firm;
-    // const dataId = await database.getLawyer(withOutFormat[index].id);
+    const dataLawyer = await database.getLeadsAssigned();
 
-    // if (!dataId.success) {
-    //   return toast.error('Error to get lawyer');
-    // }
+    if (!dataLawyer.success) {
+      return toast.error('Error to get leads assigned');
+    }
+
+    const firstItem = dataLawyer.data;
+    const filterItems = firstItem.filter(
+      (item: any) => item.lawyer_id === parseInt(withOutFormat[index].id)
+    );
+    if (!!dataLeads && dataLeads.length > 0) {
+      const filterLeads = dataLeads.filter((item: any) =>
+        filterItems
+          .map((filterItem: any) => filterItem.lead)
+          .includes(item['lead id'])
+      );
+      const updatedStatistics = [...lawyerStatistic];
+      //setLawyerDataLead(filterLeads);
+      updatedStatistics[0].value = filterLeads.length;
+      updatedStatistics[1].value =
+        parseInt(withOutFormat[index].max_leads) - parseInt(filterLeads.length);
+      updatedStatistics[2].value = filterLeads.filter(
+        (item: any) =>
+          item.status === 'ASSIGNED' ||
+          item.status === 'IN PROGRESS' ||
+          item.status === 'CLOSED'
+      ).length;
+      updatedStatistics[3].value = filterLeads.filter(
+        (item: any) => item.status === 'EXPIRED'
+      ).length;
+      updatedStatistics[4].value = filterLeads.filter(
+        (item: any) =>
+          item.status === 'REASSIGNED' || item.status === 'PROBLEMATIC'
+      ).length;
+
+      setLawyerStatistic(updatedStatistics);
+      const isAssignable =
+        parseInt(withOutFormat[index].max_leads) -
+          parseInt(filterLeads.length) >
+        0
+          ? true
+          : false;
+      const toBeAssigned =
+        parseInt(withOutFormat[index].max_leads) - parseInt(filterLeads.length);
+      setAssignable({
+        isAssignable: isAssignable,
+        toBeAssigned: toBeAssigned,
+      });
+    }
   };
 
   const handleDelete = async (index: number) => {
@@ -156,6 +261,7 @@ const LawyerManagement = () => {
       is_active: e.target.is_active.value === 'true',
       law_firm: e.target.name_of_law_firm.value,
       notes: e.target.notes.value,
+      updated_at: new Date(),
     };
 
     const updateData = await database.UpdateLawyer(data as any, dataIndex.id);
@@ -241,8 +347,12 @@ const LawyerManagement = () => {
   useEffect(() => {
     getServiceType();
     getRole();
-    fetchData();
   }, []);
+  useEffect(() => {
+    fetchData();
+    getDataLeads();
+  }, [dataLeads]);
+
   useEffect(() => {
     if (searchText) {
       return setData(searchedResults);
@@ -330,11 +440,20 @@ const LawyerManagement = () => {
           <p>
             Info about the leads assigned to this lawyer{' '}
             <span className='text-gray-500'>
-              Since May 1st to present Last active 12:56pm
+              Since{' '}
+              {dayjs
+                .utc(dataIndex?.created_at)
+                .local()
+                .format('MM/DD/YYYY hh:mm:ss a')}{' '}
+              to present Last active{' '}
+              {dayjs
+                .utc(dataIndex?.last_login)
+                .local()
+                .format('MM/DD/YYYY hh:mm:ss a')}
             </span>
           </p>
           <div className='flex  gap-2 flex-wrap'>
-            {modalLawyerStatistics.map((res, index) => (
+            {lawyerStatistic.map((res, index) => (
               <div
                 key={index}
                 className='flex gap-4 px-4 py-1.5 rounded-lg'
@@ -350,34 +469,42 @@ const LawyerManagement = () => {
           </div>
           <div className='flex gap-4 items-center'>
             <p>Status:</p>
-            <p
-              className='px-4 py-1 rounded-lg'
-              style={{
-                backgroundColor: `${
-                  dataIndex?.status === 'Assignable'
-                    ? statusColors.Assignable + 20
-                    : statusColors.Unassignable + 20
-                }`,
-                color: `${
-                  dataIndex?.status === 'Assignable'
-                    ? statusColors.Assignable
-                    : statusColors.Unassignable
-                }`,
-              }}
-            >
-              {dataIndex?.status}
-            </p>
-            <p
-              style={
-                dataIndex?.status === 'Assignable'
-                  ? { color: '#4AD991' }
-                  : { color: statusColors.Unassignable }
-              }
-            >
-              {dataIndex?.status === 'Assignable'
-                ? ' +10 leads to be assigned '
-                : 'This lawyer is at the limit of assigned leads'}
-            </p>
+            {assignable === null ? (
+              <div className='w-full'>
+                <SkeletonText />
+              </div>
+            ) : (
+              <>
+                <p
+                  className='px-4 py-1 rounded-lg'
+                  style={{
+                    backgroundColor: `${
+                      !!assignable.isAssignable
+                        ? statusColors.Assignable + 20
+                        : statusColors.Unassignable + 20
+                    }`,
+                    color: `${
+                      !!assignable.isAssignable
+                        ? statusColors.Assignable
+                        : statusColors.Unassignable
+                    }`,
+                  }}
+                >
+                  {!!assignable.isAssignable ? 'Assignable' : 'Unassignable'}
+                </p>
+                <p
+                  style={
+                    !!assignable.isAssignable
+                      ? { color: '#4AD991' }
+                      : { color: statusColors.Unassignable }
+                  }
+                >
+                  {!!assignable.isAssignable
+                    ? `${assignable.toBeAssigned} leads to be assigned`
+                    : 'This lawyer is at the limit of assigned leads'}
+                </p>
+              </>
+            )}
           </div>
         </footer>
       </Modal>

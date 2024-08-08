@@ -13,7 +13,7 @@ const SkeletonText = ({ lines = 1 }) => {
     );
   }
 
-  return <div className='space-y-2'>{skeletonLines}</div>;
+  return <div className='space-y-2 '>{skeletonLines}</div>;
 };
 
 export default SkeletonText;

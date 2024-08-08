@@ -12,9 +12,9 @@ const SearchInput: React.FC<SearchInputProps> = ({
   const filterSearch = (text: string) =>
     dataFilter.filter(
       (item: any) =>
-        item?.lawyer_name.toLowerCase().includes(text.toLowerCase()) ||
+        item?.['lawyer name'].toLowerCase().includes(text.toLowerCase()) ||
         item?.email.toLowerCase().includes(text.toLowerCase()) ||
-        item?.phone_number.toLowerCase().includes(text.toLowerCase())
+        item?.['phone number'].toLowerCase().includes(text.toLowerCase())
     );
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(e.target.value);
@@ -23,12 +23,12 @@ const SearchInput: React.FC<SearchInputProps> = ({
   };
 
   return (
-    <div className="  flex flex-col items-center justify-center  ">
+    <div className='  flex flex-col items-center justify-center  '>
       <input
-        type="search"
-        placeholder="Search..."
+        type='search'
+        placeholder='Search...'
         onChange={handleSearchChange}
-        className="peer w-full  rounded-md border border-gray-200 bg-white py-2.5 pl-5 pr-12 text-sm font-medium shadow-lg  focus:outline-none focus:ring-0"
+        className='peer w-full  rounded-md border border-gray-200 bg-white py-2.5 pl-5 pr-12 text-sm font-medium shadow-lg  focus:outline-none focus:ring-0'
       />
     </div>
   );

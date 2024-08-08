@@ -9,7 +9,8 @@ const Dashboard = () => {
   const { dataLeads } = useLeadsStore();
   const [statistics, setStatistics] = useState(initialStatistics);
 
-  const getLastElement = (arr: any) => arr[arr.length - 1];
+  //const getLastElement = (arr: any) => arr[arr.length - 1];
+  const getLastElement = (arr: any) => arr[0];
   const setData = [
     { value: 'NEW', index: 0 },
     { value: 'ASSIGNED', index: 1 },

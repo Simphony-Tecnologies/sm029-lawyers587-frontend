@@ -15,7 +15,7 @@ const AllLeads = () => {
   dayjs.extend(utc);
   const { user } = useAuth();
   const [userId, setUserId] = useState<any>(null);
-  const { dataLeads, fetchLeads } = useLeadsStore();
+  const { dataLeads } = useLeadsStore();
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [lawyerData, setLawyerData] = useState(null);
   const [columns, setColumns] = useState([]);
@@ -39,8 +39,8 @@ const AllLeads = () => {
   ];
   const getLawyer = async () => {
     if (Object.keys(user).length > 0) {
-      const dataLawyer = await database.getLawyer(user.id);
-      setUserId(dataLawyer.data.data);
+      const dataLawyerUser = await database.getLawyer(user.id);
+      setUserId(dataLawyerUser.data.data);
     }
     const dataLawyer = await database.getLeadsAssigned();
 
@@ -140,7 +140,7 @@ const AllLeads = () => {
         </div>
       </Modal>
       <Tilte
-        name={`${user?.firstName} ${user?.lastName}`}
+        name={`${userId?.firstName} ${userId?.lastName}`}
         des={userId?.service_type?.name}
       />
 
