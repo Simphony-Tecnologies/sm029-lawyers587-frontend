@@ -1,4 +1,4 @@
-export const modalNewLawyerInput = [
+export const modalNewLawyerInput: ModalLawyerInput[] = [
   {
     label: 'name',
     name: 'firstName',
@@ -16,12 +16,12 @@ export const modalNewLawyerInput = [
   {
     label: 'area of law',
     name: 'service_type_id',
-    type: 'select',
+    type: 'multiselect',
     required: true,
     defaultValue: '',
     values: [
       {
-        name: '',
+        label: '',
         value: '',
       },
     ],

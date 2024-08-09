@@ -181,7 +181,7 @@ export const database = {
       const data = await response.json();
 
       return {
-        success: true,
+        success: data.success,
         code: 200,
         data: data,
       };

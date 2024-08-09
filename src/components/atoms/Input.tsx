@@ -1,5 +1,5 @@
-import React from 'react';
-
+import { useState } from 'react';
+import Select from 'react-select';
 const Input = ({
   defaultValue,
   name,
@@ -7,13 +7,15 @@ const Input = ({
   required,
   type,
   values,
+  onChange,
 }: {
   defaultValue?: any;
   name: string;
   label?: string;
   required?: boolean;
-  type?: 'text' | 'number' | 'select';
+  type?: 'text' | 'number' | 'select' | 'multiselect';
   values?: any;
+  onChange?: any;
 }) => {
   return (
     <div>
@@ -35,6 +37,18 @@ const Input = ({
             </option>
           ))}
         </select>
+      ) : type === 'multiselect' ? (
+        <div className=''>
+          <Select
+            defaultValue={defaultValue}
+            isMulti
+            name={name}
+            options={values}
+            className='basic-multi-select  '
+            classNamePrefix='select'
+            onChange={onChange}
+          />
+        </div>
       ) : (
         <input
           type={type}
