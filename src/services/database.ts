@@ -168,6 +168,27 @@ export const database = {
       };
     }
   },
+  getSelectTypeLawyer: async (): Promise<ResponseEndpoint> => {
+    const url = process.env.NEXT_PUBLIC_URL_LAWYERS_SERVICE || '';
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+
+      return {
+        success: true,
+        code: 200,
+        data: data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 400,
+        data: [],
+        messages: 'error connecting to database',
+      };
+    }
+  },
   CreateLawyer: async (sendData: object): Promise<ResponseEndpoint> => {
     try {
       const url: string = process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT || '';
@@ -223,6 +244,35 @@ export const database = {
       };
     }
   },
+  updateData: async (
+    url: string,
+    sendData: object
+  ): Promise<ResponseEndpoint> => {
+    try {
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sendData),
+      });
+      const data = await response.json();
+
+      return {
+        success: true,
+        code: data.statusCode,
+        data: data,
+        messages: data.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 400,
+        data: [],
+        messages: 'error connecting to database',
+      };
+    }
+  },
   UpdateLawyer: async (
     sendData: LawyerData,
     id?: number | undefined
@@ -252,6 +302,19 @@ export const database = {
         messages: 'error updating lawyer',
       };
     }
+  },
+  deleteData: async (url: string): Promise<ResponseEndpoint> => {
+    //const url: string = `${process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT}/${id}`;
+    await fetch(url, {
+      method: 'DELETE',
+    });
+
+    return {
+      success: true,
+      code: 200,
+      data: [],
+      messages: 'data deleted successfully',
+    };
   },
   DeleteLawyer: async (id?: number | undefined): Promise<ResponseEndpoint> => {
     try {

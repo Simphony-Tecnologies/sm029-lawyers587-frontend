@@ -18,7 +18,7 @@ export const modalLawyerInput: ModalLawyerInput[] = [
     name: 'service_type_id',
     type: 'multiselect',
     required: true,
-    defaultValue: '',
+    defaultValue: [],
     values: [
       {
         label: '',

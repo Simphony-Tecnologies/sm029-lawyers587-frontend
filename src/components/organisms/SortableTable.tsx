@@ -212,7 +212,15 @@ const SortableTable = ({
                           .format('MM/DD/YYYY')
                       )
                     ) : column === 'service type' ? (
-                      item[column].name
+                      !item[column] ? (
+                        <div className='w-full'>
+                          <SkeletonText />
+                        </div>
+                      ) : (
+                        item[column].map((item: any, index: number) => (
+                          <div key={index}>{item.label}</div>
+                        ))
+                      )
                     ) : column === 'status' && statusColors ? (
                       <p
                         onClick={() => onStatus && onStatus(item.originalIndex)}

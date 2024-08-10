@@ -7,7 +7,7 @@ type select = {
 type ModalLawyerInput = {
   label: string;
   name: string;
-  defaultValue?: string | number;
+  defaultValue?: string | number | [];
   type:
     | 'text'
     | 'number'
