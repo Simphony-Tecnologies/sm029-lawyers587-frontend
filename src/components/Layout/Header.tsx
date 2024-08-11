@@ -36,13 +36,15 @@ const Header = () => {
         >
           <div className='w-10 h-10 rounded-full bg-primary text-white cursor-pointer'></div>
 
-          {user.firstName !== 'undefined' ? (
+          {!!isUser ? (
             <>
               <div className='font-bold text-lg'>{user?.firstName}</div>
               <div className='text-lg'>{user?.role?.name}</div>
             </>
           ) : (
-            <SkeletonText lines={2} />
+            <div className='w-full'>
+              <SkeletonText lines={2} />
+            </div>
           )}
 
           <MenuItem>

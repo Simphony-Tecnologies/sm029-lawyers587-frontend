@@ -11,12 +11,15 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { database } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
+import Modal from '@/components/organisms/Modal';
+import Input from '@/components/atoms/Input';
 
 const Page = () => {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
   const { setUser, user } = useAuth();
   const singIn = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
@@ -49,10 +52,27 @@ const Page = () => {
     await database.UpdateLawyer(lastLogin, user.id);
     setLoading(false);
   };
+  const handleOpenForgotPassword = () => {
+    setOpenModal(true);
+  };
 
   return (
     <div className='w-full h-screen  flex flex-col md:grid md:grid-cols-2 gap-10'>
       <Toaster />
+      <Modal
+        isOpen={openModal}
+        setIsOpen={setOpenModal}
+        title='Recovery password'
+        className='max-w-sm'
+      >
+        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200'>
+          <div>Please enter your email address </div>
+
+          <form>
+            <Input name='forgot' type='text' placeholder='Email address' />
+          </form>
+        </div>
+      </Modal>
       <Image
         src={Background}
         alt='Logo'
@@ -116,14 +136,14 @@ const Page = () => {
             Login
           </button>
         </form>
-        <p>
-          <Link
-            href='/recovery'
-            className='text-gray-500 hover:underline cursor-pointer'
-          >
-            Forgot password
-          </Link>
+
+        <p
+          onClick={handleOpenForgotPassword}
+          className='text-gray-500 hover:underline cursor-pointer'
+        >
+          Forgot password
         </p>
+
         <Image
           src={Logo}
           alt='Logo'

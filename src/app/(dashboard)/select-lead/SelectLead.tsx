@@ -2,9 +2,11 @@
 import Button from '@/components/atoms/Button';
 import SortableTable from '@/components/organisms/SortableTable';
 import Tilte from '@/components/organisms/Tilte';
+import { statusColors } from '@/configs/statusColor';
 import { database } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
 import { useLeadsStore } from '@/store/useLead.store';
+import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 const SelectLead = () => {
@@ -20,7 +22,7 @@ const SelectLead = () => {
   const [leadsAssigned, setLeadsAssigned] = useState([]);
   const [selectRowLeads, setSelectRowLeads] = useState([]);
   const [columns, setColumns] = useState([]);
-
+  const [dataServiceType, setDataServiceType] = useState([]);
   const availableLeads =
     leadsAssigned.length >= 0 && userId
       ? parseInt(userId?.max_leads) - leadsAssigned.length
@@ -28,19 +30,22 @@ const SelectLead = () => {
 
   const [resultLeads, setResultLeads] = useState(0);
 
-  const statusColors = {
-    NEW: '#8280FF',
-    ASSIGNED: '#4AD991',
-    CLOSED: '#FF9066',
-    PROBLEMATIC: '#FEC53D',
-  };
   const handleSelectRow = (index: number) => {
     setSelectedRows((prevSelectedRows) => ({
       ...prevSelectedRows,
       [index]: !prevSelectedRows[index],
     }));
   };
+  const getServiceType = async () => {
+    const resType = await database.getData(
+      process.env.NEXT_PUBLIC_URL_SERVICE_TYPE || ''
+    );
+    if (!resType.success) {
+      return toast.error('Error to get service type');
+    }
 
+    setDataServiceType(resType.data);
+  };
   const getSelectedRowsData = () => {
     const selectRow: any = Object.keys(selectedRows)
       .filter((index) => selectedRows[Number(index)])
@@ -54,11 +59,20 @@ const SelectLead = () => {
       return toast.error('You have exceeded the available leads');
     }
   };
-  const filterByService = (data: any[], serviceType: string) => {
-    if (!data) return [];
-    return data.filter(
-      (item) => item.service === serviceType && item.status == 'NEW'
-    );
+  const filterByService = (data: any[], serviceType: any[]) => {
+    if (!data || !serviceType) return [];
+
+    const filterLeads = serviceType
+      .map((res) =>
+        data.filter(
+          (item) =>
+            item.service === res.name &&
+            (item.status == 'NEW' || item.status == 'EXPIRED')
+        )
+      )
+      .flat();
+
+    return filterLeads;
   };
   const getLawyer = async () => {
     if (Object.keys(user).length > 0) {
@@ -68,7 +82,7 @@ const SelectLead = () => {
 
     const dataLeadsLawyer: any = await database.getLeadsAssigned();
 
-    if (!dataLeadsLawyer.success) {
+    if (!dataLeadsLawyer.data) {
       return toast.error('error getting Leads Assigned');
     }
 
@@ -105,25 +119,39 @@ const SelectLead = () => {
         }
       );
 
-      if (response.code === 404) {
-        return toast.error(`Error ${response.code}: ${response.messages}`);
-      }
-
       return response;
     });
 
-    await Promise.all(promises);
+    const respond: any = await Promise.all(promises);
+
+    if (respond.some((item: any) => item.code === 404 || item.code === 500)) {
+      return toast.error(`Error ${respond[0].code}: ${respond[0].messages}`);
+    }
     fetchLeads();
-    const DataFilter = filterByService(dataLeads, user?.service_type?.name);
+    const DataFilter = filterByService(
+      dataLeads,
+      getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
+    );
 
     const filteredDataLeads = DataFilter.map(
       ({
         email,
         'phone number': phoneNumber,
         'description lead': descriptionLead,
+        'lead name': leadName,
+        comments,
+        status,
         ...rest
-      }) => rest
+      }) => {
+        const modifiedStatus = status === 'EXPIRED' ? 'REASSIGNED' : status;
+
+        return {
+          ...rest,
+          status: modifiedStatus,
+        };
+      }
     );
+
     setNewData(filteredDataLeads);
 
     setSelectRowLeads([]);
@@ -133,31 +161,54 @@ const SelectLead = () => {
 
   useEffect(() => {
     getLawyer();
+    getServiceType();
+    fetchLeads();
   }, [user]);
 
   useEffect(() => {
-    const DataFilter = filterByService(dataLeads, userId?.service_type?.name);
+    const DataFilter = filterByService(
+      dataLeads,
+      getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
+    );
+
     const filteredDataLeads = DataFilter.map(
       ({
         email,
         'phone number': phoneNumber,
         'description lead': descriptionLead,
+        'lead name': leadName,
+        comments,
+        status,
         ...rest
-      }) => rest
+      }) => {
+        const modifiedStatus = status === 'EXPIRED' ? 'REASSIGNED' : status;
+
+        return {
+          ...rest,
+          status: modifiedStatus,
+        };
+      }
     );
+
     setNewData(filteredDataLeads);
+
     if (filteredDataLeads.length > 0) {
       const titles: any = Object.keys(filteredDataLeads[0]);
       setColumns(titles);
     }
     getSelectedRowsData();
+    //fetchLeads();
   }, [selectedRows, dataLeads, availableLeads]);
 
   return (
     <div className='flex flex-col gap-5'>
       <Tilte
-        name={`${user?.firstName} ${user?.lastName}`}
-        des={userId?.service_type?.name}
+        name={`${userId?.firstName} ${userId?.lastName}`}
+        des={getNameServiceLawyer(userId?.lawyersServices, dataServiceType).map(
+          (res: any) => (
+            <p key={res?.id}>{res?.name.replace(' Lawyer', '')}</p>
+          )
+        )}
       >
         <div className='flex justify-center items-center gap-5'>
           <div className='bg-gray-200 px-4 py-1 rounded-md'>

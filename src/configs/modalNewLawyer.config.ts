@@ -76,7 +76,7 @@ export const modalNewLawyerInput: ModalLawyerInput[] = [
     label: 'Active',
     name: 'is_active',
     type: 'select',
-    defaultValue: '',
+    defaultValue: true,
     required: true,
     values: [
       { value: true, name: 'active' },

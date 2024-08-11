@@ -178,7 +178,7 @@ const SortableTable = ({
                         htmlFor={`checkbox-${item.originalIndex}`} // Asegúrate de que el label apunte al id único
                         className='flex items-center justify-center w-6 h-6 border border-green-500 rounded bg-white cursor-pointer relative text-white peer-checked:text-green-500'
                       >
-                        <i className='fi fi-rr-check absolute text-lg peer-checked:block hidden'></i>
+                        <i className='fi fi-rr-check absolute text-lg '></i>
                       </label>
                     </div>
                   </td>
@@ -218,13 +218,17 @@ const SortableTable = ({
                         </div>
                       ) : (
                         item[column].map((item: any, index: number) => (
-                          <div key={index}>{item.label}</div>
+                          <div key={index}>
+                            {item.label.replace(' Lawyer', '')}
+                          </div>
                         ))
                       )
+                    ) : column === 'service' ? (
+                      <p>{item[column].replace(' Lawyer', '')}</p>
                     ) : column === 'status' && statusColors ? (
                       <p
                         onClick={() => onStatus && onStatus(item.originalIndex)}
-                        className={`px-2 py-1 rounded font-semibold max-w-30 w-full text-center capitalize-first ${
+                        className={`px-2 py-1 rounded font-semibold max-w-30 text-nowrap w-full text-center capitalize-first ${
                           onStatus && 'cursor-pointer'
                         }`}
                         style={{
@@ -267,12 +271,22 @@ const SortableTable = ({
                 )}
                 {onContact && (
                   <td className='px-4 py-2 border-b border-gray-200'>
-                    <p
-                      onClick={() => onContact(item.originalIndex)}
-                      className='hover:underline cursor-pointer'
+                    <button
+                      onClick={() =>
+                        item.status !== 'DISABLED' &&
+                        onContact(item.originalIndex)
+                      }
+                      className={`${
+                        item.status === 'EXPIRED' || item.status === 'DISABLED'
+                          ? ' cursor-not-allowed text-gray-400'
+                          : 'hover:underline cursor-pointer'
+                      }`}
+                      disabled={
+                        item.status === 'DISABLED' || item.status === 'EXPIRED'
+                      }
                     >
                       Contact
-                    </p>
+                    </button>
                   </td>
                 )}
               </tr>

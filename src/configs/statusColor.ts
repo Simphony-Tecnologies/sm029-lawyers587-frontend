@@ -1,0 +1,11 @@
+export const statusColors: any = {
+  NEW: '#8280FF',
+  ASSIGNED: '#8280FF',
+  'IN PROGRESS': '#4AD991',
+  CLOSED: '#00B69B',
+  PROBLEMATIC: '#FEC53D',
+  REASSIGNED: '#FEC53D',
+  LOST: '#FF9066',
+  EXPIRED: '#FF0300',
+  DISABLED: '#84818A',
+};

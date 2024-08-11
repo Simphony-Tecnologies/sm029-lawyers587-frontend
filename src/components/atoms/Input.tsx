@@ -8,6 +8,8 @@ const Input = ({
   type,
   values,
   onChange,
+  statusColors,
+  placeholder,
 }: {
   defaultValue?: any;
   name: string;
@@ -16,7 +18,18 @@ const Input = ({
   type?: 'text' | 'number' | 'select' | 'multiselect';
   values?: any;
   onChange?: any;
+  statusColors?: any;
+  placeholder?: string;
 }) => {
+  const [selectedColor, setSelectedColor] = useState(
+    statusColors ? statusColors[defaultValue] : null
+  );
+  const handleChangeColor = (event: any) => {
+    const newValue = event.target.value;
+    if (statusColors) {
+      setSelectedColor(statusColors[newValue]);
+    }
+  };
   return (
     <div>
       <label className='capitalize font-bold' htmlFor={name}>
@@ -27,12 +40,28 @@ const Input = ({
           className='flex flex-row w-full max-w-lg border border-gray-300 p-1 rounded-lg placeholder:font-light text-text '
           name={name}
           defaultValue={defaultValue}
+          //value={selectedValue}
+          onChange={handleChangeColor}
+          style={{
+            color: selectedColor,
+            borderColor: selectedColor,
+            outline: 'none',
+          }}
         >
           <option value='' disabled>
             select
           </option>
           {values.map((value: any, index: number) => (
-            <option value={value.value} key={index}>
+            <option
+              value={value.value}
+              key={index}
+              style={
+                statusColors && {
+                  color: statusColors[value.value],
+                  backgroundColor: statusColors[value.value] + 20,
+                }
+              }
+            >
               {value.name}
             </option>
           ))}
@@ -55,6 +84,7 @@ const Input = ({
           defaultValue={defaultValue}
           name={name}
           required={required}
+          placeholder={placeholder}
           className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500'
         />
       )}

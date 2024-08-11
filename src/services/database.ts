@@ -230,9 +230,9 @@ export const database = {
       const data = await response.json();
 
       return {
-        success: true,
+        success: data.success,
         code: data.statusCode,
-        data: data,
+        data: data.data,
         messages: data.message,
       };
     } catch (error) {
