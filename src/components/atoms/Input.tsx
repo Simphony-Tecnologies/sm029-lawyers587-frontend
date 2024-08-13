@@ -15,7 +15,7 @@ const Input = ({
   name: string;
   label?: string;
   required?: boolean;
-  type?: 'text' | 'number' | 'select' | 'multiselect';
+  type?: 'text' | 'number' | 'select' | 'multiselect' | 'email';
   values?: any;
   onChange?: any;
   statusColors?: any;

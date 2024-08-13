@@ -48,6 +48,97 @@ export const database = {
       };
     }
   },
+  resetPassword: async (token: string, password: string) => {
+    try {
+      const url: string | undefined =
+        process.env.NEXT_PUBLIC_URL_RESET_PASSWORD;
+
+      if (!url) {
+        throw new Error('Authentication URL is not defined');
+      }
+
+      const response: Response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, password }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const error: any = new Error(
+          errorData.message || 'Authentication failed'
+        );
+        error.statusCode = response.status;
+        throw error;
+      }
+
+      const data = await response.json();
+
+      setCookie(null, 'currentUser', data.access_token, {
+        maxAge: 30 * 24 * 60 * 60,
+        path: '/',
+        secure: 'production',
+        sameSite: 'lax',
+      });
+
+      return {
+        success: true,
+        code: 200,
+        data: data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        code: error.statusCode || 500,
+        data: null,
+        messages: error.message || 'An unexpected error occurred',
+      };
+    }
+  },
+  requestPassword: async (email: string) => {
+    try {
+      const url: string | undefined =
+        process.env.NEXT_PUBLIC_URL_REQUEST_PASSWORD;
+
+      if (!url) {
+        throw new Error('Authentication URL is not defined');
+      }
+
+      const response: Response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const error: any = new Error(
+          errorData.message || 'Authentication failed'
+        );
+        error.statusCode = response.status;
+        throw error;
+      }
+
+      const data = await response.json();
+
+      return {
+        success: true,
+        code: 200,
+        data: data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        code: error.statusCode || 500,
+        data: null,
+        messages: error.message || 'An unexpected error occurred',
+      };
+    }
+  },
   authIdRol: async (id: any) => {
     try {
       const url:
