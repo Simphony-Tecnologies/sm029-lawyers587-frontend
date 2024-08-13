@@ -1,6 +1,7 @@
 'use client';
 import SortableTable from '@/components/organisms/SortableTable';
 import Tilte from '@/components/organisms/Tilte';
+import { statusColors } from '@/configs/statusColor';
 import { database } from '@/services/database';
 import { useLeadsStore } from '@/store/useLead.store';
 import { useEffect, useState } from 'react';
@@ -11,12 +12,6 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   const { dataLeads } = useLeadsStore();
   const [userId, setUserId] = useState<any>(null);
   const [columns, setColumns] = useState([]);
-  const statusColors = {
-    NEW: '#8280FF',
-    ASSIGNED: '#4AD991',
-    CLOSED: '#FF9066',
-    PROBLEMATIC: '#FEC53D',
-  };
 
   const getLawyer = async () => {
     const dataLawyerUser = await database.getLawyer(params.id);

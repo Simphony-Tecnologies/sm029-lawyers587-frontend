@@ -1,25 +1,3 @@
-type select = {
-  name: string;
-  value: string | boolean | number;
-};
-
-type ModalLawyerInput = {
-  label: string;
-  name: string;
-  defaultValue?: string | number;
-  type:
-    | 'text'
-    | 'number'
-    | 'select'
-    | 'date'
-    | 'email'
-    | 'password'
-    | 'file'
-    | 'datetime-local';
-  required: boolean;
-  values?: select[];
-  mode?: string;
-};
 export const modalLawyerInput: ModalLawyerInput[] = [
   {
     label: 'name',
@@ -38,12 +16,12 @@ export const modalLawyerInput: ModalLawyerInput[] = [
   {
     label: 'area of law',
     name: 'service_type_id',
-    type: 'select',
+    type: 'multiselect',
     required: true,
-    defaultValue: '',
+    defaultValue: [],
     values: [
       {
-        name: '',
+        label: '',
         value: '',
       },
     ],

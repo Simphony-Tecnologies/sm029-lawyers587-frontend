@@ -5,7 +5,7 @@ import Logo from '@/assets/logo.png';
 import LogoMobile from '@/assets/Logo-mobile.png';
 import Background from '@/assets/background.png';
 import MobileAuth from '@/assets/mobile-auth.png';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -13,55 +13,58 @@ import { database } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
 import Modal from '@/components/organisms/Modal';
 import Input from '@/components/atoms/Input';
-import Button from '@/components/atoms/Button';
 
-const Page = () => {
+const ResetPassword = () => {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [openModal, setOpenModal] = useState(false);
+  const [validToken, setValidToken] = useState<any>('');
   const { setUser, user } = useAuth();
-  const singIn = async (e: { preventDefault: () => void }) => {
-    e.preventDefault();
-    setLoading(true);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
 
-    if (!email || !password) {
+    if (!token) {
+      toast.error('Invalid or missing token');
+
+      setLoading(false);
+    }
+    setValidToken(token);
+  }, []);
+  const handleForgotPassword = async (e: { preventDefault: () => void }) => {
+    e.preventDefault();
+
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    if (!newPassword || !confirmPassword) {
       setLoading(false);
       return toast.error('You must provide all fields');
     }
 
-    const login = await database.auth(email, password);
+    setLoading(true);
+    if (!validToken) {
+      setLoading(false);
+      return toast.error('Token is invalid');
+    }
+    const reset = await database.resetPassword(validToken, newPassword);
 
-    if (login.code === 401) {
+    if (reset.code === 500 || !reset.success) {
       setLoading(false);
-      return toast.error('error password');
+      return toast.error('error with reset password');
     }
-    if (login.code === 404) {
-      setLoading(false);
-      return toast.error('The email is not existing');
-    }
-    if (!login.success) {
-      setLoading(false);
-      return toast.error('Error in authenticating');
-    }
-    setUser(login.data.lawyer);
+
+    setUser(reset.data.lawyer);
 
     const lastLogin: any = { last_login: new Date() };
 
     router.push('/dashboard');
     await database.UpdateLawyer(lastLogin, user.id);
     setLoading(false);
-  };
-  const handleOpenForgotPassword = () => {
-    setOpenModal(true);
-  };
-  const handleSendForgotPassword = async (e: any) => {
-    e.preventDefault();
-
-    await database.requestPassword(e.target.forgot.value);
-    toast.success('Review your email address for restart your password');
-    setOpenModal(false);
   };
 
   return (
@@ -73,22 +76,11 @@ const Page = () => {
         title='Recovery password'
         className='max-w-sm'
       >
-        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200  '>
+        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200'>
           <div>Please enter your email address </div>
 
-          <form
-            onSubmit={handleSendForgotPassword}
-            className='flex flex-col gap-2'
-          >
-            <Input
-              name='forgot'
-              type='email'
-              placeholder='Email address'
-              required
-            />
-            <div className=' text-right'>
-              <Button name='Send' type='submit' />
-            </div>
+          <form>
+            <Input name='forgot' type='text' placeholder='Email address' />
           </form>
         </div>
       </Modal>
@@ -108,40 +100,33 @@ const Page = () => {
       />
       <div className='mx-auto w-full max-w-md h-full flex flex-col md:justify-center items-center gap-2  md:p-10 px-10'>
         <p className='text-4xl text-primary mr-auto  font-extrabold'>
-          Hello Lawyer!
+          Reset Password
         </p>
         <p className='text-2xl text-primary mr-auto  font-light mb-12'>
-          Welcome
+          Write the new password
         </p>
         <form
-          onSubmit={singIn}
+          onSubmit={handleForgotPassword}
           className=' flex flex-col w-full gap-2 items-center'
         >
           <div className='relative flex items-center w-full'>
-            {email === '' && (
-              <i className='fi fi-rr-envelope absolute left-8 text-gray-400'></i>
-            )}
-
             <input
-              onChange={(e) => setEmail(e.target.value)}
-              type='email'
-              name='email'
-              id='email'
-              placeholder='          Email Address'
+              onChange={(e) => setNewPassword(e.target.value)}
+              type='password'
+              name='password'
+              id='newPassword'
+              placeholder='Password'
               className='w-full  border border-text border-opacity-50 px-5 lg:py-6 py-3 rounded-full placeholder:font-light text-text'
             />
           </div>
 
           <div className='relative flex items-center w-full'>
-            {password === '' && (
-              <i className='fi fi-rr-lock absolute left-8 text-gray-400  '></i>
-            )}
             <input
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               type='password'
-              name='password'
+              name='confirmPassword'
               id='password'
-              placeholder='          Password'
+              placeholder='Confirm Password'
               className='w-full  border border-text border-opacity-50 px-5 lg:py-6 py-3 rounded-full placeholder:font-light text-text'
             />
           </div>
@@ -152,16 +137,9 @@ const Page = () => {
               loading && 'animate-pulse bg-gray-400'
             } w-full  bg-primary text-white py-1.5 rounded-lg max-w-36 mt-7`}
           >
-            Login
+            Save Password
           </button>
         </form>
-
-        <p
-          onClick={handleOpenForgotPassword}
-          className='text-gray-500 hover:underline cursor-pointer'
-        >
-          Forgot password
-        </p>
 
         <Image
           src={Logo}
@@ -178,4 +156,4 @@ const Page = () => {
   );
 };
 
-export default Page;
+export default ResetPassword;

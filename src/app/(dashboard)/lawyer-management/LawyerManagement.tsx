@@ -20,6 +20,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { useLeadsStore } from '@/store/useLead.store';
 import SkeletonText from '@/components/atoms/SkeletonText';
+
 const LawyerManagement = () => {
   const [data, setData] = useState<any>(null);
   const [columns, setColumns] = useState([]);
@@ -27,20 +28,26 @@ const LawyerManagement = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isOpenNew, setIsOpenNew] = useState(false);
   const [dataIndex, setDataIndex] = useState<any>();
-
   const [searchText, setSearchText] = useState<string>('');
   const [searchedResults, setSearchedResults] = useState<LawyerData[]>([]);
   const [dataServiceType, setDataServiceType] = useState([]);
   const [withOutFormat, setWithOutFormat] = useState<any>([]);
   const [isOpenDelete, setIsOpenDelete] = useState(false);
-  const [file, setFile] = useState(null);
+  const [file, setFile] = useState<any>(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isOpenPassword, setIsopenPassword] = useState(false);
   const [lawyerStatistic, setLawyerStatistic] = useState(modalLawyerStatistics);
   const [assignable, setAssignable] = useState<any>(null);
   const { dataLeads } = useLeadsStore();
-  const [dataLawyerLeads, setDataLawyerLeads] = useState([]);
-  const [dataProject, setDataProject] = useState(0);
+  const [dataLawyerLeads, setDataLawyerLeads] = useState<any>(null);
+  const [dataLawyerServices, setDataLawyerServices] = useState<any>(null);
+  const [labelService, setLabelService] = useState<any>(null);
+
+  const [dataProject, setDataProject] = useState(null);
+  const [selectedOptionsService, setSelectedOptionsService] = useState<any[]>(
+    []
+  );
+
   const router = useRouter();
   dayjs.extend(utc);
   const formatResponse = (data: any) => {
@@ -49,7 +56,7 @@ const LawyerManagement = () => {
       'lawyer name': `${data.firstName} ${data.lastName}`,
       email: data.email,
       'phone number': data.phone,
-      'service type': data.service_type,
+      'service type': data.service_type ? data.service_type : null,
       'leads pulled': `${data.totalLeads ? data.totalLeads : 0}/${
         data.max_leads
       }`,
@@ -76,11 +83,8 @@ const LawyerManagement = () => {
       const data = response.data;
       setWithOutFormat(data);
       getTotalLeads(data);
-
       const dataFormat = data.map(formatResponse);
-
       setData(dataFormat);
-
       if (data.length > 0) {
         const firstItem = dataFormat[0];
         const titles: any = Object.keys(firstItem);
@@ -90,21 +94,44 @@ const LawyerManagement = () => {
       setError(error.message);
     }
   };
-  const getDataLeads = async () => {
+  const getExtraData = async () => {
     const dataLawyer = await database.getLeadsAssigned();
 
     if (!dataLawyer.success) {
       return toast.error('Error to get leads assigned');
     }
     setDataLawyerLeads(dataLawyer.data);
+    const dataServiceTypeLawyer = await database.getSelectTypeLawyer();
+    if (!dataServiceTypeLawyer.success) {
+      return toast.error('Error to get leads assigned');
+    }
+    setDataLawyerServices(dataServiceTypeLawyer.data);
   };
+
   const getTotalLeads = (data: any) => {
     data.map(async (res: any) => {
-      const filterItems = dataLawyerLeads.filter(
-        (item: any) => item['lawyer_id'] === parseInt(res.id)
-      );
+      if (!!res.lawyersServices && labelService) {
+        // const filterItemsServices = dataLawyerServices.filter(
+        //   (item: any) => item['lawyer_id'] === parseInt(res.id)
+        // );
 
-      if (!!dataLeads && dataLeads.length > 0) {
+        const filtertypes = res.lawyersServices.map((item: any) => {
+          const matchingLabel = labelService.find(
+            (label: any) => label.value === item.service_type_id
+          );
+          return matchingLabel ? { ...matchingLabel } : null;
+        });
+        res.service_type = filtertypes;
+      }
+
+      if (
+        !!dataLeads &&
+        dataLeads.length > 0 &&
+        Array.isArray(dataLawyerLeads)
+      ) {
+        const filterItems = dataLawyerLeads.filter(
+          (item: any) => item['lawyer_id'] === parseInt(res.id)
+        );
         const filterLeads = dataLeads.filter((item: any) =>
           filterItems
             .map((filterItem: any) => filterItem.lead)
@@ -114,10 +141,13 @@ const LawyerManagement = () => {
         res.totalLeads = filterLeads.length;
         res.activeLeads = filterLeads.filter(
           (item: any) =>
-            item.status === 'ASSIGNED' || item.status === 'IN PROGRESS'
+            item.status === 'ASSIGNED' ||
+            item.status === 'IN PROGRESS' ||
+            item.status === 'CLOSED' ||
+            item.status === 'PROBLEMATIC'
         ).length;
         res.lost = filterLeads.filter(
-          (item: any) => item.status === 'EXPIRED'
+          (item: any) => item.status === 'LOST'
         ).length;
         res.status =
           parseInt(res.max_leads) - parseInt(filterLeads.length) > 0
@@ -137,30 +167,90 @@ const LawyerManagement = () => {
       name: item.name,
       value: item.id,
     }));
-  const handleEdit = async (index: number) => {
+  const selectLabel = (data: { name: string; id: string }[]) =>
+    data.map((item) => ({
+      label: item.name,
+      value: item.id,
+    }));
+  const handleChangenewLawyer = (selected: any) => {
+    setSelectedOptionsService(selected);
+    getExtraData();
+  };
+  const handleChangeService = async (selected: any) => {
+    const removedOptions = selectedOptionsService.filter(
+      (option) => !selected.includes(option)
+    );
+    const addedOptions = selected.filter(
+      (option: any) => !selectedOptionsService.includes(option)
+    );
+
+    if (addedOptions.length > 0) {
+      const updateData = {
+        lawyer_id: dataIndex.id,
+        service_type_id: addedOptions[0].value,
+      };
+      const updatingData = await database.insertData(
+        process.env.NEXT_PUBLIC_URL_LAWYERS_SERVICE || '',
+        updateData
+      );
+      if (updatingData.success) {
+        toast.success('Area of law add correctly');
+      }
+    }
+    if (removedOptions.length > 0) {
+      const matchingService = dataLawyerServices.find(
+        (service: any) =>
+          service.lawyer_id === dataIndex.id &&
+          service.service_type_id === removedOptions[0].value
+      );
+
+      const deletingData = await database.deleteData(
+        `${process.env.NEXT_PUBLIC_URL_LAWYERS_SERVICE}/${matchingService.id}`
+      );
+
+      if (deletingData.success) {
+        toast.success('Area of law remove correctly');
+      }
+    }
+    setSelectedOptionsService(selected);
+    fetchData();
+    getExtraData();
+  };
+  const handleEdit = (index: number) => {
     setIsOpen(true);
     setImagePreview(null);
     setDataIndex(withOutFormat[index]);
     modalLawyerInput[0].defaultValue = withOutFormat[index].firstName;
     modalLawyerInput[1].defaultValue = withOutFormat[index].lastName;
-    modalLawyerInput[2].values = formaterSelect(dataServiceType);
-    modalLawyerInput[2].defaultValue = withOutFormat[index].service_type.id;
     modalLawyerInput[3].defaultValue = withOutFormat[index].phone;
     modalLawyerInput[4].defaultValue = withOutFormat[index].email;
     modalLawyerInput[6].defaultValue = withOutFormat[index].max_leads;
     modalLawyerInput[8].defaultValue = withOutFormat[index].role.id;
     modalLawyerInput[9].defaultValue = withOutFormat[index].is_active;
     modalLawyerInput[7].defaultValue = withOutFormat[index].law_firm;
-    const dataLawyer = await database.getLeadsAssigned();
 
-    if (!dataLawyer.success) {
-      return toast.error('Error to get leads assigned');
-    }
-
-    const firstItem = dataLawyer.data;
-    const filterItems = firstItem.filter(
+    const filterItems = dataLawyerLeads.filter(
       (item: any) => item.lawyer_id === parseInt(withOutFormat[index].id)
     );
+
+    // const filterService = dataLawyerServices.filter(
+    //   (item: any) => item.lawyer_id === parseInt(withOutFormat[index].id)
+    // );
+
+    if (!!withOutFormat[index].lawyersServices && labelService) {
+      const filtertypes = withOutFormat[index].lawyersServices.map(
+        (item: any) => {
+          const matchingLabel = labelService.find(
+            (label: any) => label.value === item.service_type_id
+          );
+          return matchingLabel ? { ...matchingLabel } : null;
+        }
+      );
+
+      modalLawyerInput[2].defaultValue = filtertypes;
+      setSelectedOptionsService(filtertypes);
+    }
+
     if (!!dataLeads && dataLeads.length > 0) {
       const filterLeads = dataLeads.filter((item: any) =>
         filterItems
@@ -168,7 +258,7 @@ const LawyerManagement = () => {
           .includes(item['lead id'])
       );
       const updatedStatistics = [...lawyerStatistic];
-      //setLawyerDataLead(filterLeads);
+
       updatedStatistics[0].value = filterLeads.length;
       updatedStatistics[1].value =
         parseInt(withOutFormat[index].max_leads) - parseInt(filterLeads.length);
@@ -179,11 +269,10 @@ const LawyerManagement = () => {
           item.status === 'CLOSED'
       ).length;
       updatedStatistics[3].value = filterLeads.filter(
-        (item: any) => item.status === 'EXPIRED'
+        (item: any) => item.status === 'LOST'
       ).length;
       updatedStatistics[4].value = filterLeads.filter(
-        (item: any) =>
-          item.status === 'REASSIGNED' || item.status === 'PROBLEMATIC'
+        (item: any) => item.status === 'REASSIGNED'
       ).length;
 
       setLawyerStatistic(updatedStatistics);
@@ -222,14 +311,15 @@ const LawyerManagement = () => {
   };
   const createlawyer = async (e: any) => {
     e.preventDefault();
-
+    if (!file) {
+      toast.error('No file selected');
+      return;
+    }
     const data = {
       firstName: e.target.firstName.value,
       lastName: e.target.lastname.value,
       email: e.target.email.value,
       phone: e.target.phone.value,
-      //code: 'ABCD1234',
-      service_type_id: e.target.service_type_id.value,
       role_id: e.target.role_id.value,
       password: e.target.password.value,
       max_leads: e.target.max_leads.value,
@@ -238,8 +328,33 @@ const LawyerManagement = () => {
       is_active: true,
     };
 
-    await database.CreateLawyer(data);
+    const creatingLawyer = await database.CreateLawyer(data);
+
+    if (!creatingLawyer.success) {
+      return toast.error('Email exists or error to create lawyer');
+    }
+
+    const insertService = selectedOptionsService.map(async (item) => {
+      const dataAssignedServide = {
+        lawyer_id: creatingLawyer.data.data.id,
+        service_type_id: item.value,
+      };
+      const insertServicesLawyer = await database.insertData(
+        `${process.env.NEXT_PUBLIC_URL_LAWYERS_SERVICE}`,
+        dataAssignedServide
+      );
+      if (!insertServicesLawyer.data) {
+        toast.error('Error assigning Area of lawyer ');
+      }
+    });
+    await Promise.all(insertService);
+    const formData = new FormData();
+    formData.append('id', creatingLawyer.data.data.id.toString());
+    formData.append('file', file);
+    await database.uploadProfile(formData);
+    setFile(null);
     fetchData();
+    getExtraData();
     setIsOpenNew(false);
   };
   const UpdateLawyer = async (e: any) => {
@@ -250,7 +365,6 @@ const LawyerManagement = () => {
       lastName: e.target.lastname.value,
       email: e.target.email.value,
       phone: e.target.phone.value,
-      service_type_id: parseInt(e.target.service_type_id.value),
       role_id: parseInt(e.target.role_id.value),
       max_leads: e.target.max_leads.value,
       is_active: e.target.is_active.value === 'true',
@@ -275,8 +389,9 @@ const LawyerManagement = () => {
       return toast.error('Error to get service type');
     }
     setDataServiceType(resType.data);
-    modalLawyerInput[2].values = formaterSelect(resType.data);
-    modalNewLawyerInput[2].values = formaterSelect(resType.data);
+    setLabelService(selectLabel(resType.data));
+    modalLawyerInput[2].values = selectLabel(resType.data);
+    modalNewLawyerInput[2].values = selectLabel(resType.data);
   };
   const getRole = async () => {
     const roles = await database.getData(
@@ -286,11 +401,8 @@ const LawyerManagement = () => {
     if (!roles.success) {
       return toast.error('Error to get role');
     }
-    //setDataServiceType(resType.data);
     modalLawyerInput[8].values = formaterSelect(roles.data);
     modalNewLawyerInput[8].values = formaterSelect(roles.data);
-
-    //modalLawyerInput[7].defaultValue = 2;
   };
   const updateImage = (e: any) => {
     e.preventDefault();
@@ -345,8 +457,8 @@ const LawyerManagement = () => {
   }, []);
   useEffect(() => {
     fetchData();
-    getDataLeads();
-  }, [dataLeads, dataProject]);
+    getExtraData();
+  }, [dataLeads, dataProject === null, dataLawyerLeads === null]);
 
   useEffect(() => {
     if (searchText) {
@@ -400,6 +512,7 @@ const LawyerManagement = () => {
                       type={res.type}
                       values={res.values}
                       defaultValue={res.defaultValue}
+                      onChange={handleChangeService}
                     />
                   )
               )}
@@ -544,6 +657,7 @@ const LawyerManagement = () => {
                   type={res.type}
                   values={res.values}
                   defaultValue={res.defaultValue}
+                  onChange={handleChangenewLawyer}
                 />
               ))}
 

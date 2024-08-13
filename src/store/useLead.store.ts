@@ -31,6 +31,7 @@ export const useLeadsStore = create<LeadsStore>((set) => ({
         'phone number': lead.number,
         service: lead.lawyer_type,
         'description lead': lead.description,
+        comments: lead.comments,
         status: lead.status,
       }));
 

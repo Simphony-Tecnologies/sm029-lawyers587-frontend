@@ -29,7 +29,9 @@ const Tilte = ({
           <div>
             <h1 className='text-primary text-3xl'>{name}</h1>
             {des && (
-              <div className='text-primary capitalize font-normal'>{des}</div>
+              <div className='text-primary capitalize font-normal flex gap-2 flex-wrap'>
+                {des}
+              </div>
             )}
           </div>
 
