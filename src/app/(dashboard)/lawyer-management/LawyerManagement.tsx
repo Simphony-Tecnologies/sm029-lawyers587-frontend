@@ -33,7 +33,7 @@ const LawyerManagement = () => {
   const [dataServiceType, setDataServiceType] = useState([]);
   const [withOutFormat, setWithOutFormat] = useState<any>([]);
   const [isOpenDelete, setIsOpenDelete] = useState(false);
-  const [file, setFile] = useState(null);
+  const [file, setFile] = useState<any>(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isOpenPassword, setIsopenPassword] = useState(false);
   const [lawyerStatistic, setLawyerStatistic] = useState(modalLawyerStatistics);
@@ -311,7 +311,10 @@ const LawyerManagement = () => {
   };
   const createlawyer = async (e: any) => {
     e.preventDefault();
-
+    if (!file) {
+      toast.error('No file selected');
+      return;
+    }
     const data = {
       firstName: e.target.firstName.value,
       lastName: e.target.lastname.value,
@@ -345,6 +348,11 @@ const LawyerManagement = () => {
       }
     });
     await Promise.all(insertService);
+    const formData = new FormData();
+    formData.append('id', creatingLawyer.data.data.id.toString());
+    formData.append('file', file);
+    await database.uploadProfile(formData);
+    setFile(null);
     fetchData();
     getExtraData();
     setIsOpenNew(false);

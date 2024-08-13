@@ -354,6 +354,30 @@ export const database = {
       };
     }
   },
+  uploadProfile: async (formData: any): Promise<ResponseEndpoint> => {
+    const url = `${process.env.NEXT_PUBLIC_URL_PROFILE_IMAGE}`;
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+
+      return {
+        success: data.success,
+        code: data.statusCode,
+        data: data.data,
+        messages: data.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 400,
+        data: [],
+        messages: 'error connecting to database',
+      };
+    }
+  },
   updateData: async (
     url: string,
     sendData: object

@@ -19,7 +19,7 @@ const Header = () => {
   const isUser = Object.keys(user).length > 0;
 
   const getNotifications = async () => {
-    if (user) {
+    if (Object.keys(user).length > 0) {
       if (user.role.name === 'admin') {
         const resData = await database.fetchData(
           `${process.env.NEXT_PUBLIC_URL_NOTIFICATIONS}`
