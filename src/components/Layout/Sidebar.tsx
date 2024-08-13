@@ -15,6 +15,8 @@ import {
 import { useMobileStatus } from '@/store/useMobileStatus.store';
 import { database } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
+import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
+import FAQAccordion from './FAQAccordion';
 type siderbar = {
   name?: string;
   type?: string;
@@ -93,10 +95,23 @@ export default function Sidebar({ name, type }: siderbar) {
               <div className='font-semibold '>{user?.firstName}</div>
             </div>
           </div>
-          <MdHelp
-            size={24}
-            className='lg:hidden text-gray-500 cursor-pointer mr-5'
-          />
+          <Menu>
+            <MenuButton className='lg:hidden'>
+              <MdHelp
+                size={24}
+                className='text-gray-500 cursor-pointer hover:text-primary mr-4'
+              />
+            </MenuButton>
+            <MenuItems
+              transition
+              anchor='bottom end'
+              className='flex flex-col bg-white w-60 origin-top-right rounded-xl border shadow-sm p-4 text-sm/6  transition duration-100 ease-out [--anchor-gap:var(--spacing-1)] focus:outline-none data-[closed]:scale-95 justify-center text-center items-center '
+            >
+              <MenuItem>
+                <FAQAccordion />
+              </MenuItem>
+            </MenuItems>
+          </Menu>
         </div>
       </header>
 
