@@ -8,7 +8,6 @@ import SkeletonText from '../atoms/SkeletonText';
 import FAQAccordion from './FAQAccordion';
 import { database } from '@/services/database';
 import toast from 'react-hot-toast';
-import { formatLastUpdate } from '@/utils/typeDate';
 import { formatDate } from '@/utils/formatDate';
 
 const Header = () => {
@@ -20,32 +19,31 @@ const Header = () => {
 
   const getNotifications = async () => {
     if (Object.keys(user).length > 0) {
-      if (user.role.name === 'admin') {
-        const resData = await database.fetchData(
-          `${process.env.NEXT_PUBLIC_URL_NOTIFICATIONS}`
-        );
-        if (!resData.success) {
-          toast.error('Error getting notifications');
-        }
-        const countFalse = resData.data.filter(
-          (item: any) => item.is_active === false
-        );
-        setdataNotification(countFalse);
-        setCount(countFalse.length);
+      // if (user.role.name === 'admin') {
+      //   const resData = await database.fetchData(
+      //     `${process.env.NEXT_PUBLIC_URL_NOTIFICATIONS}`
+      //   );
+      //   if (!resData.success) {
+      //     toast.error('Error getting notifications');
+      //   }
+      //   const countFalse = resData.data.filter(
+      //     (item: any) => item.is_active === false
+      //   );
+      //   setdataNotification(countFalse);
+      //   setCount(countFalse.length);
+      // }
+
+      const resData = await database.fetchData(
+        `${process.env.NEXT_PUBLIC_URL_NOTIFICATIONS}/lawyer/${user.id}`
+      );
+      if (!resData.success) {
+        toast.error('Error getting notifications');
       }
-      if (user.role.name === 'lawyer') {
-        const resData = await database.fetchData(
-          `${process.env.NEXT_PUBLIC_URL_NOTIFICATIONS}/lawyer/${user.id}`
-        );
-        if (!resData.success) {
-          toast.error('Error getting notifications');
-        }
-        const countFalse = resData.data.filter(
-          (item: any) => item.is_active === false
-        );
-        setdataNotification(countFalse);
-        setCount(countFalse.length);
-      }
+      const countFalse = resData.data.filter(
+        (item: any) => item.is_active === false
+      );
+      setdataNotification(countFalse);
+      setCount(countFalse.length);
     }
   };
   const handleTrueNotification = async (id: number) => {

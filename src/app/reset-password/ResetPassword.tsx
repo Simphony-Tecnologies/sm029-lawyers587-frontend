@@ -13,6 +13,7 @@ import { database } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
 import Modal from '@/components/organisms/Modal';
 import Input from '@/components/atoms/Input';
+//import { jwtDecode } from 'jwt-decode';
 
 const ResetPassword = () => {
   const router = useRouter();
@@ -52,18 +53,24 @@ const ResetPassword = () => {
       return toast.error('Token is invalid');
     }
     const reset = await database.resetPassword(validToken, newPassword);
+    //const decoded: any = jwtDecode(validToken);
+    //console.log(decoded);
+    // if (reset.code === 500 || !reset.success) {
+    //   setLoading(false);
+    //   return toast.error('error with reset password');
+    // }
 
-    if (reset.code === 500 || !reset.success) {
-      setLoading(false);
-      return toast.error('error with reset password');
-    }
+    // const resLawyer = await database.getLawyer(decoded.userId);
+    // if (!resLawyer.success) {
+    //   return toast.error('error with login lawyer');
+    // }
+    router.push('/');
+    //setUser(resLawyer.data.data);
+    //console.log(resLawyer);
 
-    setUser(reset.data.lawyer);
+    //const lastLogin: any = { last_login: new Date() };
 
-    const lastLogin: any = { last_login: new Date() };
-
-    router.push('/dashboard');
-    await database.UpdateLawyer(lastLogin, user.id);
+    //await database.UpdateLawyer(lastLogin, user.id);
     setLoading(false);
   };
 

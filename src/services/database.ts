@@ -48,7 +48,7 @@ export const database = {
       };
     }
   },
-  resetPassword: async (token: string, password: string) => {
+  resetPassword: async (token: string, newPassword: string) => {
     try {
       const url: string | undefined =
         process.env.NEXT_PUBLIC_URL_RESET_PASSWORD;
@@ -62,8 +62,9 @@ export const database = {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ token: token, newPassword: newPassword }),
       });
+      //const data = await response.json();
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -74,19 +75,17 @@ export const database = {
         throw error;
       }
 
-      const data = await response.json();
-
-      setCookie(null, 'currentUser', data.access_token, {
-        maxAge: 30 * 24 * 60 * 60,
-        path: '/',
-        secure: 'production',
-        sameSite: 'lax',
-      });
+      // setCookie(null, 'currentUser', token, {
+      //   maxAge: 30 * 24 * 60 * 60,
+      //   path: '/',
+      //   secure: 'production',
+      //   sameSite: 'lax',
+      // });
 
       return {
         success: true,
         code: 200,
-        data: data,
+        data: response,
       };
     } catch (error: any) {
       return {
