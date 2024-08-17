@@ -468,7 +468,7 @@ const LawyerManagement = () => {
   }, [searchText]);
 
   return (
-    <div className='container mx-auto p-4 flex flex-col gap-5'>
+    <div className='mx-auto flex flex-col gap-5'>
       <Modal title='Lawyer Details' isOpen={isOpen} setIsOpen={setIsOpen}>
         <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200'>
           <div className='flex flex-col gap-5'>
