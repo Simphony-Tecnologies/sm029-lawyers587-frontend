@@ -46,6 +46,12 @@ const Page = () => {
       setLoading(false);
       return toast.error('Error in authenticating');
     }
+
+    if (!login.data.lawyer.is_active) {
+      database.signout();
+      setLoading(false);
+      return toast.error('This user is not authorized');
+    }
     setUser(login.data.lawyer);
 
     const lastLogin: any = { last_login: new Date() };
