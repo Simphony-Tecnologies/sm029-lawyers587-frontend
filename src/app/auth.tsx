@@ -21,6 +21,7 @@ const Page = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [openModal, setOpenModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { setUser, user } = useAuth();
   const singIn = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
@@ -117,33 +118,38 @@ const Page = () => {
           onSubmit={singIn}
           className=' flex flex-col w-full gap-2 items-center'
         >
-          <div className='relative flex items-center w-full'>
-            {email === '' && (
-              <i className='fi fi-rr-envelope absolute left-8 text-gray-400'></i>
-            )}
+          <div className='relative rounded-full flex items-center w-full border border-text border-opacity-50 py-2 px-4'>
+            <i className='fi fi-rr-envelope absolute left-3 text-gray-400'></i>
 
             <input
               onChange={(e) => setEmail(e.target.value)}
               type='email'
               name='email'
               id='email'
-              placeholder='          Email Address'
-              className='w-full  border border-text border-opacity-50 px-5 lg:py-6 py-3 rounded-full placeholder:font-light text-text'
+              placeholder='Email Address'
+              className='w-full px-5 py-3 rounded-full text-text outline-none placeholder:font-light focus:outline-none'
+              style={{ backgroundColor: 'transparent' }}
             />
           </div>
 
-          <div className='relative flex items-center w-full'>
-            {password === '' && (
-              <i className='fi fi-rr-lock absolute left-8 text-gray-400  '></i>
-            )}
+          <div className='relative rounded-full flex items-center w-full border border-text border-opacity-50 py-2 px-4'>
+            <i className='fi fi-rr-lock text-gray-400 absolute left-3'></i>
+
             <input
               onChange={(e) => setPassword(e.target.value)}
-              type='password'
+              type={showPassword ? 'text' : 'password'}
               name='password'
               id='password'
-              placeholder='          Password'
-              className='w-full  border border-text border-opacity-50 px-5 lg:py-6 py-3 rounded-full placeholder:font-light text-text'
+              placeholder='Password'
+              className='w-full px-5 py-3 rounded-full placeholder:font-light text-text outline-none'
             />
+
+            <i
+              className={`fi ${
+                showPassword ? 'fi-rr-eye-crossed' : 'fi-rr-eye'
+              } text-gray-400 absolute right-3 cursor-pointer`}
+              onClick={() => setShowPassword(!showPassword)}
+            ></i>
           </div>
 
           <button
