@@ -24,7 +24,8 @@ const AllLeads = () => {
   const [columns, setColumns] = useState([]);
   const [selectedLead, setSelectedLead] = useState<any>({});
   const [dataServiceType, setDataServiceType] = useState([]);
-
+  const [originalData, setOriginalData] = useState([]);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const statusSelect = [
     {
       name: 'In progress',
@@ -65,7 +66,7 @@ const AllLeads = () => {
           .map((filterItem: any) => filterItem.lead)
           .includes(item['lead id'])
       );
-
+      setOriginalData(filterLeads);
       setLawyerData(filterLeads);
       if (filterLeads.length > 0) {
         const titles: any = Object.keys(filterLeads[0]);
@@ -123,6 +124,32 @@ const AllLeads = () => {
     setIsOpenLead(false);
     fetchLeads();
     getLawyer();
+  };
+  const filterSearch = (text: string | null) => {
+    if (text) {
+      if (lawyerData) {
+        const filterData = originalData.filter(
+          (item: any) =>
+            item?.['lead name'].toLowerCase().includes(text.toLowerCase()) ||
+            item?.email.toLowerCase().includes(text.toLowerCase()) ||
+            item?.['phone number'].toLowerCase().includes(text.toLowerCase()) ||
+            item?.status.toLowerCase().includes(text.toLowerCase())
+        );
+        setLawyerData(filterData);
+        return filterData;
+      }
+      return [];
+    }
+    setSelectedStatus(null);
+    setLawyerData(originalData);
+  };
+  const uniqueStatuses = Array.from(
+    new Set(originalData.map((item: any) => item.status))
+  );
+
+  const handleStatusClick = (status: string | null) => {
+    setSelectedStatus(status);
+    filterSearch(status);
   };
   useEffect(() => {
     getLawyer();
@@ -207,8 +234,34 @@ const AllLeads = () => {
             <p key={res?.id}>{res?.name.replace(' Lawyer', '')}</p>
           )
         )}
+        search={true}
+        filterSearch={filterSearch}
       />
-
+      <div className='flex space-x-2'>
+        <button
+          onClick={() => handleStatusClick(null)}
+          className={`px-4 p-1 rounded text-sm ${
+            selectedStatus === null
+              ? 'bg-primary bg-opacity-80 text-white'
+              : 'bg-gray-200'
+          }`}
+        >
+          All
+        </button>
+        {uniqueStatuses.map((status) => (
+          <button
+            key={status}
+            onClick={() => handleStatusClick(status)}
+            className={`px-4 p-1 rounded text-sm ${
+              selectedStatus === status
+                ? 'bg-primary bg-opacity-80 text-white'
+                : 'bg-gray-200'
+            }`}
+          >
+            {status}
+          </button>
+        ))}
+      </div>
       <SortableTable
         columns={columns}
         data={lawyerData}

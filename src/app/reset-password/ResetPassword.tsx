@@ -8,7 +8,6 @@ import MobileAuth from '@/assets/mobile-auth.png';
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { database } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
 import Modal from '@/components/organisms/Modal';
@@ -22,6 +21,8 @@ const ResetPassword = () => {
   const [loading, setLoading] = useState(false);
   const [openModal, setOpenModal] = useState(false);
   const [validToken, setValidToken] = useState<any>('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const { setUser, user } = useAuth();
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -116,26 +117,43 @@ const ResetPassword = () => {
           onSubmit={handleForgotPassword}
           className=' flex flex-col w-full gap-2 items-center'
         >
-          <div className='relative flex items-center w-full'>
+          <div className='relative rounded-full flex items-center w-full border border-text border-opacity-50 py-2 px-4'>
+            <i className='fi fi-rr-lock text-gray-400 absolute left-3'></i>
+
             <input
               onChange={(e) => setNewPassword(e.target.value)}
-              type='password'
+              type={showPassword ? 'text' : 'password'}
               name='password'
               id='newPassword'
               placeholder='Password'
-              className='w-full  border border-text border-opacity-50 px-5 lg:py-6 py-3 rounded-full placeholder:font-light text-text'
+              className='w-full px-5 py-3 rounded-full placeholder:font-light text-text outline-none'
             />
-          </div>
 
-          <div className='relative flex items-center w-full'>
+            <i
+              className={`fi ${
+                showPassword ? 'fi-rr-eye-crossed' : 'fi-rr-eye'
+              } text-gray-400 absolute right-5 cursor-pointer text-lg`}
+              onClick={() => setShowPassword(!showPassword)}
+            ></i>
+          </div>
+          <div className='relative rounded-full flex items-center w-full border border-text border-opacity-50 py-2 px-4'>
+            <i className='fi fi-rr-lock text-gray-400 absolute left-3'></i>
+
             <input
               onChange={(e) => setConfirmPassword(e.target.value)}
-              type='password'
-              name='confirmPassword'
-              id='password'
+              type={showPasswordConfirm ? 'text' : 'password'}
+              name='password'
+              id='confirmPassword'
               placeholder='Confirm Password'
-              className='w-full  border border-text border-opacity-50 px-5 lg:py-6 py-3 rounded-full placeholder:font-light text-text'
+              className='w-full px-5 py-3 rounded-full placeholder:font-light text-text outline-none'
             />
+
+            <i
+              className={`fi ${
+                showPasswordConfirm ? 'fi-rr-eye-crossed' : 'fi-rr-eye'
+              } text-gray-400 absolute right-5 cursor-pointer text-lg`}
+              onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+            ></i>
           </div>
 
           <button
