@@ -147,7 +147,7 @@ const Page = () => {
             <i
               className={`fi ${
                 showPassword ? 'fi-rr-eye-crossed' : 'fi-rr-eye'
-              } text-gray-400 absolute right-3 cursor-pointer`}
+              } text-gray-400 absolute right-5 cursor-pointer text-lg`}
               onClick={() => setShowPassword(!showPassword)}
             ></i>
           </div>

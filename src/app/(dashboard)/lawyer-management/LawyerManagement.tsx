@@ -47,6 +47,7 @@ const LawyerManagement = () => {
   const [selectedOptionsService, setSelectedOptionsService] = useState<any[]>(
     []
   );
+  const [originalData, setOriginalData] = useState([]);
 
   const router = useRouter();
   dayjs.extend(utc);
@@ -84,6 +85,7 @@ const LawyerManagement = () => {
       setWithOutFormat(data);
       getTotalLeads(data);
       const dataFormat = data.map(formatResponse);
+      setOriginalData(dataFormat);
       setData(dataFormat);
       if (data.length > 0) {
         const firstItem = dataFormat[0];
@@ -450,7 +452,19 @@ const LawyerManagement = () => {
     setIsOpenNew(true);
     setImagePreview(null);
   };
-
+  const filterSearch = (text: string) => {
+    if (text) {
+      const filterData = originalData.filter(
+        (item: any) =>
+          item?.['lawyer name'].toLowerCase().includes(text.toLowerCase()) ||
+          item?.email.toLowerCase().includes(text.toLowerCase()) ||
+          item?.['phone number'].toLowerCase().includes(text.toLowerCase())
+      );
+      setData(filterData);
+      return filterData;
+    }
+    setData(originalData);
+  };
   useEffect(() => {
     getServiceType();
     getRole();
@@ -459,13 +473,6 @@ const LawyerManagement = () => {
     fetchData();
     getExtraData();
   }, [dataLeads, dataProject === null, dataLawyerLeads === null]);
-
-  useEffect(() => {
-    if (searchText) {
-      return setData(searchedResults);
-    }
-    fetchData();
-  }, [searchText]);
 
   return (
     <div className='mx-auto flex flex-col gap-5'>
@@ -727,9 +734,7 @@ const LawyerManagement = () => {
       <Tilte
         name='Lawyer Management'
         search={true}
-        setSearchText={setSearchText}
-        setSearchedResults={setSearchedResults}
-        dataFilter={data}
+        filterSearch={filterSearch}
       />
       <div className='flex justify-end '>
         <Button name='+ New Lawyer' type='button' onClick={newLawyer} />

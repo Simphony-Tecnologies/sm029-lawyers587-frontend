@@ -8,11 +8,12 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
 const IdLawyer = ({ params }: { params: { id: string } }) => {
-  const [lawyerData, setLawyerData] = useState(null);
+  const [lawyerData, setLawyerData] = useState<any>(null);
   const { dataLeads } = useLeadsStore();
   const [userId, setUserId] = useState<any>(null);
   const [columns, setColumns] = useState([]);
-
+  const [originalData, setOriginalData] = useState([]);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const getLawyer = async () => {
     const dataLawyerUser = await database.getLawyer(params.id);
     setUserId(dataLawyerUser.data.data);
@@ -36,12 +37,38 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
       );
 
       setLawyerData(filterLeads);
+      setOriginalData(filterLeads);
       if (filterLeads.length > 0) {
         const titles: any = Object.keys(filterLeads[0]);
 
         setColumns(titles);
       }
     }
+  };
+  const filterSearch = (text: string | null) => {
+    if (text) {
+      if (lawyerData) {
+        const filterData = originalData.filter(
+          (item: any) =>
+            item?.['lead name'].toLowerCase().includes(text.toLowerCase()) ||
+            item?.email.toLowerCase().includes(text.toLowerCase()) ||
+            item?.['phone number'].toLowerCase().includes(text.toLowerCase()) ||
+            item?.status.toLowerCase().includes(text.toLowerCase())
+        );
+        setLawyerData(filterData);
+        return filterData;
+      }
+      return [];
+    }
+    setLawyerData(originalData);
+  };
+  const uniqueStatuses = Array.from(
+    new Set(originalData.map((item: any) => item.status))
+  );
+
+  const handleStatusClick = (status: string | null) => {
+    setSelectedStatus(status);
+    filterSearch(status);
   };
   useEffect(() => {
     getLawyer();
@@ -51,9 +78,34 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     <div className='flex flex-col gap-5'>
       <Tilte
         name={`${userId?.firstName} ${userId?.lastName}`}
-        des={userId?.service_type?.name}
+        search={true}
+        filterSearch={filterSearch}
       />
-      {/* <Tilte name={`${user?.firstName} ${user?.lastName}`} /> */}
+      <div className='flex space-x-2'>
+        <button
+          onClick={() => handleStatusClick(null)}
+          className={`px-4 p-1 rounded text-sm ${
+            selectedStatus === null
+              ? 'bg-primary bg-opacity-80 text-white'
+              : 'bg-gray-200'
+          }`}
+        >
+          All
+        </button>
+        {uniqueStatuses.map((status) => (
+          <button
+            key={status}
+            onClick={() => handleStatusClick(status)}
+            className={`px-4 p-1 rounded text-sm ${
+              selectedStatus === status
+                ? 'bg-primary bg-opacity-80 text-white'
+                : 'bg-gray-200'
+            }`}
+          >
+            {status}
+          </button>
+        ))}
+      </div>
       <SortableTable
         columns={columns}
         data={lawyerData}

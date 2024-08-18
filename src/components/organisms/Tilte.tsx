@@ -9,16 +9,15 @@ type title = {
   setSearchedResults?: any;
   children?: React.ReactNode;
   des?: string;
+  filterSearch?: (text: string) => any;
 };
 
 const Tilte = ({
   name,
   search = false,
-  dataFilter,
-  setSearchText,
-  setSearchedResults,
   children,
   des,
+  filterSearch,
 }: title) => {
   return (
     <>
@@ -36,11 +35,9 @@ const Tilte = ({
           </div>
 
           {search && (
-            <SearchInput
-              dataFilter={dataFilter}
-              setSearchText={setSearchText}
-              setSearchedResults={setSearchedResults}
-            />
+            <div className='flex justify-end items-start gap-5 w-full max-w-xl'>
+              <SearchInput filterSearch={filterSearch} />
+            </div>
           )}
 
           {children}
