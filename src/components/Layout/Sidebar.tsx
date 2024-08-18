@@ -49,7 +49,7 @@ export default function Sidebar({ name, type }: siderbar) {
 
   return (
     <aside
-      className={` py-5 h-screen  items-center lg:grid grid-rows-[auto_1fr_auto] gap-20 bg-white  border-t shadow-none  duration-300  z-10 border border-solid border-gray-200 transition-all ease-in-out  ${
+      className={` py-5 h-screen  items-center lg:grid grid-rows-[auto_1fr_auto] gap-20 bg-white  border-t shadow-none  duration-300  z-50 border border-solid border-gray-200 transition-all ease-in-out  ${
         toggleStatus ? 'w-72 ' : 'w-20'
       } ${statusMobile} `}
     >
@@ -90,7 +90,16 @@ export default function Sidebar({ name, type }: siderbar) {
         </div>
         <div className='flex justify-between'>
           <div className='lg:hidden flex items-center space-x-4'>
-            <div className='w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white cursor-pointer'></div>
+            {user && user.profile_image_url ? (
+              <img
+                src={user?.profile_image_url || ''}
+                alt='profie image'
+                width={40}
+                height={40}
+              />
+            ) : (
+              <div className='w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white cursor-pointer'></div>
+            )}
             <div className='text-gray-800'>
               <div className='font-semibold '>{user?.firstName}</div>
             </div>

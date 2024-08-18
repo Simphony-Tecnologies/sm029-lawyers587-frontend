@@ -21,4 +21,5 @@ type LawyerData = {
   law_firm: string;
   notes: string;
   status: 'Assignable' | 'Unassignable';
+  profile_image_url: string;
 } | null;

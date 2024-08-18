@@ -313,10 +313,10 @@ const LawyerManagement = () => {
   };
   const createlawyer = async (e: any) => {
     e.preventDefault();
-    if (!file) {
-      toast.error('No file selected');
-      return;
-    }
+    // if (!file) {
+    //   toast.error('No picture selected');
+    //   return;
+    // }
     const data = {
       firstName: e.target.firstName.value,
       lastName: e.target.lastname.value,
@@ -327,7 +327,7 @@ const LawyerManagement = () => {
       max_leads: e.target.max_leads.value,
       law_firm: e.target.name_of_law_firm.value,
       notes: e.target.notes.value,
-      is_active: true,
+      is_active: e.target.is_active.value === 'true',
     };
 
     const creatingLawyer = await database.CreateLawyer(data);
@@ -341,13 +341,13 @@ const LawyerManagement = () => {
         lawyer_id: creatingLawyer.data.data.id,
         service_type_id: item.value,
       };
-      const insertServicesLawyer = await database.insertData(
+      await database.insertData(
         `${process.env.NEXT_PUBLIC_URL_LAWYERS_SERVICE}`,
         dataAssignedServide
       );
-      if (!insertServicesLawyer.data) {
-        toast.error('Error assigning Area of lawyer ');
-      }
+      // if (!insertServicesLawyer.success) {
+      //   toast.error('Error assigning Area of lawyer ');
+      // }
     });
     await Promise.all(insertService);
     const formData = new FormData();
@@ -482,8 +482,16 @@ const LawyerManagement = () => {
             <div className='text-gray-500 text-sm'>Code: {dataIndex?.id}</div>
             <div className='flex items-center gap-2'>
               {imagePreview ? (
-                <Image
+                <img
                   src={imagePreview}
+                  alt='Preview'
+                  width={300}
+                  height={300}
+                  className='object-cover rounded-full w-20 h-20  '
+                />
+              ) : dataIndex?.profile_image_url ? (
+                <img
+                  src={dataIndex.profile_image_url}
                   alt='Preview'
                   width={300}
                   height={300}

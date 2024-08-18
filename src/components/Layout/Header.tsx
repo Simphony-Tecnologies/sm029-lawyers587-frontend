@@ -15,6 +15,7 @@ const Header = () => {
 
   const [dataNotification, setdataNotification] = useState<[] | null>(null);
   const [count, setCount] = useState(0);
+  const [locasUser, setLocasUser] = useState<any>(null);
   const isUser = Object.keys(user).length > 0;
 
   const getNotifications = async () => {
@@ -39,6 +40,9 @@ const Header = () => {
       if (!resData.success) {
         toast.error('Error getting notifications');
       }
+      const dataLawyerUser = await database.getLawyer(user.id);
+      setLocasUser(dataLawyerUser.data.data);
+
       const countFalse = resData.data.filter(
         (item: any) => item.is_active === false
       );
@@ -57,9 +61,10 @@ const Header = () => {
 
     getNotifications();
   };
+
   useEffect(() => {
     getNotifications();
-  }, []);
+  }, [user]);
 
   return (
     <header className='hidden bg-white p-4 lg:flex justify-end items-center text-center space-x-4 shadow '>
@@ -124,13 +129,29 @@ const Header = () => {
       <Menu>
         <MenuButton>
           <div className='flex items-center space-x-4  '>
-            <div className='w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white cursor-pointer'></div>
+            {locasUser && locasUser.profile_image_url ? (
+              <img
+                src={locasUser?.profile_image_url || ''}
+                alt='profie image'
+                width={40}
+                height={40}
+              />
+            ) : (
+              <div className='w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white cursor-pointer'></div>
+            )}
+
             <div className='text-gray-800 '>
               <div className='font-semibold'>
-                {!isUser ? <SkeletonText /> : user.firstName}
+                {!locasUser ? (
+                  <div className='w-full'>
+                    <SkeletonText />
+                  </div>
+                ) : (
+                  locasUser?.firstName
+                )}
               </div>
               <div className='text-sm text-gray-500 capitalize'>
-                {!isUser ? <SkeletonText /> : user?.role?.name}
+                {!locasUser ? <SkeletonText /> : locasUser?.role?.name}
               </div>
             </div>
           </div>
@@ -140,12 +161,21 @@ const Header = () => {
           anchor='bottom end'
           className='flex flex-col bg-white w-52 origin-top-right rounded-xl border shadow-sm p-4 text-sm/6  transition duration-100 ease-out [--anchor-gap:var(--spacing-1)] focus:outline-none data-[closed]:scale-95 justify-center text-center items-center '
         >
-          <div className='w-10 h-10 rounded-full bg-primary text-white cursor-pointer'></div>
+          {locasUser && locasUser.profile_image_url ? (
+            <img
+              src={locasUser?.profile_image_url || ''}
+              alt='profie image'
+              width={40}
+              height={40}
+            />
+          ) : (
+            <div className='w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white cursor-pointer'></div>
+          )}
 
           {!!isUser ? (
             <>
-              <div className='font-bold text-lg'>{user?.firstName}</div>
-              <div className='text-lg'>{user?.role?.name}</div>
+              <div className='font-bold text-lg'>{locasUser?.firstName}</div>
+              <div className='text-lg'>{locasUser?.role?.name}</div>
             </>
           ) : (
             <div className='w-full'>
@@ -154,10 +184,10 @@ const Header = () => {
           )}
 
           <MenuItem>
-            <div className='text-sm text-start'>{user?.email}</div>
+            <div className='text-sm text-start'>{locasUser?.email}</div>
           </MenuItem>
           <MenuItem>
-            <div className='text-sm text-start'>{user?.phone}</div>
+            <div className='text-sm text-start'>{locasUser?.phone}</div>
           </MenuItem>
         </MenuItems>
       </Menu>
