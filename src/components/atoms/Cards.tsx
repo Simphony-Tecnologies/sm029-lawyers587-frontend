@@ -3,10 +3,13 @@ import { formatLastUpdate } from '@/utils/typeDate';
 import Image from 'next/image';
 import React from 'react';
 
-const Cards = ({ title, value, date, icon, color }: typeStatistis) => {
+const Cards = ({ title, value, date, icon, color, onClick }: typeStatistis) => {
   return (
     <div>
-      <div className='grid grid-cols-3 bg-white w-full border-t border-main-color-50 rounded-xl shadow-md shadow-main-color-100 transition-all  lg:p-10 p-5  '>
+      <div
+        onClick={onClick}
+        className='grid grid-cols-3 bg-white w-full border-t border-main-color-50 rounded-xl shadow-md shadow-main-color-100 transition-all  lg:p-10 p-5 hover:scale-105 hover:cursor-pointer '
+      >
         <div className='flex flex-col col-span-2'>
           <h1 className='lg:text-4xl text-2xl text-primary text-opacity-70 font-semibold'>
             {title}
