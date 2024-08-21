@@ -4,4 +4,5 @@ export type typeStatistis = {
   date: Date | string;
   icon?: any;
   color: string;
+  onClick: () => void;
 };

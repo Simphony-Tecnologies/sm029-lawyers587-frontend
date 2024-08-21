@@ -3,19 +3,24 @@ import Cards from '@/components/atoms/Cards';
 import Tilte from '@/components/organisms/Tilte';
 import { statistics as initialStatistics } from '@/configs/statistics.confing';
 import { useLeadsStore } from '@/store/useLead.store';
+import { useSelectStatus } from '@/store/useSelectStatus';
+import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 const Dashboard = () => {
   const { dataLeads } = useLeadsStore();
   const [statistics, setStatistics] = useState(initialStatistics);
-
-  //const getLastElement = (arr: any) => arr[arr.length - 1];
+  const { setSelecArray } = useSelectStatus();
+  const router = useRouter();
   const getLastElement = (arr: any) => arr[0];
   const setData = [
     { value: 'NEW', index: 0 },
     { value: 'ASSIGNED', index: 1 },
-    { value: 'EXPIRED', index: 2 },
+    { value: 'PROBLEMATIC', index: 2 },
+    { value: 'IN PROGRESS', index: 2 },
     { value: 'LOST', index: 3 },
+    { value: 'EXPIRED', index: 3 },
+    { value: 'DISABLE', index: 3 },
   ];
 
   const filterLeads = (value: string, index: number) => {
@@ -23,12 +28,12 @@ const Dashboard = () => {
       const leads = dataLeads.filter((res: any) => res.status === value);
       const lastNewLead = getLastElement(leads);
 
-      if (lastNewLead) {
+      if (leads.length > 0) {
         setStatistics((prevStatistics) => {
           const updatedStatistics = [...prevStatistics];
           updatedStatistics[index] = {
-            ...updatedStatistics[index],
-            value: leads.length,
+            ...initialStatistics[index],
+            value: (updatedStatistics[index]?.value || 0) + leads.length,
             date: lastNewLead.date,
           };
           return updatedStatistics;
@@ -36,8 +41,13 @@ const Dashboard = () => {
       }
     }
   };
-
+  const handleClickCard = (index: any) => {
+    const valuesCards = setData.filter((item: any) => item.index === index);
+    setSelecArray(valuesCards.map((res: any) => res.value));
+    router.push('/lead-management');
+  };
   useEffect(() => {
+    setStatistics(initialStatistics);
     if (dataLeads) setData.forEach((res) => filterLeads(res.value, res.index));
   }, [dataLeads]);
 
@@ -53,6 +63,7 @@ const Dashboard = () => {
             date={statistic?.date}
             color={statistic?.color}
             icon={statistic?.icon}
+            onClick={() => handleClickCard(index)}
           />
         ))}
       </div>
