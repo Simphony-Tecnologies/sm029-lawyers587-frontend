@@ -5,17 +5,20 @@ import Tilte from '@/components/organisms/Tilte';
 import { statusColors } from '@/configs/statusColor';
 import { database } from '@/services/database';
 import { useLeadsStore } from '@/store/useLead.store';
+import { useSelectStatus } from '@/store/useSelectStatus';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { MdOutlineCases } from 'react-icons/md';
 
 const IdLawyer = ({ params }: { params: { id: string } }) => {
   const [lawyerData, setLawyerData] = useState<any>(null);
+
   const { dataLeads } = useLeadsStore();
   const [userId, setUserId] = useState<any>(null);
   const [columns, setColumns] = useState([]);
   const [originalData, setOriginalData] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const { selecArray, setSelecArray } = useSelectStatus();
   const getLawyer = async () => {
     const dataLawyerUser = await database.getLawyer(params.id);
     setUserId(dataLawyerUser.data.data);
@@ -40,6 +43,9 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
 
       setLawyerData(filterLeads);
       setOriginalData(filterLeads);
+      if (selecArray.length > 0) {
+        filterArray();
+      }
       if (filterLeads.length > 0) {
         const titles: any = Object.keys(filterLeads[0]);
 
@@ -64,6 +70,37 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     }
     setLawyerData(originalData);
   };
+  const filterArray = () => {
+    let accumulatedResults: any[] = [];
+
+    if (dataLeads && selecArray.length > 0) {
+      handleStatusClick('');
+      selecArray.forEach((keyword: string) => {
+        const dataFilter = dataLeads.filter((item: any) =>
+          item?.status.toLowerCase().includes(keyword.toLowerCase())
+        );
+
+        dataFilter.forEach((lead: any) => {
+          if (
+            !accumulatedResults.some(
+              (accItem) => accItem['lead id'] === lead['lead id']
+            )
+          ) {
+            accumulatedResults.push(lead);
+          }
+        });
+      });
+
+      // Actualiza el estado con los datos acumulados
+      setLawyerData(accumulatedResults);
+
+      return accumulatedResults;
+    }
+
+    // Si no hay texto o keywords, se restablecen los leads originales
+    setLawyerData(dataLeads);
+    return dataLeads;
+  };
   const uniqueStatuses = Array.from(
     new Set(originalData.map((item: any) => item.status))
   );
@@ -75,7 +112,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   useEffect(() => {
     getLawyer();
   }, [dataLeads]);
-  if (lawyerData && lawyerData.length <= 0) {
+  if (lawyerData && originalData.length <= 0) {
     return (
       <NoData
         text={`${userId?.firstName} ${userId?.lastName} hasn't been assigned any leads yet`}

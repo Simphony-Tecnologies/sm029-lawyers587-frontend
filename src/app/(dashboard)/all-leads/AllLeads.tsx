@@ -159,7 +159,7 @@ const AllLeads = () => {
     getServiceType();
   }, [user, dataLeads]);
 
-  if (lawyerData && lawyerData.length <= 0) {
+  if (lawyerData && originalData.length <= 0) {
     return (
       <NoData
         text={`Here you will see your selected leads. Go to the 'Select Lead' section to get started.`}

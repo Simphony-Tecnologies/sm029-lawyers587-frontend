@@ -20,7 +20,7 @@ const Dashboard = () => {
     { value: 'IN PROGRESS', index: 2 },
     { value: 'LOST', index: 3 },
     { value: 'EXPIRED', index: 3 },
-    { value: 'DISABLE', index: 3 },
+    { value: 'DISABLED', index: 3 },
   ];
 
   const filterLeads = (value: string, index: number) => {
@@ -36,6 +36,7 @@ const Dashboard = () => {
             value: (updatedStatistics[index]?.value || 0) + leads.length,
             date: lastNewLead.date,
           };
+
           return updatedStatistics;
         });
       }
@@ -44,6 +45,7 @@ const Dashboard = () => {
   const handleClickCard = (index: any) => {
     const valuesCards = setData.filter((item: any) => item.index === index);
     setSelecArray(valuesCards.map((res: any) => res.value));
+
     router.push('/lead-management');
   };
   useEffect(() => {

@@ -272,6 +272,7 @@ const LawyerManagement = () => {
       updatedStatistics[2].value = filterLeads.filter(
         (item: any) =>
           item.status === 'ASSIGNED' ||
+          item.status === 'PROBLEMATIC' ||
           item.status === 'IN PROGRESS' ||
           item.status === 'CLOSED'
       ).length;
@@ -279,7 +280,7 @@ const LawyerManagement = () => {
         (item: any) => item.status === 'LOST'
       ).length;
       updatedStatistics[4].value = filterLeads.filter(
-        (item: any) => item.status === 'REASSIGNED'
+        (item: any) => item.status === 'EXPIRED' || item.status === 'DISABLED'
       ).length;
 
       setLawyerStatistic(updatedStatistics);
@@ -451,7 +452,7 @@ const LawyerManagement = () => {
   };
   const handleRoute = async (index: number) => {
     const dataId = await database.getLawyer(withOutFormat[index].id);
-
+    setSelecArray([]);
     router.push(`lawyer-management/${dataId.data.data.id}`);
   };
   const newLawyer = () => {
@@ -479,17 +480,21 @@ const LawyerManagement = () => {
     }));
   };
 
-  const handleClickCard = (index: any) => {
+  const handleClickCard = (indexclick: any) => {
     const setData = [
-      { value: 'NEW', index: 0 },
-      { value: 'ASSIGNED', index: 1 },
+      { value: '', index: 0 },
+      { value: 'ASSIGNED', index: 2 },
       { value: 'PROBLEMATIC', index: 2 },
       { value: 'IN PROGRESS', index: 2 },
       { value: 'LOST', index: 3 },
-      { value: 'EXPIRED', index: 3 },
-      { value: 'DISABLE', index: 3 },
+      { value: 'EXPIRED', index: 4 },
+      { value: 'DISABLE', index: 4 },
     ];
-    const valuesCards = setData.filter((item: any) => item.index === index);
+
+    const valuesCards = setData.filter(
+      (item: any) => item.index === indexclick
+    );
+
     setSelecArray(valuesCards.map((res: any) => res.value));
     router.push(`/lawyer-management/${dataIndex.id}`);
   };
@@ -610,10 +615,16 @@ const LawyerManagement = () => {
                 onClick={
                   parseInt(res?.value) <= 0
                     ? () => toast.error('That value is 0')
-                    : handleClickCard
+                    : res.name === 'Leads Available for request'
+                    ? () => []
+                    : () => handleClickCard(index)
                 }
                 key={index}
-                className='flex gap-4 px-4 py-1.5 rounded-lg hover:scale-105 cursor-pointer'
+                className={`${
+                  res.name === 'Leads Available for request'
+                    ? ''
+                    : 'hover:scale-105 cursor-pointer'
+                } flex gap-4 px-4 py-1.5 rounded-lg  `}
                 style={{
                   background: `${res.color}20`,
                   color: res.color,
