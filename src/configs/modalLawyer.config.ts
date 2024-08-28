@@ -7,7 +7,7 @@ export const modalLawyerInput: ModalLawyerInput[] = [
     required: true,
   },
   {
-    label: 'lastname',
+    label: 'last name',
     name: 'lastname',
     defaultValue: '',
     type: 'text',
@@ -30,7 +30,7 @@ export const modalLawyerInput: ModalLawyerInput[] = [
     label: 'phone number',
     name: 'phone',
     defaultValue: '',
-    type: 'number',
+    type: 'tel',
     required: true,
   },
   {

@@ -17,6 +17,8 @@ import { database } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import FAQAccordion from './FAQAccordion';
+import Button from '../atoms/Button';
+import Modal from '../organisms/Modal';
 type siderbar = {
   name?: string;
   type?: string;
@@ -27,6 +29,7 @@ export default function Sidebar({ name, type }: siderbar) {
     useMobileStatus();
 
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [isOpenSignOut, setIsOpenSignOut] = useState(false);
   const { user } = useAuth();
   const rol = user?.role?.name;
 
@@ -58,6 +61,32 @@ export default function Sidebar({ name, type }: siderbar) {
           toggleStatus ? 'w-72' : 'w-20 pr-4'
         }`}
       >
+        <Modal
+          title='Sign Out'
+          isOpen={isOpenSignOut}
+          setIsOpen={setIsOpenSignOut}
+          className='max-w-sm'
+        >
+          <div className='flex flex-col gap-4'>
+            <div className='flex justify-center text-center'>
+              <p>Are you sure you want to sign out?</p>
+            </div>
+
+            <div className='flex justify-around'>
+              <Button
+                name='Cancel'
+                type='button'
+                onClick={() => setIsOpenSignOut(false)}
+              />
+              <Button
+                name='Sign Out'
+                type='button'
+                color='bg-red-500'
+                onClick={signOut}
+              />
+            </div>
+          </div>
+        </Modal>
         <div
           className={`w-full h-10 flex lg:px-3 items-center gap-2 duration-300 justify-between lg:justify-start ${
             toggleStatus ? 'flex-row' : 'flex-col'
@@ -224,7 +253,7 @@ export default function Sidebar({ name, type }: siderbar) {
         }`}
       >
         <button
-          onClick={signOut}
+          onClick={() => setIsOpenSignOut(true)}
           className={`flex items-center gap-5 py-2 transition-all duration-300 ease-in-out hover:bg-primary hover:bg-opacity-20 rounded-l-lg w-full ${
             toggleStatus
               ? 'px-3 lg:px-5 '

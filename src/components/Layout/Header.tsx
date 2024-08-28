@@ -3,19 +3,28 @@ import { useAuth } from '@/store/useAuth.store';
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
-import { MdNotifications, MdHelp } from 'react-icons/md';
+import {
+  MdNotifications,
+  MdHelp,
+  MdMailOutline,
+  MdOutlineLocalPhone,
+} from 'react-icons/md';
 import SkeletonText from '../atoms/SkeletonText';
 import FAQAccordion from './FAQAccordion';
 import { database } from '@/services/database';
 import toast from 'react-hot-toast';
 import { formatDate } from '@/utils/formatDate';
+import Button from '../atoms/Button';
+import { useRouter } from 'next/navigation';
+import Modal from '../organisms/Modal';
 
 const Header = () => {
   const { user } = useAuth();
-
+  const router = useRouter();
   const [dataNotification, setdataNotification] = useState<[] | null>(null);
   const [count, setCount] = useState(0);
   const [locasUser, setLocasUser] = useState<any>(null);
+  const [isOpenSignOut, setIsOpenSignOut] = useState(false);
   const isUser = Object.keys(user).length > 0;
 
   const getNotifications = async () => {
@@ -61,6 +70,11 @@ const Header = () => {
 
     getNotifications();
   };
+  const signOut = () => {
+    database.signout();
+    router.push('/');
+    location.reload();
+  };
 
   useEffect(() => {
     getNotifications();
@@ -68,6 +82,32 @@ const Header = () => {
 
   return (
     <header className='hidden bg-white p-4 lg:flex justify-end items-center text-center space-x-4 shadow '>
+      <Modal
+        title='Sign Out'
+        isOpen={isOpenSignOut}
+        setIsOpen={setIsOpenSignOut}
+        className='max-w-sm'
+      >
+        <div className='flex flex-col gap-4'>
+          <div className='flex justify-center text-center'>
+            <p>Are you sure you want to sign out?</p>
+          </div>
+
+          <div className='flex justify-around'>
+            <Button
+              name='Cancel'
+              type='button'
+              onClick={() => setIsOpenSignOut(false)}
+            />
+            <Button
+              name='Sign Out'
+              type='button'
+              color='bg-red-500'
+              onClick={signOut}
+            />
+          </div>
+        </div>
+      </Modal>
       <Menu>
         <MenuButton>
           <MdHelp
@@ -117,7 +157,7 @@ const Header = () => {
                 </div>
               ))
             ) : (
-              <div>There are not notification yet</div>
+              <div>There are not notifications yet</div>
             )
           ) : (
             <div className='w-full p-2'>
@@ -184,11 +224,23 @@ const Header = () => {
           )}
 
           <MenuItem>
-            <div className='text-sm text-start'>{locasUser?.email}</div>
+            <div className=' w-full text-sm text-start justify-start flex items-center gap-2'>
+              <MdMailOutline />
+              {locasUser?.email}
+            </div>
           </MenuItem>
           <MenuItem>
-            <div className='text-sm text-start'>{locasUser?.phone}</div>
+            <div className=' w-full text-sm text-start justify-start flex items-center gap-2'>
+              <MdOutlineLocalPhone />
+              {locasUser?.phone}
+            </div>
           </MenuItem>
+          <Button
+            name='Sign Out'
+            type='button'
+            color='w-full bg-primary mt-2'
+            onClick={() => setIsOpenSignOut(true)}
+          />
         </MenuItems>
       </Menu>
     </header>

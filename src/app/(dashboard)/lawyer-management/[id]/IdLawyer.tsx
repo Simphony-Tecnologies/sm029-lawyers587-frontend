@@ -1,4 +1,5 @@
 'use client';
+import NoData from '@/components/organisms/NoData';
 import SortableTable from '@/components/organisms/SortableTable';
 import Tilte from '@/components/organisms/Tilte';
 import { statusColors } from '@/configs/statusColor';
@@ -76,10 +77,11 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   }, [dataLeads]);
   if (lawyerData && lawyerData.length <= 0) {
     return (
-      <div className='min-h-[70vh] items-center flex flex-col justify-center text-center '>
+      <NoData
+        text={`${userId?.firstName} ${userId?.lastName} hasn't been assigned any leads yet`}
+      >
         <MdOutlineCases size={70} color='#00234D' />
-        <p className='text-lg text-primary'>{`${userId?.firstName} ${userId?.lastName} hasn't been assigned any leads yet`}</p>
-      </div>
+      </NoData>
     );
   }
 

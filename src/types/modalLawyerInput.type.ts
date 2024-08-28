@@ -17,6 +17,7 @@ type ModalLawyerInput = {
     | 'password'
     | 'file'
     | 'datetime-local'
+    | 'tel'
     | 'multiselect';
   required: boolean;
   values?: select[];

@@ -46,7 +46,7 @@ const SortableTable = ({
 }: SortableTableProps) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [indexedData, setIndexedData] = useState<any[]>([]);
 
   useEffect(() => {
@@ -302,9 +302,9 @@ const SortableTable = ({
             onChange={handleItemsPerPageChange}
             className='px-2 py-1 border border-gray-300 rounded'
           >
-            {[5, 10, 15].map((pageSize) => (
+            {[10, 25, 50, data?.length].map((pageSize) => (
               <option key={pageSize} value={pageSize}>
-                {pageSize}
+                {pageSize === data?.length ? 'All' : pageSize}
               </option>
             ))}
           </select>

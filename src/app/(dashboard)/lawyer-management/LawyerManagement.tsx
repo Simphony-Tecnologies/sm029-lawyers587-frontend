@@ -20,6 +20,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { useLeadsStore } from '@/store/useLead.store';
 import SkeletonText from '@/components/atoms/SkeletonText';
+import { useSelectStatus } from '@/store/useSelectStatus';
 
 const LawyerManagement = () => {
   const [data, setData] = useState<any>(null);
@@ -49,6 +50,9 @@ const LawyerManagement = () => {
   );
   const [originalData, setOriginalData] = useState([]);
 
+  const [formValues, setFormValues] = useState(() => {});
+  const { setSelecArray } = useSelectStatus();
+
   const router = useRouter();
   dayjs.extend(utc);
   const formatResponse = (data: any) => {
@@ -56,6 +60,7 @@ const LawyerManagement = () => {
       code: data.id,
       'lawyer name': `${data.firstName} ${data.lastName}`,
       email: data.email,
+      role: data.role.name,
       'phone number': data.phone,
       'service type': data.service_type ? data.service_type : null,
       'leads pulled': `${data.totalLeads ? data.totalLeads : 0}/${
@@ -355,6 +360,7 @@ const LawyerManagement = () => {
     formData.append('file', file);
     await database.uploadProfile(formData);
     setFile(null);
+    setFormValues(() => {});
     fetchData();
     getExtraData();
     setIsOpenNew(false);
@@ -465,6 +471,28 @@ const LawyerManagement = () => {
     }
     setData(originalData);
   };
+  const handleFormNewLawyerPersist = (e: any) => {
+    const { name, value } = e.target;
+    setFormValues((prevValues: any) => ({
+      ...prevValues,
+      [name]: value,
+    }));
+  };
+
+  const handleClickCard = (index: any) => {
+    const setData = [
+      { value: 'NEW', index: 0 },
+      { value: 'ASSIGNED', index: 1 },
+      { value: 'PROBLEMATIC', index: 2 },
+      { value: 'IN PROGRESS', index: 2 },
+      { value: 'LOST', index: 3 },
+      { value: 'EXPIRED', index: 3 },
+      { value: 'DISABLE', index: 3 },
+    ];
+    const valuesCards = setData.filter((item: any) => item.index === index);
+    setSelecArray(valuesCards.map((res: any) => res.value));
+    router.push(`/lawyer-management/${dataIndex.id}`);
+  };
   useEffect(() => {
     getServiceType();
     getRole();
@@ -513,7 +541,7 @@ const LawyerManagement = () => {
                 <p className='underline cursor-pointer '>Change image</p>
               </div>
 
-              <MdSaveAlt size={24} />
+              <MdOutlineImage size={24} />
             </div>
             <form onSubmit={UpdateLawyer} className='grid grid-cols-2 gap-5'>
               {modalLawyerInput.map(
@@ -527,7 +555,8 @@ const LawyerManagement = () => {
                       type={res.type}
                       values={res.values}
                       defaultValue={res.defaultValue}
-                      onChange={handleChangeService}
+                      handleChangeService={handleChangeService}
+                      //onChange={handleChangeService}
                     />
                   )
               )}
@@ -576,10 +605,15 @@ const LawyerManagement = () => {
             </span>
           </p>
           <div className='flex  gap-2 flex-wrap'>
-            {lawyerStatistic.map((res, index) => (
+            {lawyerStatistic.map((res: any, index) => (
               <div
+                onClick={
+                  parseInt(res?.value) <= 0
+                    ? () => toast.error('That value is 0')
+                    : handleClickCard
+                }
                 key={index}
-                className='flex gap-4 px-4 py-1.5 rounded-lg'
+                className='flex gap-4 px-4 py-1.5 rounded-lg hover:scale-105 cursor-pointer'
                 style={{
                   background: `${res.color}20`,
                   color: res.color,
@@ -599,7 +633,7 @@ const LawyerManagement = () => {
             ) : (
               <>
                 <p
-                  className='px-4 py-1 rounded-lg'
+                  className='px-4 py-1 rounded-lg '
                   style={{
                     backgroundColor: `${
                       !!assignable.isAssignable
@@ -660,7 +694,7 @@ const LawyerManagement = () => {
                 <p className='underline cursor-pointer '>Change image</p>
               </div>
 
-              <MdSaveAlt size={24} />
+              <MdOutlineImage size={24} />
             </div>
             <form onSubmit={createlawyer} className='grid grid-cols-2 gap-5'>
               {modalNewLawyerInput.map((res: any, index: number) => (
@@ -671,8 +705,8 @@ const LawyerManagement = () => {
                   required={res.required}
                   type={res.type}
                   values={res.values}
-                  defaultValue={res.defaultValue}
-                  onChange={handleChangenewLawyer}
+                  defaultValue={formValues?.[res.name]}
+                  onChange={handleFormNewLawyerPersist}
                 />
               ))}
 
@@ -681,7 +715,10 @@ const LawyerManagement = () => {
                   Notes
                 </label>
                 <textarea
+                  defaultValue={formValues?.['notes']}
+                  onChange={handleFormNewLawyerPersist}
                   name='notes'
+                  id='notes'
                   className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
                 />
               </div>
@@ -692,12 +729,17 @@ const LawyerManagement = () => {
           </div>
         </div>
       </Modal>
-      <Modal title='Delete' isOpen={isOpenDelete} setIsOpen={setIsOpenDelete}>
+      <Modal
+        title='Delete'
+        isOpen={isOpenDelete}
+        setIsOpen={setIsOpenDelete}
+        className='max-w-sm'
+      >
         <div className='flex flex-col gap-4'>
           <div className='flex justify-center text-center'>
             <p>
               Are you sure you want to delete the user{' '}
-              <span className='font-medium'>{dataIndex?.firstName}</span>
+              <span className='font-medium'>{dataIndex?.firstName}?</span>
             </p>
           </div>
 

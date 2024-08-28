@@ -1,5 +1,6 @@
 'use client';
 import Button from '@/components/atoms/Button';
+import NoData from '@/components/organisms/NoData';
 import SortableTable from '@/components/organisms/SortableTable';
 import Tilte from '@/components/organisms/Tilte';
 import { statusColors } from '@/configs/statusColor';
@@ -9,6 +10,7 @@ import { useLeadsStore } from '@/store/useLead.store';
 import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { MdInfoOutline } from 'react-icons/md';
 const SelectLead = () => {
   const { user } = useAuth();
   const [userId, setUserId] = useState<any>(null);
@@ -219,13 +221,22 @@ const SelectLead = () => {
         </div>
       </Tilte>
 
-      <SortableTable
-        columns={columns}
-        data={newData}
-        onSelectRow={handleSelectRow}
-        selectedRows={selectedRows}
-        statusColors={statusColors}
-      />
+      {newData &&
+        (newData.length > 0 ? (
+          <SortableTable
+            columns={columns}
+            data={newData}
+            onSelectRow={handleSelectRow}
+            selectedRows={selectedRows}
+            statusColors={statusColors}
+          />
+        ) : (
+          <NoData
+            text={`There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.`}
+          >
+            <MdInfoOutline size={70} color='#00234D' />
+          </NoData>
+        ))}
     </div>
   );
 };
