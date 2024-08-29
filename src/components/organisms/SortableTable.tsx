@@ -30,6 +30,9 @@ type SortableTableProps = {
   onSelectRow?: (index: number) => void;
   selectedRows?: any;
   onContact?: (index: number) => void;
+  isDeleteMultiple?: boolean;
+  onDeleteMultiple?: (index: number) => void;
+  onLastActive?: any;
 };
 
 const SortableTable = ({
@@ -43,10 +46,13 @@ const SortableTable = ({
   onSelectRow,
   selectedRows,
   onContact,
+  isDeleteMultiple,
+  onDeleteMultiple,
+  onLastActive,
 }: SortableTableProps) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [indexedData, setIndexedData] = useState<any[]>([]);
 
   useEffect(() => {
@@ -154,6 +160,11 @@ const SortableTable = ({
                   Actions
                 </th>
               )}
+              {isDeleteMultiple && (
+                <th className='px-4 py-2 border-b-2 border-gray-200 uppercase text-start'>
+                  Delete
+                </th>
+              )}
               {onContact && (
                 <th className='px-4 py-2 border-b-2 border-gray-200 uppercase text-start'>
                   CONTACT
@@ -172,7 +183,7 @@ const SortableTable = ({
                         className='peer hidden'
                         type='checkbox'
                         checked={selectedRows[item.originalIndex] || false}
-                        onChange={() => onSelectRow(item.originalIndex)}
+                        onChange={() => onSelectRow(item)}
                       />
                       <label
                         htmlFor={`checkbox-${item.originalIndex}`} // Asegúrate de que el label apunte al id único
@@ -206,10 +217,15 @@ const SortableTable = ({
                       item[column] === null ? (
                         ''
                       ) : (
-                        dayjs
-                          .utc(item[column] as number)
-                          .local()
-                          .format('MM/DD/YYYY')
+                        <div
+                          className='cursor-pointer'
+                          onClick={() => onLastActive(item)}
+                        >
+                          {dayjs
+                            .utc(item[column] as number)
+                            .local()
+                            .format('MM/DD/YYYY')}
+                        </div>
                       )
                     ) : column === 'service type' ? (
                       !item[column] ? (
@@ -269,6 +285,25 @@ const SortableTable = ({
                     )}
                   </td>
                 )}
+                {isDeleteMultiple && onDeleteMultiple && (
+                  <td className='px-4 py-2 border-b border-gray-200 mx-auto'>
+                    <div className='flex text-center justify-center'>
+                      <input
+                        id={`checkbox-${item.originalIndex}`} // Usa un id único basado en el índice original
+                        className='peer hidden'
+                        type='checkbox'
+                        checked={selectedRows[item.originalIndex] || false}
+                        onChange={() => onDeleteMultiple(item.originalIndex)}
+                      />
+                      <label
+                        htmlFor={`checkbox-${item.originalIndex}`}
+                        className='flex items-center justify-center w-6 h-6 border border-red-500 rounded bg-white cursor-pointer relative text-white peer-checked:text-red-500'
+                      >
+                        <i className='fi fi-rr-check absolute text-lg '></i>
+                      </label>
+                    </div>
+                  </td>
+                )}
                 {onContact && (
                   <td className='px-4 py-2 border-b border-gray-200'>
                     <button
@@ -302,9 +337,9 @@ const SortableTable = ({
             onChange={handleItemsPerPageChange}
             className='px-2 py-1 border border-gray-300 rounded'
           >
-            {[5, 10, 15].map((pageSize) => (
+            {[10, 25, 50, data?.length].map((pageSize) => (
               <option key={pageSize} value={pageSize}>
-                {pageSize}
+                {pageSize === data?.length ? 'All' : pageSize}
               </option>
             ))}
           </select>

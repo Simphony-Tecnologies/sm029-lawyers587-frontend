@@ -2,6 +2,7 @@
 import Button from '@/components/atoms/Button';
 import Input from '@/components/atoms/Input';
 import Modal from '@/components/organisms/Modal';
+import NoData from '@/components/organisms/NoData';
 import SortableTable from '@/components/organisms/SortableTable';
 import Tilte from '@/components/organisms/Tilte';
 import { statusColors } from '@/configs/statusColor';
@@ -13,6 +14,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { MdOutlineCases } from 'react-icons/md';
 
 const AllLeads = () => {
   dayjs.extend(utc);
@@ -66,6 +68,7 @@ const AllLeads = () => {
           .map((filterItem: any) => filterItem.lead)
           .includes(item['lead id'])
       );
+
       setOriginalData(filterLeads);
       setLawyerData(filterLeads);
       if (filterLeads.length > 0) {
@@ -128,13 +131,14 @@ const AllLeads = () => {
   const filterSearch = (text: string | null) => {
     if (text) {
       if (lawyerData) {
-        const filterData = originalData.filter(
-          (item: any) =>
-            item?.['lead name'].toLowerCase().includes(text.toLowerCase()) ||
-            item?.email.toLowerCase().includes(text.toLowerCase()) ||
-            item?.['phone number'].toLowerCase().includes(text.toLowerCase()) ||
-            item?.status.toLowerCase().includes(text.toLowerCase())
+        const filterData = originalData.filter((item) =>
+          Object.values(item)
+            .toString()
+            .replaceAll(',', '')
+            .toLowerCase()
+            .includes(text.toLowerCase())
         );
+
         setLawyerData(filterData);
         return filterData;
       }
@@ -156,6 +160,24 @@ const AllLeads = () => {
     getServiceType();
   }, [user, dataLeads]);
 
+  if (lawyerData && originalData.length <= 0) {
+    return (
+      <NoData
+        text={`Here you will see your selected leads. Go to the 'Select Lead' section to get started.`}
+      >
+        <MdOutlineCases size={70} color='#00234D' />
+      </NoData>
+    );
+  }
+  if (!lawyerData) {
+    return (
+      <NoData
+        text={`Here you will see your selected leads. Go to the 'Select Lead' section to get started.`}
+      >
+        <MdOutlineCases size={70} color='#00234D' />
+      </NoData>
+    );
+  }
   return (
     <div className='flex flex-col gap-5'>
       <Modal title='Lead info' isOpen={isOpenLead} setIsOpen={setIsOpenLead}>

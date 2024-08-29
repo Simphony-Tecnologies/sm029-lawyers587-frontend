@@ -110,7 +110,7 @@ function HeaderMobile() {
                   </div>
                 ))
               ) : (
-                <div>There are not notification yet</div>
+                <div>There are not notifications yet</div>
               )
             ) : (
               <div className='w-full p-2'>
