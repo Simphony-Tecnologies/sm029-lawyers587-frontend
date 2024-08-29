@@ -30,6 +30,8 @@ type SortableTableProps = {
   onSelectRow?: (index: number) => void;
   selectedRows?: any;
   onContact?: (index: number) => void;
+  isDeleteMultiple?: boolean;
+  onDeleteMultiple?: (index: number) => void;
 };
 
 const SortableTable = ({
@@ -43,6 +45,8 @@ const SortableTable = ({
   onSelectRow,
   selectedRows,
   onContact,
+  isDeleteMultiple,
+  onDeleteMultiple,
 }: SortableTableProps) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -152,6 +156,11 @@ const SortableTable = ({
               {(onEdit || onDelete) && (
                 <th className='px-4 py-2 border-b-2 border-gray-200 uppercase text-start'>
                   Actions
+                </th>
+              )}
+              {isDeleteMultiple && (
+                <th className='px-4 py-2 border-b-2 border-gray-200 uppercase text-start'>
+                  Delete
                 </th>
               )}
               {onContact && (
@@ -267,6 +276,25 @@ const SortableTable = ({
                         <MdOutlineDelete />
                       </button>
                     )}
+                  </td>
+                )}
+                {isDeleteMultiple && onDeleteMultiple && (
+                  <td className='px-4 py-2 border-b border-gray-200 mx-auto'>
+                    <div className='flex text-center justify-center'>
+                      <input
+                        id={`checkbox-${item.originalIndex}`} // Usa un id único basado en el índice original
+                        className='peer hidden'
+                        type='checkbox'
+                        checked={selectedRows[item.originalIndex] || false}
+                        onChange={() => onDeleteMultiple(item.originalIndex)}
+                      />
+                      <label
+                        htmlFor={`checkbox-${item.originalIndex}`}
+                        className='flex items-center justify-center w-6 h-6 border border-red-500 rounded bg-white cursor-pointer relative text-white peer-checked:text-red-500'
+                      >
+                        <i className='fi fi-rr-check absolute text-lg '></i>
+                      </label>
+                    </div>
                   </td>
                 )}
                 {onContact && (

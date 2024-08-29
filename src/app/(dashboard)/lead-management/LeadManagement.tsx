@@ -158,7 +158,9 @@ const LeadManagement = () => {
     }
   }, [dataLeads]);
   useEffect(() => {
-    fetchLeads();
+    if (selecArray.length <= 0) {
+      fetchLeads();
+    }
   }, []);
 
   return (

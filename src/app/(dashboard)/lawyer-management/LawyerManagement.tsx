@@ -9,7 +9,7 @@ import {
 } from '@/configs/modalLawyer.config';
 import { database } from '@/services/database';
 import { useState, useEffect } from 'react';
-import { MdOutlineImage, MdSaveAlt } from 'react-icons/md';
+import { MdOutlineDeleteSweep, MdOutlineImage } from 'react-icons/md';
 import Button from '@/components/atoms/Button';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
@@ -30,8 +30,6 @@ const LawyerManagement = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isOpenNew, setIsOpenNew] = useState(false);
   const [dataIndex, setDataIndex] = useState<any>();
-  const [searchText, setSearchText] = useState<string>('');
-  const [searchedResults, setSearchedResults] = useState<LawyerData[]>([]);
   const [dataServiceType, setDataServiceType] = useState([]);
   const [withOutFormat, setWithOutFormat] = useState<any>([]);
   const [isOpenDelete, setIsOpenDelete] = useState(false);
@@ -44,15 +42,17 @@ const LawyerManagement = () => {
   const [dataLawyerLeads, setDataLawyerLeads] = useState<any>(null);
   const [dataLawyerServices, setDataLawyerServices] = useState<any>(null);
   const [labelService, setLabelService] = useState<any>(null);
-
   const [dataProject, setDataProject] = useState(null);
   const [selectedOptionsService, setSelectedOptionsService] = useState<any[]>(
     []
   );
   const [originalData, setOriginalData] = useState([]);
-
   const [formValues, setFormValues] = useState(() => {});
   const { setSelecArray } = useSelectStatus();
+  const [isDeleteMultiple, setIsDeleteMultiple] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<{ [key: number]: boolean }>(
+    {}
+  );
 
   const router = useRouter();
   dayjs.extend(utc);
@@ -78,6 +78,7 @@ const LawyerManagement = () => {
           : 'Unassignable',
     };
   };
+
   const fetchData = async () => {
     try {
       const response = await database.getData(
@@ -319,6 +320,29 @@ const LawyerManagement = () => {
     setIsOpenDelete(false);
     fetchData();
   };
+  const ConfirmMultipleDelete = async () => {
+    const selectRow: any = Object.keys(selectedRows)
+      .filter((index) => selectedRows[Number(index)])
+      .map((index) => originalData[Number(index)]);
+    if (selectRow.length <= 0) {
+      setIsDeleteMultiple(false);
+      return setSelectedRows([]);
+    }
+
+    const promises = selectRow.map(async (item: any) => {
+      const leadId = item['code'];
+      const dataDelete = await database.DeleteLawyer(leadId);
+      if (!dataDelete.success) {
+        return toast.error(`Error to delete lawyer ${item['lawyer name']}`);
+      }
+      toast.success('Success to delete');
+
+      fetchData();
+    });
+    await Promise.all(promises);
+    setIsDeleteMultiple(false);
+    setSelectedRows([]);
+  };
   const postImage = async () => {
     const formData = new FormData();
     formData.append('file', file);
@@ -532,6 +556,12 @@ const LawyerManagement = () => {
 
     setSelecArray(valuesCards.map((res: any) => res.value));
     router.push(`/lawyer-management/${dataIndex.id}`);
+  };
+  const handleSelectRow = (index: number) => {
+    setSelectedRows((prevSelectedRows) => ({
+      ...prevSelectedRows,
+      [index]: !prevSelectedRows[index],
+    }));
   };
   useEffect(() => {
     getServiceType();
@@ -832,10 +862,36 @@ const LawyerManagement = () => {
         search={true}
         filterSearch={filterSearch}
       />
-      <div className='flex justify-end '>
+      <div className='flex justify-end gap-2 '>
         <Button name='+ New Lawyer' type='button' onClick={newLawyer} />
+        <div className='flex justify-end '>
+          <div onClick={() => setIsDeleteMultiple(!isDeleteMultiple)}>
+            <MdOutlineDeleteSweep
+              className='text-secondary text-opacity-80 hover:text-opacity-100 cursor-pointer'
+              size={30}
+            />
+          </div>
+        </div>
       </div>
-
+      {Object.keys(selectedRows).length > 0 && (
+        <div className='flex justify-end gap-2 '>
+          <Button
+            color='bg-red-500'
+            name='Confirm Multiple Delete '
+            type='button'
+            onClick={() => ConfirmMultipleDelete()}
+          />
+          <Button
+            color='bg-gray-500'
+            name='Cancel '
+            type='button'
+            onClick={() => {
+              setIsDeleteMultiple(false);
+              setSelectedRows({});
+            }}
+          />
+        </div>
+      )}
       <SortableTable
         columns={columns}
         data={data as any}
@@ -843,6 +899,9 @@ const LawyerManagement = () => {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onRoute={handleRoute}
+        isDeleteMultiple={isDeleteMultiple}
+        onDeleteMultiple={handleSelectRow}
+        selectedRows={selectedRows}
       />
     </div>
   );

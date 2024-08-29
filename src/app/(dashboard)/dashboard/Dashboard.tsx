@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 const Dashboard = () => {
-  const { dataLeads } = useLeadsStore();
+  const { dataLeads, fetchLeads } = useLeadsStore();
   const [statistics, setStatistics] = useState(initialStatistics);
   const { setSelecArray } = useSelectStatus();
   const router = useRouter();
@@ -52,6 +52,9 @@ const Dashboard = () => {
     setStatistics(initialStatistics);
     if (dataLeads) setData.forEach((res) => filterLeads(res.value, res.index));
   }, [dataLeads]);
+  useEffect(() => {
+    fetchLeads();
+  }, []);
 
   return (
     <div className='flex flex-col gap-5'>

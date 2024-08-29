@@ -222,7 +222,7 @@ const SelectLead = () => {
       </Tilte>
 
       {newData &&
-        (newData.dataLeads > 0 ? (
+        (newData.length > 0 ? (
           <SortableTable
             columns={columns}
             data={newData}
