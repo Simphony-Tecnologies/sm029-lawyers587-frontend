@@ -13,19 +13,7 @@ export const modalNewLawyerInput: ModalLawyerInput[] = [
     type: 'text',
     required: true,
   },
-  {
-    label: 'area of law',
-    name: 'service_type_id',
-    type: 'multiselect',
-    required: true,
-    defaultValue: '',
-    values: [
-      {
-        label: '',
-        value: '',
-      },
-    ],
-  },
+
   {
     label: 'phone number',
     name: 'phone',
@@ -50,13 +38,6 @@ export const modalNewLawyerInput: ModalLawyerInput[] = [
     mode: 'edit',
   },
 
-  {
-    label: 'No. Leads Allowed',
-    name: 'max_leads',
-    defaultValue: '',
-    type: 'number',
-    required: true,
-  },
   {
     label: 'Name of Law Firm',
     name: 'name_of_law_firm',

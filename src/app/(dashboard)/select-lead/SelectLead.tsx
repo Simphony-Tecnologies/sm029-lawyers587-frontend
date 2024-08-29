@@ -22,21 +22,30 @@ const SelectLead = () => {
   );
   const [newData, setNewData] = useState<any>(null);
   const [leadsAssigned, setLeadsAssigned] = useState([]);
+
   const [selectRowLeads, setSelectRowLeads] = useState([]);
   const [columns, setColumns] = useState([]);
   const [dataServiceType, setDataServiceType] = useState([]);
+  const [maxLeadsAssigned, setMaxLeadsAssigned] = useState<any>([]);
+  const [selectedValue, setSelectedValue] = useState<any>({});
+  const [leadsAssignedWithData, setLeadsAssignedWithData] = useState([]);
+  const [differenceLeads, setDifferenceLeads] = useState<any>([]);
+  const [loading, setLoading] = useState(false);
+  const [resultLeads, setResultLeads] = useState(0);
   const availableLeads =
-    leadsAssigned.length >= 0 && userId
-      ? parseInt(userId?.max_leads) - leadsAssigned.length
+    leadsAssigned.length >= 0 && maxLeadsAssigned.length > 0
+      ? maxLeadsAssigned.reduce(
+          (acc: number, curr: any) => acc + curr.max_leads,
+          0
+        ) - leadsAssigned.length
       : 0;
 
-  const [resultLeads, setResultLeads] = useState(0);
-
-  const handleSelectRow = (index: number) => {
+  const handleSelectRow = (index: any) => {
     setSelectedRows((prevSelectedRows) => ({
       ...prevSelectedRows,
-      [index]: !prevSelectedRows[index],
+      [index.originalIndex]: !prevSelectedRows[index.originalIndex],
     }));
+    setSelectedValue(index);
   };
   const getServiceType = async () => {
     const resType = await database.getData(
@@ -48,6 +57,79 @@ const SelectLead = () => {
 
     setDataServiceType(resType.data);
   };
+  function validateLeads(leads: any, services: any) {
+    // Contar los leads por servicio
+    const leadCounts = leads.reduce((acc: any, lead: any) => {
+      const serviceName = lead.service;
+      acc[serviceName] = (acc[serviceName] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Generar el resultado con serviceName, diferencia, y isValid
+    const result = Object.keys(leadCounts).map((serviceName) => {
+      const service = services.find((s: any) => s.name === serviceName);
+      if (!service) {
+        return {
+          serviceName,
+          difference: 0,
+          isValid: false,
+        };
+      }
+      const difference = service.max_leads - leadCounts[serviceName];
+      return {
+        serviceName,
+        difference,
+        isValid: difference >= 0,
+      };
+    });
+
+    return result;
+  }
+  function checkLeadDifference(selectRow: any, differenceLeads: any) {
+    // Crear un objeto para almacenar el conteo de servicios en selectRow
+    const serviceCount: any = {};
+
+    // Contar cuántos leads hay por cada servicio en selectRow
+    selectRow.forEach((row: any) => {
+      if (serviceCount[row.service]) {
+        serviceCount[row.service]++;
+      } else {
+        serviceCount[row.service] = 1;
+      }
+    });
+
+    // Revisar cada servicio en serviceCount contra differenceLeads
+    const results = Object.keys(serviceCount).map((serviceName) => {
+      const matchedService = differenceLeads.find(
+        (lead: any) => lead.serviceName === serviceName
+      );
+
+      if (matchedService) {
+        // Actualizar la diferencia para reflejar la selección actual
+        const updatedDifference =
+          matchedService.difference - serviceCount[serviceName];
+        const isValid = updatedDifference >= 0;
+
+        // Actualizar la diferencia en differenceLeads para las siguientes comparaciones
+        matchedService.difference = updatedDifference;
+
+        return {
+          serviceName: serviceName,
+          difference: updatedDifference,
+          isValid: isValid,
+        };
+      } else {
+        // Si no se encuentra el servicio, lo marcamos como no válido
+        return {
+          serviceName: serviceName,
+          difference: -serviceCount[serviceName],
+          isValid: false,
+        };
+      }
+    });
+
+    return results;
+  }
   const getSelectedRowsData = () => {
     const selectRow: any = Object.keys(selectedRows)
       .filter((index) => selectedRows[Number(index)])
@@ -55,13 +137,41 @@ const SelectLead = () => {
 
     setSelectRowLeads(selectRow);
 
-    const resut = availableLeads - selectRow.length;
+    const reviewLeads: any = checkLeadDifference(selectRow, differenceLeads);
+
+    const resut = leadsAssignedWithData.length - selectRow.length;
+
     setResultLeads(resut);
-    if (resut < 0) {
-      return toast.error('You have exceeded the available leads');
+    const resValidate = reviewLeads.filter(
+      (item: any) => item.serviceName === selectedValue.service
+    );
+    //const resValidate = checkLeadDifference(selectRow, differenceLeads);
+
+    if (resValidate.length > 0) {
+      if (!resValidate[0].isValid) {
+        toast.error(
+          `You have exceeded the available leads for ${selectedValue.service}`
+        );
+
+        const updatedSelectedRows: any = { ...selectedRows };
+        const indexToRemove = selectRow.findIndex(
+          (item: any) => item['lead id'] === selectedValue['lead id']
+        );
+
+        if (indexToRemove >= 0) {
+          updatedSelectedRows[Object.keys(selectedRows)[indexToRemove]] = false;
+          setSelectedRows(updatedSelectedRows);
+
+          setSelectRowLeads(
+            selectRow.filter((_: any, i: number) => i !== indexToRemove)
+          );
+        }
+
+        return;
+      }
     }
   };
-  const filterByService = (data: any[], serviceType: any[]) => {
+  const filterByServiceGetLeads = (data: any[], serviceType: any[]) => {
     if (!data || !serviceType) return [];
 
     const filterLeads = serviceType
@@ -76,6 +186,7 @@ const SelectLead = () => {
 
     return filterLeads;
   };
+
   const getLawyer = async () => {
     if (Object.keys(user).length > 0) {
       const dataLawyer = await database.getLawyer(user.id);
@@ -89,17 +200,35 @@ const SelectLead = () => {
     }
 
     const filterLedas = dataLeadsLawyer.data.filter(
-      (item: any) => item.lawyer_id === user.id
+      (item: any) => item.lawyer_id === parseInt(user.id)
     );
 
-    setLeadsAssigned(filterLedas);
+    const filterItems = filterLedas.filter((item: any) => {
+      return item.lawyer_id === user.id;
+    });
+
+    if (!dataLeads) return [];
+
+    if (dataLeads.length > 0) {
+      ('entro');
+      const filterLeads = dataLeads.filter((item: any) =>
+        filterItems
+          .map((filterItem: any) => filterItem.lead)
+          .includes(item['lead id'])
+      );
+      setResultLeads(filterLeads.length);
+      setLeadsAssignedWithData(filterLeads);
+    }
   };
 
   const postAssignLeads = async () => {
+    setLoading(true);
     if (selectRowLeads.length <= 0) {
+      setLoading(false);
       return toast.error('You need to select a lead');
     }
     if (resultLeads < 0) {
+      setLoading(false);
       return toast.error(
         'You have exceeded the available leads. Please remove some leads to continue'
       );
@@ -109,6 +238,7 @@ const SelectLead = () => {
       const leadId = lead['lead id'];
 
       if (!leadId) {
+        setLoading(false);
         toast.error('Lead id is missing for lead:', lead);
         return null;
       }
@@ -127,10 +257,12 @@ const SelectLead = () => {
     const respond: any = await Promise.all(promises);
 
     if (respond.some((item: any) => item.code === 404 || item.code === 500)) {
+      setLoading(false);
       return toast.error(`Error ${respond[0].code}: ${respond[0].messages}`);
     }
     fetchLeads();
-    const DataFilter = filterByService(
+
+    const DataFilter = filterByServiceGetLeads(
       dataLeads,
       getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
     );
@@ -159,16 +291,23 @@ const SelectLead = () => {
     setSelectRowLeads([]);
     setSelectedRows([]);
     toast.success('Leads successfully added');
+    setLoading(false);
   };
 
   useEffect(() => {
     getLawyer();
     getServiceType();
+  }, [user, dataLeads]);
+  useEffect(() => {
     fetchLeads();
   }, [user]);
 
   useEffect(() => {
-    const DataFilter = filterByService(
+    setMaxLeadsAssigned(
+      getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
+    );
+
+    const DataFilter = filterByServiceGetLeads(
       dataLeads,
       getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
     );
@@ -199,8 +338,17 @@ const SelectLead = () => {
       setColumns(titles);
     }
     getSelectedRowsData();
+
     //fetchLeads();
   }, [selectedRows, dataLeads, availableLeads]);
+  useEffect(() => {
+    setDifferenceLeads(
+      validateLeads(
+        leadsAssignedWithData,
+        getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
+      )
+    );
+  }, [leadsAssignedWithData, maxLeadsAssigned]);
 
   return (
     <div className='flex flex-col gap-5'>
@@ -208,16 +356,39 @@ const SelectLead = () => {
         name={`${userId?.firstName} ${userId?.lastName}`}
         des={getNameServiceLawyer(userId?.lawyersServices, dataServiceType).map(
           (res: any) => (
-            <p key={res?.id}>{res?.name.replace(' Lawyer', '')}</p>
+            <p key={res?.id}>
+              {res?.name.replace(' Lawyer', '')}:
+              {res?.max_leads -
+                differenceLeads
+                  .map((service: any) => {
+                    if (service.serviceName === res.name) {
+                      return service.difference;
+                    }
+                    return null; // Si no coincide, devuelve null
+                  })
+                  .filter((difference: any) => difference !== null)}
+              /{res?.max_leads}
+            </p>
           )
         )}
       >
         <div className='flex justify-center items-center gap-5'>
           <div className='bg-gray-200 px-4 py-1 rounded-md'>
             Available leads <span className='text-red-500'>{resultLeads}</span>{' '}
-            out of {userId?.max_leads}
+            out of{' '}
+            {maxLeadsAssigned.length > 0 &&
+              maxLeadsAssigned.reduce(
+                (acc: number, curr: any) => acc + curr.max_leads,
+                0
+              )}
           </div>
-          <Button type='button' name='Pull leads' onClick={postAssignLeads} />
+          <Button
+            disabled={loading}
+            type='button'
+            name='Pull leads'
+            onClick={postAssignLeads}
+            color={`${loading ? 'animate-pulse bg-gray-400' : 'bg-primary'} `}
+          />
         </div>
       </Tilte>
 

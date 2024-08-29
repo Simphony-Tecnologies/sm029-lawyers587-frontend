@@ -46,6 +46,9 @@ const LawyerManagement = () => {
   const [selectedOptionsService, setSelectedOptionsService] = useState<any[]>(
     []
   );
+
+  const [additionalValues, setAdditionalValues] = useState<any>({});
+
   const [originalData, setOriginalData] = useState([]);
   const [formValues, setFormValues] = useState(() => {});
   const { setSelecArray } = useSelectStatus();
@@ -53,6 +56,7 @@ const LawyerManagement = () => {
   const [selectedRows, setSelectedRows] = useState<{ [key: number]: boolean }>(
     {}
   );
+  const [lawyerServiceRelacion, setLawyerServiceRelacion] = useState<any>([]);
 
   const router = useRouter();
   dayjs.extend(utc);
@@ -182,8 +186,16 @@ const LawyerManagement = () => {
       value: item.id,
     }));
   const handleChangenewLawyer = (selected: any) => {
+    const removedOptions = selectedOptionsService.filter(
+      (option) => !selected.includes(option)
+    );
+    if (removedOptions.length > 0) {
+      const valueRemoves = removedOptions[0].value;
+      const { [valueRemoves]: _, ...updatedOptionsService } = additionalValues;
+      setAdditionalValues(updatedOptionsService);
+    }
     setSelectedOptionsService(selected);
-    getExtraData();
+    //getExtraData();
   };
   const handleChangeService = async (selected: any) => {
     const removedOptions = selectedOptionsService.filter(
@@ -198,12 +210,20 @@ const LawyerManagement = () => {
         lawyer_id: dataIndex.id,
         service_type_id: addedOptions[0].value,
       };
-      const updatingData = await database.insertData(
+      const updatingData = await database.postData(
         process.env.NEXT_PUBLIC_URL_LAWYERS_SERVICE || '',
         updateData
       );
+
       if (updatingData.success) {
         toast.success('Area of law add correctly');
+        setLawyerServiceRelacion((prevValues: any) => [
+          ...prevValues,
+          {
+            id: updatingData.data.id,
+            service_type_id: updatingData.data.service_type_id,
+          },
+        ]);
       }
     }
     if (removedOptions.length > 0) {
@@ -232,12 +252,12 @@ const LawyerManagement = () => {
     setDataIndex(withOutFormat[index]);
     modalLawyerInput[0].defaultValue = withOutFormat[index].firstName;
     modalLawyerInput[1].defaultValue = withOutFormat[index].lastName;
-    modalLawyerInput[3].defaultValue = withOutFormat[index].phone;
-    modalLawyerInput[4].defaultValue = withOutFormat[index].email;
-    modalLawyerInput[6].defaultValue = withOutFormat[index].max_leads;
-    modalLawyerInput[8].defaultValue = withOutFormat[index].role.id;
-    modalLawyerInput[9].defaultValue = withOutFormat[index].is_active;
-    modalLawyerInput[7].defaultValue = withOutFormat[index].law_firm;
+    modalLawyerInput[2].defaultValue = withOutFormat[index].phone;
+    modalLawyerInput[3].defaultValue = withOutFormat[index].email;
+    //modalLawyerInput[5].defaultValue = withOutFormat[index].max_leads;
+    modalLawyerInput[6].defaultValue = withOutFormat[index].role.id;
+    modalLawyerInput[7].defaultValue = withOutFormat[index].is_active;
+    modalLawyerInput[5].defaultValue = withOutFormat[index].law_firm;
 
     const filterItems = dataLawyerLeads.filter(
       (item: any) => item.lawyer_id === parseInt(withOutFormat[index].id)
@@ -253,11 +273,14 @@ const LawyerManagement = () => {
           const matchingLabel = labelService.find(
             (label: any) => label.value === item.service_type_id
           );
-          return matchingLabel ? { ...matchingLabel } : null;
+          return matchingLabel
+            ? { ...matchingLabel, max_leads: item.max_leads }
+            : null;
         }
       );
+      setLawyerServiceRelacion(withOutFormat[index].lawyersServices);
 
-      modalLawyerInput[2].defaultValue = filtertypes;
+      //modalLawyerInput[2].defaultValue = filtertypes;
       setSelectedOptionsService(filtertypes);
     }
 
@@ -388,7 +411,7 @@ const LawyerManagement = () => {
       phone: e.target.phone.value,
       role_id: e.target.role_id.value,
       password: e.target.password.value,
-      max_leads: e.target.max_leads.value,
+      //max_leads: e.target.max_leads.value,
       law_firm: e.target.name_of_law_firm.value,
       notes: e.target.notes.value,
       is_active: e.target.is_active.value === 'true',
@@ -405,6 +428,7 @@ const LawyerManagement = () => {
       const dataAssignedServide = {
         lawyer_id: creatingLawyer.data.data.id,
         service_type_id: item.value,
+        max_leads: additionalValues[item.value],
       };
       await database.insertData(
         `${process.env.NEXT_PUBLIC_URL_LAWYERS_SERVICE}`,
@@ -417,6 +441,7 @@ const LawyerManagement = () => {
     await Promise.all(insertService);
 
     setFile(null);
+    setAdditionalValues({});
     setFormValues(() => {});
     fetchData();
     getExtraData();
@@ -431,7 +456,7 @@ const LawyerManagement = () => {
       email: e.target.email.value,
       phone: e.target.phone.value,
       role_id: parseInt(e.target.role_id.value),
-      max_leads: e.target.max_leads.value,
+      //max_leads: e.target.max_leads.value,
       is_active: e.target.is_active.value === 'true',
       law_firm: e.target.name_of_law_firm.value,
       notes: e.target.notes.value,
@@ -457,9 +482,10 @@ const LawyerManagement = () => {
       return toast.error('Error to get service type');
     }
     setDataServiceType(resType.data);
+
     setLabelService(selectLabel(resType.data));
-    modalLawyerInput[2].values = selectLabel(resType.data);
-    modalNewLawyerInput[2].values = selectLabel(resType.data);
+    //modalLawyerInput[2].values = selectLabel(resType.data);
+    //modalNewLawyerInput[2].values = selectLabel(resType.data);
   };
   const getRole = async () => {
     const roles = await database.getData(
@@ -469,8 +495,8 @@ const LawyerManagement = () => {
     if (!roles.success) {
       return toast.error('Error to get role');
     }
-    modalLawyerInput[8].values = formaterSelect(roles.data);
-    modalNewLawyerInput[8].values = formaterSelect(roles.data);
+    modalLawyerInput[6].values = formaterSelect(roles.data);
+    modalNewLawyerInput[6].values = formaterSelect(roles.data);
   };
   const updateImage = (e: any) => {
     e.preventDefault();
@@ -563,6 +589,33 @@ const LawyerManagement = () => {
       [index]: !prevSelectedRows[index],
     }));
   };
+
+  const handleAdditionalValueChange = (
+    selectedOption: any,
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setAdditionalValues((prevValues: any) => ({
+      ...prevValues,
+      [selectedOption.value]: event.target.value,
+    }));
+  };
+  const handleAdditionalValueUpdate = async (
+    selectedOption: any,
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const dataSelectSevice: any = lawyerServiceRelacion.filter(
+      (item: any) => item.service_type_id === selectedOption.value
+    )[0];
+
+    const updatingData = await database.patchData(
+      `${process.env.NEXT_PUBLIC_URL_LAWYERS_SERVICE}/${dataSelectSevice.id}`,
+      { max_leads: event.target.value }
+    );
+    if (!updatingData.success) {
+      toast.error('Error updating value of service');
+    }
+    fetchData();
+  };
   useEffect(() => {
     getServiceType();
     getRole();
@@ -630,6 +683,34 @@ const LawyerManagement = () => {
                     />
                   )
               )}
+              <div className='col-span-2'>
+                <Input
+                  name='service_type_id'
+                  label='area of law'
+                  required={true}
+                  type='multiselect'
+                  values={labelService}
+                  defaultValue={selectedOptionsService}
+                  handleChangeService={handleChangeService}
+                />
+              </div>
+              {selectedOptionsService.map((option) => (
+                <div key={option.value} className='mt-2'>
+                  <label htmlFor={`additional-${option.value}`}>
+                    Add Limit value for {option.label}:
+                  </label>
+                  <input
+                    type='text'
+                    required
+                    id={`additional-${option.value}`}
+                    className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500'
+                    onChange={(event) =>
+                      handleAdditionalValueUpdate(option, event)
+                    }
+                    defaultValue={option.max_leads}
+                  />
+                </div>
+              ))}
               <div className='col-span-2'>
                 <label className='font-bold' htmlFor='Notes'>
                   Notes
@@ -785,7 +866,32 @@ const LawyerManagement = () => {
                   onChange={handleFormNewLawyerPersist}
                 />
               ))}
-
+              <div className='col-span-2'>
+                <Input
+                  name='service_type_id'
+                  label='area of law'
+                  required={true}
+                  type='multiselect'
+                  values={labelService}
+                  handleChangeService={handleChangenewLawyer}
+                />
+              </div>
+              {selectedOptionsService.map((option) => (
+                <div key={option.value} className='mt-2'>
+                  <label htmlFor={`additional-${option.value}`}>
+                    Add Limit value for {option.label}:
+                  </label>
+                  <input
+                    type='text'
+                    required
+                    id={`additional-${option.value}`}
+                    className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500'
+                    onChange={(event) =>
+                      handleAdditionalValueChange(option, event)
+                    }
+                  />
+                </div>
+              ))}
               <div className='col-span-2'>
                 <label className='font-bold' htmlFor='notes'>
                   Notes

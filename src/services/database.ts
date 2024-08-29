@@ -353,6 +353,35 @@ export const database = {
       };
     }
   },
+  postData: async (
+    url: string,
+    sendData: object
+  ): Promise<ResponseEndpoint> => {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sendData),
+      });
+      const data = await response.json();
+
+      return {
+        success: true,
+        code: 200,
+        data: data,
+        messages: 'Successfully created',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 400,
+        data: [],
+        messages: 'error connecting to database',
+      };
+    }
+  },
   uploadProfile: async (formData: any): Promise<ResponseEndpoint> => {
     const url = `${process.env.NEXT_PUBLIC_URL_PROFILE_IMAGE}`;
     try {
@@ -384,6 +413,35 @@ export const database = {
     try {
       const response = await fetch(url, {
         method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sendData),
+      });
+      const data = await response.json();
+
+      return {
+        success: true,
+        code: data.statusCode,
+        data: data,
+        messages: data.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 400,
+        data: [],
+        messages: 'error connecting to database',
+      };
+    }
+  },
+  patchData: async (
+    url: string,
+    sendData: object
+  ): Promise<ResponseEndpoint> => {
+    try {
+      const response = await fetch(url, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },

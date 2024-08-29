@@ -181,7 +181,7 @@ const SortableTable = ({
                         className='peer hidden'
                         type='checkbox'
                         checked={selectedRows[item.originalIndex] || false}
-                        onChange={() => onSelectRow(item.originalIndex)}
+                        onChange={() => onSelectRow(item)}
                       />
                       <label
                         htmlFor={`checkbox-${item.originalIndex}`} // Asegúrate de que el label apunte al id único

@@ -68,6 +68,7 @@ const AllLeads = () => {
           .map((filterItem: any) => filterItem.lead)
           .includes(item['lead id'])
       );
+
       setOriginalData(filterLeads);
       setLawyerData(filterLeads);
       if (filterLeads.length > 0) {
