@@ -175,6 +175,7 @@ const Header = () => {
                 alt='profie image'
                 width={40}
                 height={40}
+                className='object-cover rounded-full w-10 h-10  border'
               />
             ) : (
               <div className='w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white cursor-pointer'></div>
@@ -207,6 +208,7 @@ const Header = () => {
               alt='profie image'
               width={40}
               height={40}
+              className='object-cover rounded-full w-20 h-20  border'
             />
           ) : (
             <div className='w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white cursor-pointer'></div>

@@ -21,6 +21,7 @@ import utc from 'dayjs/plugin/utc';
 import { useLeadsStore } from '@/store/useLead.store';
 import SkeletonText from '@/components/atoms/SkeletonText';
 import { useSelectStatus } from '@/store/useSelectStatus';
+import axios from 'axios';
 
 const LawyerManagement = () => {
   const [data, setData] = useState<any>(null);
@@ -225,6 +226,7 @@ const LawyerManagement = () => {
   };
   const handleEdit = (index: number) => {
     setIsOpen(true);
+    setFile(null);
     setImagePreview(null);
     setDataIndex(withOutFormat[index]);
     modalLawyerInput[0].defaultValue = withOutFormat[index].firstName;
@@ -317,12 +319,44 @@ const LawyerManagement = () => {
     setIsOpenDelete(false);
     fetchData();
   };
+  const postImage = async () => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'amuthn3c');
+    try {
+      const data = await axios.post(
+        'https://api.cloudinary.com/v1_1/despbwppb/image/upload/',
+        formData
+      );
+
+      return {
+        success: true,
+        status: 200,
+        data: data.data,
+        messages: 'success',
+      };
+      //;
+    } catch (error: any) {
+      return {
+        success: false,
+        status: 400,
+        data: [],
+        messages: error.message,
+      };
+    }
+  };
   const createlawyer = async (e: any) => {
     e.preventDefault();
-    // if (!file) {
-    //   toast.error('No picture selected');
-    //   return;
-    // }
+    if (!file) {
+      toast.error('No picture selected');
+      return;
+    }
+    const resImage: any = await postImage();
+    if (resImage.status === 400) {
+      toast.error('Error uploading picture');
+      return null;
+    }
+
     const data = {
       firstName: e.target.firstName.value,
       lastName: e.target.lastname.value,
@@ -334,6 +368,7 @@ const LawyerManagement = () => {
       law_firm: e.target.name_of_law_firm.value,
       notes: e.target.notes.value,
       is_active: e.target.is_active.value === 'true',
+      profile_image_url: resImage.data.secure_url,
     };
 
     const creatingLawyer = await database.CreateLawyer(data);
@@ -356,10 +391,7 @@ const LawyerManagement = () => {
       // }
     });
     await Promise.all(insertService);
-    const formData = new FormData();
-    formData.append('id', creatingLawyer.data.data.id.toString());
-    formData.append('file', file);
-    await database.uploadProfile(formData);
+
     setFile(null);
     setFormValues(() => {});
     fetchData();
@@ -368,7 +400,7 @@ const LawyerManagement = () => {
   };
   const UpdateLawyer = async (e: any) => {
     e.preventDefault();
-
+    const resImage = await postImage();
     const data = {
       firstName: e.target.firstName.value,
       lastName: e.target.lastname.value,
@@ -380,6 +412,9 @@ const LawyerManagement = () => {
       law_firm: e.target.name_of_law_firm.value,
       notes: e.target.notes.value,
       updated_at: new Date(),
+      profile_image_url: resImage.success
+        ? resImage.data.secure_url
+        : dataIndex.profile_image_url,
     };
 
     const updateData = await database.UpdateLawyer(data as any, dataIndex.id);
