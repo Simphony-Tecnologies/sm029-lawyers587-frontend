@@ -57,7 +57,8 @@ const LawyerManagement = () => {
     {}
   );
   const [lawyerServiceRelacion, setLawyerServiceRelacion] = useState<any>([]);
-
+  const [isOpenSession, setisOpenSession] = useState(false);
+  const [history, setHistory] = useState([]);
   const router = useRouter();
   dayjs.extend(utc);
   const formatResponse = (data: any) => {
@@ -132,9 +133,17 @@ const LawyerManagement = () => {
           const matchingLabel = labelService.find(
             (label: any) => label.value === item.service_type_id
           );
-          return matchingLabel ? { ...matchingLabel } : null;
+          return matchingLabel
+            ? { ...matchingLabel, max_leads: item.max_leads }
+            : null;
         });
         res.service_type = filtertypes;
+        res.max_leads = filtertypes
+          ? filtertypes.reduce(
+              (acc: number, curr: any) => acc + curr.max_leads,
+              0
+            )
+          : 0;
       }
 
       if (
@@ -498,6 +507,17 @@ const LawyerManagement = () => {
     modalLawyerInput[6].values = formaterSelect(roles.data);
     modalNewLawyerInput[6].values = formaterSelect(roles.data);
   };
+  const getLastLogin = async (id: any) => {
+    const login = await database.fetchData(
+      `${process.env.NEXT_PUBLIC_URL_LAST_SESSION}/${id.code}`
+    );
+    setHistory(login.data);
+
+    if (!login.success) {
+      return toast.error('Error to get last login');
+    }
+  };
+
   const updateImage = (e: any) => {
     e.preventDefault();
     const input = e.target;
@@ -615,6 +635,10 @@ const LawyerManagement = () => {
       toast.error('Error updating value of service');
     }
     fetchData();
+  };
+  const handleLastsession = (index: any) => {
+    getLastLogin(index);
+    setisOpenSession(true);
   };
   useEffect(() => {
     getServiceType();
@@ -963,6 +987,28 @@ const LawyerManagement = () => {
           </form>
         </div>
       </Modal>
+      <Modal
+        title='Session History'
+        setIsOpen={setisOpenSession}
+        isOpen={isOpenSession}
+        className='max-w-sm'
+      >
+        <div className='w-full max-w-md mx-auto p-4 bg-white rounded-lg shadow-md'>
+          <ul className='divide-y divide-gray-200'>
+            {history.map((entry: any, index: number) => (
+              <li
+                key={index}
+                className='py-2 flex justify-between items-center'
+              >
+                <span>{dayjs(entry.login_date).format('DD/MM/YYYY')}</span>
+                <span className='text-gray-500'>
+                  {dayjs(entry.login_date).format('HH:mm')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Modal>
       <Tilte
         name='Lawyer Management'
         search={true}
@@ -1008,6 +1054,7 @@ const LawyerManagement = () => {
         isDeleteMultiple={isDeleteMultiple}
         onDeleteMultiple={handleSelectRow}
         selectedRows={selectedRows}
+        onLastActive={handleLastsession}
       />
     </div>
   );

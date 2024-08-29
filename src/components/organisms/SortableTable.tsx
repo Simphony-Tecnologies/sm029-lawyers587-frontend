@@ -32,6 +32,7 @@ type SortableTableProps = {
   onContact?: (index: number) => void;
   isDeleteMultiple?: boolean;
   onDeleteMultiple?: (index: number) => void;
+  onLastActive?: any;
 };
 
 const SortableTable = ({
@@ -47,6 +48,7 @@ const SortableTable = ({
   onContact,
   isDeleteMultiple,
   onDeleteMultiple,
+  onLastActive,
 }: SortableTableProps) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -215,10 +217,15 @@ const SortableTable = ({
                       item[column] === null ? (
                         ''
                       ) : (
-                        dayjs
-                          .utc(item[column] as number)
-                          .local()
-                          .format('MM/DD/YYYY')
+                        <div
+                          className='cursor-pointer'
+                          onClick={() => onLastActive(item)}
+                        >
+                          {dayjs
+                            .utc(item[column] as number)
+                            .local()
+                            .format('MM/DD/YYYY')}
+                        </div>
                       )
                     ) : column === 'service type' ? (
                       !item[column] ? (
