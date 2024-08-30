@@ -338,9 +338,7 @@ const SelectLead = () => {
       setColumns(titles);
     }
     getSelectedRowsData();
-
-    //fetchLeads();
-  }, [selectedRows, dataLeads, availableLeads]);
+  }, [selectedRows, dataLeads, availableLeads, !userId]);
   useEffect(() => {
     setDifferenceLeads(
       validateLeads(

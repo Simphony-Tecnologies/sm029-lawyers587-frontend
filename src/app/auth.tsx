@@ -162,7 +162,7 @@ const Page = () => {
             disabled={loading}
             className={`${
               loading && 'animate-pulse bg-gray-400'
-            } w-full  bg-primary text-white py-1.5 rounded-lg max-w-36 mt-7`}
+            } w-full  bg-primary text-white py-1.5 rounded-lg max-w-36 mt-7s`}
           >
             Login
           </button>
@@ -174,17 +174,16 @@ const Page = () => {
         >
           Forgot password
         </p>
-
-        <Image
-          src={Logo}
-          alt='Logo'
-          className='hidden lg:block absolute right-10 bottom-10 w-28 ml-auto'
-        />
-        <Image
-          src={LogoMobile}
-          alt='Logo mobile'
-          className='lg:hidden absolute  bottom-10 w-28 ml-auto'
-        />
+        <div className='hidden lg:block absolute right-10 bottom-10 w-28 ml-auto'>
+          <Image src={Logo} alt='Logo' className='   w-28 ml-auto ' />
+        </div>
+        <div className='lg:hidden flex justify-end items-end text-end h-20  '>
+          <Image
+            src={LogoMobile}
+            alt='Logo mobile'
+            className='   bottom-10 w-28 ml-auto'
+          />
+        </div>
       </div>
     </div>
   );
