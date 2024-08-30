@@ -111,7 +111,7 @@ const SelectLead = () => {
         const isValid = updatedDifference >= 0;
 
         // Actualizar la diferencia en differenceLeads para las siguientes comparaciones
-        matchedService.difference = updatedDifference;
+        //matchedService.difference = updatedDifference;
 
         return {
           serviceName: serviceName,
@@ -154,7 +154,7 @@ const SelectLead = () => {
         );
 
         const updatedSelectedRows: any = { ...selectedRows };
-        const indexToRemove = selectRow.findIndex(
+        const indexToRemove = newData.findIndex(
           (item: any) => item['lead id'] === selectedValue['lead id']
         );
 
@@ -337,8 +337,11 @@ const SelectLead = () => {
       const titles: any = Object.keys(filteredDataLeads[0]);
       setColumns(titles);
     }
+  }, [dataLeads, availableLeads, !userId]);
+  useEffect(() => {
     getSelectedRowsData();
-  }, [selectedRows, dataLeads, availableLeads, !userId]);
+  }, [selectedRows]);
+
   useEffect(() => {
     setDifferenceLeads(
       validateLeads(
