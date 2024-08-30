@@ -129,7 +129,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
         search={true}
         filterSearch={filterSearch}
       />
-      <div className='flex space-x-2'>
+      <div className='flex flex-wrap  gap-2'>
         <button
           onClick={() => handleStatusClick(null)}
           className={`px-4 p-1 rounded text-sm ${

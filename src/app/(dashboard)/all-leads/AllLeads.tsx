@@ -259,7 +259,7 @@ const AllLeads = () => {
         search={true}
         filterSearch={filterSearch}
       />
-      <div className='flex space-x-2'>
+      <div className='flex gap-2 flex-wrap'>
         <button
           onClick={() => handleStatusClick(null)}
           className={`px-4 p-1 rounded text-sm ${
