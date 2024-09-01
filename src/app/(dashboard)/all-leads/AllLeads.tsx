@@ -15,6 +15,9 @@ import utc from 'dayjs/plugin/utc';
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { MdOutlineCases } from 'react-icons/md';
+import useLoadingStore from '@/store/useLoadingStore';
+import SkeletonText from '@/components/atoms/SkeletonText';
+import Loading from '../loading';
 
 const AllLeads = () => {
   dayjs.extend(utc);
@@ -28,6 +31,8 @@ const AllLeads = () => {
   const [dataServiceType, setDataServiceType] = useState([]);
   const [originalData, setOriginalData] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const { setLoading, isLoading } = useLoadingStore();
+
   const statusSelect = [
     {
       name: 'In progress',
@@ -47,37 +52,55 @@ const AllLeads = () => {
     },
   ];
   const getLawyer = async () => {
-    if (Object.keys(user).length > 0) {
-      const dataLawyerUser = await database.getLawyer(user.id);
-      setUserId(dataLawyerUser.data.data);
-    }
-    const dataLawyer = await database.getLeadsAssigned();
+    setLoading(true); // Inicia la carga
+    try {
+      // Verifica si el usuario tiene datos
+      if (Object.keys(user).length > 0) {
+        const dataLawyerUser = await database.getLawyer(user.id);
+        setUserId(dataLawyerUser.data.data);
+      }
 
-    if (!dataLawyer.success) {
-      return toast.error('Error to get leads assigned');
-    }
+      // Obtén los leads asignados
+      const dataLawyer = await database.getLeadsAssigned();
 
-    const firstItem = dataLawyer.data;
-    const filterItems = firstItem.filter(
-      (item: any) => item.lawyer_id === parseInt(user.id)
-    );
-    if (!dataLeads) return [];
-    if (dataLeads.length > 0) {
+      // Lanza un error si la petición falla
+      if (!dataLawyer.success) {
+        throw new Error('Error to get leads assigned');
+      }
+
+      const firstItem = dataLawyer.data;
+      const filterItems = firstItem.filter(
+        (item: any) => item.lawyer_id === parseInt(user.id)
+      );
+
+      // Verifica si dataLeads es undefined o vacío y lanza un error
+      if (!dataLeads || dataLeads.length === 0) {
+        throw new Error('No leads data found');
+      }
+
       const filterLeads = dataLeads.filter((item: any) =>
         filterItems
           .map((filterItem: any) => filterItem.lead)
           .includes(item['lead id'])
       );
 
+      // Establece los datos filtrados en los estados correspondientes
       setOriginalData(filterLeads);
       setLawyerData(filterLeads);
+
       if (filterLeads.length > 0) {
         const titles: any = Object.keys(filterLeads[0]);
-
         setColumns(titles);
       }
+    } catch (error: any) {
+      // Manejo centralizado de errores
+      toast.error(error.message || 'An error occurred while fetching data.');
+      console.error('Error fetching lawyer data:', error);
+    } finally {
+      setLoading(false); // Finaliza la carga
     }
   };
+
   const handleContact = async (index: number) => {
     setIsOpenLead(true);
     if (lawyerData) {
@@ -159,7 +182,9 @@ const AllLeads = () => {
     getLawyer();
     getServiceType();
   }, [user, dataLeads]);
-
+  if (isLoading) {
+    return <Loading />;
+  }
   if (lawyerData && originalData.length <= 0) {
     return (
       <NoData
@@ -178,6 +203,7 @@ const AllLeads = () => {
       </NoData>
     );
   }
+
   return (
     <div className='flex flex-col gap-5'>
       <Modal title='Lead info' isOpen={isOpenLead} setIsOpen={setIsOpenLead}>
@@ -259,31 +285,35 @@ const AllLeads = () => {
         search={true}
         filterSearch={filterSearch}
       />
-      <div className='flex gap-2 flex-wrap'>
-        <button
-          onClick={() => handleStatusClick(null)}
-          className={`px-4 p-1 rounded text-sm ${
-            selectedStatus === null
-              ? 'bg-primary bg-opacity-80 text-white'
-              : 'bg-gray-200'
-          }`}
-        >
-          All
-        </button>
-        {uniqueStatuses.map((status) => (
+      {!isLoading ? (
+        <div className='flex gap-2 flex-wrap'>
           <button
-            key={status}
-            onClick={() => handleStatusClick(status)}
+            onClick={() => handleStatusClick(null)}
             className={`px-4 p-1 rounded text-sm ${
-              selectedStatus === status
+              selectedStatus === null
                 ? 'bg-primary bg-opacity-80 text-white'
                 : 'bg-gray-200'
             }`}
           >
-            {status}
+            All
           </button>
-        ))}
-      </div>
+          {uniqueStatuses.map((status) => (
+            <button
+              key={status}
+              onClick={() => handleStatusClick(status)}
+              className={`px-4 p-1 rounded text-sm ${
+                selectedStatus === status
+                  ? 'bg-primary bg-opacity-80 text-white'
+                  : 'bg-gray-200'
+              }`}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <SkeletonText />
+      )}
       <SortableTable
         columns={columns}
         data={lawyerData}
