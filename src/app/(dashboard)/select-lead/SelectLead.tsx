@@ -11,6 +11,9 @@ import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { MdInfoOutline } from 'react-icons/md';
+import Loading from '../loading';
+import useLoadingStore from '@/store/useLoadingStore';
+import SkeletonText from '@/components/atoms/SkeletonText';
 const SelectLead = () => {
   const { user } = useAuth();
   const [userId, setUserId] = useState<any>(null);
@@ -26,14 +29,17 @@ const SelectLead = () => {
   const [selectRowLeads, setSelectRowLeads] = useState([]);
   const [columns, setColumns] = useState([]);
   const [dataServiceType, setDataServiceType] = useState([]);
-  const [maxLeadsAssigned, setMaxLeadsAssigned] = useState<any>([]);
+  const [maxLeadsAssigned, setMaxLeadsAssigned] = useState<any>(null);
+
   const [selectedValue, setSelectedValue] = useState<any>({});
   const [leadsAssignedWithData, setLeadsAssignedWithData] = useState([]);
   const [differenceLeads, setDifferenceLeads] = useState<any>([]);
-  const [loading, setLoading] = useState(false);
-  const [resultLeads, setResultLeads] = useState(0);
+
+  const [resultLeads, setResultLeads] = useState<any>(0);
+
+  const { setLoading, isLoading } = useLoadingStore();
   const availableLeads =
-    leadsAssigned.length >= 0 && maxLeadsAssigned.length > 0
+    leadsAssigned.length >= 0 && maxLeadsAssigned
       ? maxLeadsAssigned.reduce(
           (acc: number, curr: any) => acc + curr.max_leads,
           0
@@ -57,27 +63,21 @@ const SelectLead = () => {
 
     setDataServiceType(resType.data);
   };
-  function validateLeads(leads: any, services: any) {
-    // Contar los leads por servicio
-    const leadCounts = leads.reduce((acc: any, lead: any) => {
+  function validateLeads(leads: any[], services: any[]) {
+    // Contar los leads por servicio solo si hay leads
+    const leadCounts = leads.reduce((acc: Record<string, number>, lead) => {
       const serviceName = lead.service;
       acc[serviceName] = (acc[serviceName] || 0) + 1;
       return acc;
     }, {});
 
     // Generar el resultado con serviceName, diferencia, y isValid
-    const result = Object.keys(leadCounts).map((serviceName) => {
-      const service = services.find((s: any) => s.name === serviceName);
-      if (!service) {
-        return {
-          serviceName,
-          difference: 0,
-          isValid: false,
-        };
-      }
-      const difference = service.max_leads - leadCounts[serviceName];
+    const result = services.map((service) => {
+      const leadCount = leadCounts[service.name] || 0;
+      const difference = service.max_leads - leadCount;
+
       return {
-        serviceName,
+        serviceName: service.name,
         difference,
         isValid: difference >= 0,
       };
@@ -85,6 +85,7 @@ const SelectLead = () => {
 
     return result;
   }
+
   function checkLeadDifference(selectRow: any, differenceLeads: any) {
     // Crear un objeto para almacenar el conteo de servicios en selectRow
     const serviceCount: any = {};
@@ -138,8 +139,13 @@ const SelectLead = () => {
     setSelectRowLeads(selectRow);
 
     const reviewLeads: any = checkLeadDifference(selectRow, differenceLeads);
-
-    const resut = leadsAssignedWithData.length - selectRow.length;
+    const maxResult = maxLeadsAssigned
+      ? maxLeadsAssigned.reduce(
+          (acc: number, curr: any) => acc + curr.max_leads,
+          0
+        )
+      : 0 - leadsAssignedWithData.length;
+    const resut = maxResult - selectRow.length;
 
     setResultLeads(resut);
     const resValidate = reviewLeads.filter(
@@ -188,6 +194,7 @@ const SelectLead = () => {
   };
 
   const getLawyer = async () => {
+    setLoading(true);
     if (Object.keys(user).length > 0) {
       const dataLawyer = await database.getLawyer(user.id);
       setUserId(dataLawyer.data.data);
@@ -208,17 +215,28 @@ const SelectLead = () => {
     });
 
     if (!dataLeads) return [];
-
-    if (dataLeads.length > 0) {
-      ('entro');
-      const filterLeads = dataLeads.filter((item: any) =>
-        filterItems
-          .map((filterItem: any) => filterItem.lead)
-          .includes(item['lead id'])
-      );
-      setResultLeads(filterLeads.length);
-      setLeadsAssignedWithData(filterLeads);
+    if (dataLeads.length <= 0) {
+      setLeadsAssignedWithData([]);
+      return;
     }
+
+    const filterLeads = dataLeads.filter((item: any) =>
+      filterItems
+        .map((filterItem: any) => filterItem.lead)
+        .includes(item['lead id'])
+    );
+
+    const totalMaxleads = maxLeadsAssigned
+      ? maxLeadsAssigned.reduce(
+          (acc: number, curr: any) => acc + curr.max_leads,
+          0
+        )
+      : 0;
+    setResultLeads(totalMaxleads - filterLeads.length);
+
+    setLeadsAssignedWithData(filterLeads);
+
+    setLoading(false);
   };
 
   const postAssignLeads = async () => {
@@ -343,14 +361,26 @@ const SelectLead = () => {
   }, [selectedRows]);
 
   useEffect(() => {
-    setDifferenceLeads(
-      validateLeads(
-        leadsAssignedWithData,
-        getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
-      )
+    const callValidateLeads = validateLeads(
+      leadsAssignedWithData,
+      getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
     );
+
+    setDifferenceLeads(callValidateLeads);
   }, [leadsAssignedWithData, maxLeadsAssigned]);
 
+  if (isLoading || !newData) {
+    return <Loading />;
+  }
+  if (newData.length <= 0) {
+    return (
+      <NoData
+        text={`There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.`}
+      >
+        <MdInfoOutline size={70} color='#00234D' />
+      </NoData>
+    );
+  }
   return (
     <div className='flex flex-col gap-5'>
       <Tilte
@@ -374,41 +404,45 @@ const SelectLead = () => {
         )}
       >
         <div className='flex justify-center items-center gap-5'>
-          <div className='bg-gray-200 px-4 py-1 rounded-md'>
-            Available leads <span className='text-red-500'>{resultLeads}</span>{' '}
-            out of{' '}
-            {maxLeadsAssigned.length > 0 &&
-              maxLeadsAssigned.reduce(
-                (acc: number, curr: any) => acc + curr.max_leads,
-                0
-              )}
-          </div>
+          {maxLeadsAssigned ? (
+            <div className='bg-gray-200 px-4 py-1 rounded-md'>
+              Available leads{' '}
+              <span className='text-red-500'>
+                {resultLeads ? (
+                  resultLeads
+                ) : (
+                  <div>
+                    <SkeletonText />
+                  </div>
+                )}
+              </span>{' '}
+              out of{' '}
+              {maxLeadsAssigned &&
+                maxLeadsAssigned.reduce(
+                  (acc: number, curr: any) => acc + curr.max_leads,
+                  0
+                )}
+            </div>
+          ) : (
+            <SkeletonText />
+          )}
           <Button
-            disabled={loading}
+            disabled={isLoading}
             type='button'
             name='Pull leads'
             onClick={postAssignLeads}
-            color={`${loading ? 'animate-pulse bg-gray-400' : 'bg-primary'} `}
+            color={`${isLoading ? 'animate-pulse bg-gray-400' : 'bg-primary'} `}
           />
         </div>
       </Tilte>
 
-      {newData &&
-        (newData.length > 0 ? (
-          <SortableTable
-            columns={columns}
-            data={newData}
-            onSelectRow={handleSelectRow}
-            selectedRows={selectedRows}
-            statusColors={statusColors}
-          />
-        ) : (
-          <NoData
-            text={`There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.`}
-          >
-            <MdInfoOutline size={70} color='#00234D' />
-          </NoData>
-        ))}
+      <SortableTable
+        columns={columns}
+        data={newData}
+        onSelectRow={handleSelectRow}
+        selectedRows={selectedRows}
+        statusColors={statusColors}
+      />
     </div>
   );
 };
