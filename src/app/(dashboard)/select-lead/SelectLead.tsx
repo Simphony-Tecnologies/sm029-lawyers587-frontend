@@ -23,6 +23,7 @@ const SelectLead = () => {
   const [selectedRows, setSelectedRows] = useState<{ [key: number]: boolean }>(
     {}
   );
+
   const [newData, setNewData] = useState<any>(null);
   const [leadsAssigned, setLeadsAssigned] = useState([]);
 
@@ -139,12 +140,12 @@ const SelectLead = () => {
     setSelectRowLeads(selectRow);
 
     const reviewLeads: any = checkLeadDifference(selectRow, differenceLeads);
-    const maxResult = maxLeadsAssigned
-      ? maxLeadsAssigned.reduce(
-          (acc: number, curr: any) => acc + curr.max_leads,
-          0
-        )
-      : 0 - leadsAssignedWithData.length;
+    const maxResult =
+      maxLeadsAssigned.reduce(
+        (acc: number, curr: any) => acc + curr.max_leads,
+        0
+      ) - leadsAssignedWithData.length;
+
     const resut = maxResult - selectRow.length;
 
     setResultLeads(resut);
@@ -357,7 +358,9 @@ const SelectLead = () => {
     }
   }, [dataLeads, availableLeads, !userId]);
   useEffect(() => {
-    getSelectedRowsData();
+    if (Object.keys(selectedRows).length > 0) {
+      getSelectedRowsData();
+    }
   }, [selectedRows]);
 
   useEffect(() => {
@@ -407,16 +410,7 @@ const SelectLead = () => {
           {maxLeadsAssigned ? (
             <div className='bg-gray-200 px-4 py-1 rounded-md'>
               Available leads{' '}
-              <span className='text-red-500'>
-                {resultLeads ? (
-                  resultLeads
-                ) : (
-                  <div>
-                    <SkeletonText />
-                  </div>
-                )}
-              </span>{' '}
-              out of{' '}
+              <span className='text-red-500'>{resultLeads}</span> out of{' '}
               {maxLeadsAssigned &&
                 maxLeadsAssigned.reduce(
                   (acc: number, curr: any) => acc + curr.max_leads,
