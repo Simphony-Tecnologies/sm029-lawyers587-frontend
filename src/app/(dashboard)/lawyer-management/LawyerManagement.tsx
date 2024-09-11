@@ -409,8 +409,6 @@ const LawyerManagement = () => {
     };
     e.preventDefault();
     if (file) {
-      console.log(file);
-
       const resImages: any = await postImage();
       if (resImages.status === 400) {
         toast.error('Error uploading picture');

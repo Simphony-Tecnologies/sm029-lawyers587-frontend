@@ -22,7 +22,6 @@ const LeadManagement = () => {
   const { selecArray, setSelecArray } = useSelectStatus();
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>({});
-  console.log(selectedLead);
 
   const [loading, setloading] = useState(false);
   const statusSelect = [
