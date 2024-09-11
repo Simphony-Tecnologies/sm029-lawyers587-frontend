@@ -54,7 +54,7 @@ const CountdownTimer: React.FC<CountdownTimerProps> = ({ targetDate }) => {
 
   return (
     <div className='flex flex-col items-center justify-center p-2 text-center  text-primary rounded-lg shadow-md'>
-      <h2 className='font-bold text-sm'>Countdown lead expired</h2>
+      <h2 className='font-bold text-sm'>Countdown to lead expiration</h2>
       <div className='flex space-x-4 font-mono'>
         <div className='flex text-sm flex-col items-center'>
           <span className=''>{timeLeft.days || '0'}</span>
