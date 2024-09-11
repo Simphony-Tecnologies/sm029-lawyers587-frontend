@@ -135,26 +135,28 @@ const SortableTable = ({
                   <input type='checkbox' disabled />
                 </th>
               )}
-              {columns?.map((column) => (
-                <th
-                  key={column}
-                  onClick={() => onSort(column)}
-                  className='px-4 py-2 border-b-2 border-gray-200 cursor-pointer'
-                >
-                  <div className='uppercase flex items-center text-start'>
-                    {column}
-                    {sortConfig?.key === column && (
-                      <span>
-                        {sortConfig.direction === 'ascending' ? (
-                          <MdImportExport className='text-gray-500' />
-                        ) : (
-                          <MdImportExport />
-                        )}
-                      </span>
-                    )}
-                  </div>
-                </th>
-              ))}
+              {columns
+                ?.filter((column: string) => column !== 'date_updated')
+                .map((column) => (
+                  <th
+                    key={column}
+                    onClick={() => onSort(column)}
+                    className='px-4 py-2 border-b-2 border-gray-200 cursor-pointer'
+                  >
+                    <div className='uppercase flex items-center text-start'>
+                      {column}
+                      {sortConfig?.key === column && (
+                        <span>
+                          {sortConfig.direction === 'ascending' ? (
+                            <MdImportExport className='text-gray-500' />
+                          ) : (
+                            <MdImportExport />
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                ))}
               {(onEdit || onDelete) && (
                 <th className='px-4 py-2 border-b-2 border-gray-200 uppercase text-start'>
                   Actions
@@ -194,77 +196,81 @@ const SortableTable = ({
                     </div>
                   </td>
                 )}
-                {columns?.map((column) => (
-                  <td
-                    key={column}
-                    className='px-4 py-2 border-b border-gray-200'
-                  >
-                    {column === 'date' ? (
-                      dayjs
-                        .utc(item[column] as string)
-                        .local()
-                        .format('MM/DD/YYYY')
-                    ) : column === 'lawyer name' ? (
-                      <p
-                        onClick={() => onRoute && onRoute(item.originalIndex)}
-                        className={`${
-                          onRoute && 'hover:underline cursor-pointer'
-                        }`}
-                      >
-                        {item[column]}
-                      </p>
-                    ) : column === 'last active' ? (
-                      item[column] === null ? (
-                        ''
-                      ) : (
-                        <div
-                          className='cursor-pointer'
-                          onClick={() => onLastActive(item)}
+                {columns
+                  ?.filter((column: string) => column !== 'date_updated')
+                  .map((column: any) => (
+                    <td
+                      key={column}
+                      className='px-4 py-2 border-b border-gray-200'
+                    >
+                      {column === 'date' ? (
+                        dayjs
+                          .utc(item[column] as string)
+                          .local()
+                          .format('MM/DD/YYYY')
+                      ) : column === 'lawyer name' ? (
+                        <p
+                          onClick={() => onRoute && onRoute(item.originalIndex)}
+                          className={`${
+                            onRoute && 'hover:underline cursor-pointer'
+                          }`}
                         >
-                          {dayjs
-                            .utc(item[column] as number)
-                            .local()
-                            .format('MM/DD/YYYY')}
-                        </div>
-                      )
-                    ) : column === 'service type' ? (
-                      !item[column] ? (
-                        <div className='w-full'>
-                          <SkeletonText />
-                        </div>
-                      ) : (
-                        item[column].map((item: any, index: number) => (
-                          <div key={index}>
-                            {item.label.replace(' Lawyer', '')}
+                          {item[column]}
+                        </p>
+                      ) : column === 'last active' ? (
+                        item[column] === null ? (
+                          ''
+                        ) : (
+                          <div
+                            className='cursor-pointer'
+                            onClick={() => onLastActive(item)}
+                          >
+                            {dayjs
+                              .utc(item[column] as number)
+                              .local()
+                              .format('MM/DD/YYYY')}
                           </div>
-                        ))
-                      )
-                    ) : column === 'service' ? (
-                      <p>{item[column].replace(' Lawyer', '')}</p>
-                    ) : column === 'status' && statusColors ? (
-                      <p
-                        onClick={() => onStatus && onStatus(item.originalIndex)}
-                        className={`px-2 py-1 rounded font-semibold max-w-30 text-nowrap w-full text-center capitalize-first ${
-                          onStatus && 'cursor-pointer'
-                        }`}
-                        style={{
-                          backgroundColor: `${statusColors[item[column]]}20`,
-                          color: statusColors[item[column]],
-                        }}
-                      >
-                        {item[column] === null ? (
+                        )
+                      ) : column === 'service type' ? (
+                        !item[column] ? (
                           <div className='w-full'>
                             <SkeletonText />
                           </div>
                         ) : (
-                          item[column]
-                        )}
-                      </p>
-                    ) : (
-                      item[column]?.toString()
-                    )}
-                  </td>
-                ))}
+                          item[column].map((item: any, index: number) => (
+                            <div key={index}>
+                              {item.label.replace(' Lawyer', '')}
+                            </div>
+                          ))
+                        )
+                      ) : column === 'service' ? (
+                        <p>{item[column].replace(' Lawyer', '')}</p>
+                      ) : column === 'status' && statusColors ? (
+                        <p
+                          onClick={() =>
+                            onStatus && onStatus(item.originalIndex)
+                          }
+                          className={`px-2 py-1 rounded font-semibold max-w-30 text-nowrap w-full text-center capitalize-first ${
+                            onStatus && 'cursor-pointer'
+                          }`}
+                          style={{
+                            backgroundColor: `${statusColors[item[column]]}20`,
+                            color: statusColors[item[column]],
+                          }}
+                        >
+                          {item[column] === null ? (
+                            <div className='w-full'>
+                              <SkeletonText />
+                            </div>
+                          ) : (
+                            item[column]
+                          )}
+                        </p>
+                      ) : (
+                        item[column]?.toString()
+                      )}
+                    </td>
+                  ))}
                 {(onEdit || onDelete) && (
                   <td className='px-4 py-2 border-b border-gray-200'>
                     {onEdit && (
