@@ -26,6 +26,10 @@ const LeadManagement = () => {
   const [loading, setloading] = useState(false);
   const statusSelect = [
     {
+      name: 'Assigned',
+      value: 'ASSIGNED',
+    },
+    {
       name: 'In progress',
       value: 'IN PROGRESS',
     },
