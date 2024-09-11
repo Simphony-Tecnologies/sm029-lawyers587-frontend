@@ -26,6 +26,7 @@ export const useLeadsStore = create<LeadsStore>((set) => ({
       const data = leadsData.data.map((lead: any) => ({
         'lead id': lead.id,
         date: new Date(lead.created_at),
+        date_updated: new Date(lead.updated_at),
         'lead name': lead.full_name,
         email: lead.email,
         'phone number': lead.number,

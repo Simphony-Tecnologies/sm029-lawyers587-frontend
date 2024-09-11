@@ -12,6 +12,7 @@ import { database } from '@/services/database';
 import toast from 'react-hot-toast';
 import Input from '@/components/atoms/Input';
 import Button from '@/components/atoms/Button';
+import CountdownTimer from '@/components/organisms/CountdownTimer';
 const LeadManagement = () => {
   const { columns, dataLeads, error, fetchLeads }: any = useLeadsStore();
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
@@ -21,6 +22,7 @@ const LeadManagement = () => {
   const { selecArray, setSelecArray } = useSelectStatus();
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>({});
+
   const [loading, setloading] = useState(false);
   const statusSelect = [
     {
@@ -148,6 +150,7 @@ const LeadManagement = () => {
     fetchLeads();
     setloading(false);
   };
+
   useEffect(() => {
     filterArray();
     if (dataLeads) {
@@ -175,6 +178,10 @@ const LeadManagement = () => {
                 .local()
                 .format('MM/DD/YYYY hh:mm a')}
           </p>
+          {selectedLead.status === 'ASSIGNED' && (
+            <CountdownTimer targetDate={selectedLead['date_updated']} />
+          )}
+
           <p className='text-red-500'>
             This lead will be marked as lost and will not be reinstated.
           </p>

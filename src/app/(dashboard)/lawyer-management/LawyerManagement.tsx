@@ -402,15 +402,19 @@ const LawyerManagement = () => {
     }
   };
   const createlawyer = async (e: any) => {
+    let resImage = {
+      data: {
+        secure_url: '',
+      },
+    };
     e.preventDefault();
-    if (!file) {
-      toast.error('No picture selected');
-      return;
-    }
-    const resImage: any = await postImage();
-    if (resImage.status === 400) {
-      toast.error('Error uploading picture');
-      return null;
+    if (file) {
+      const resImages: any = await postImage();
+      if (resImages.status === 400) {
+        toast.error('Error uploading picture');
+        return null;
+      }
+      resImage = resImages;
     }
 
     const data = {
