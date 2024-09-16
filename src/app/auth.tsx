@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import Logo from '@/assets/logo.png';
+import Logo from '@/assets/587LAWYERS.COM.png';
 import LogoMobile from '@/assets/Logo-mobile.png';
 import Background from '@/assets/background.png';
 import MobileAuth from '@/assets/mobile-auth.png';
