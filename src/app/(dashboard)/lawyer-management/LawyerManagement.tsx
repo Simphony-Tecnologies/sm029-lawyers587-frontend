@@ -725,7 +725,7 @@ const LawyerManagement = () => {
               {selectedOptionsService.map((option) => (
                 <div key={option.value} className='mt-2'>
                   <label htmlFor={`additional-${option.value}`}>
-                    Add Limit value for {option.label}:
+                    Maximun Leads for {option.label}:
                   </label>
                   <input
                     type='text'
@@ -907,7 +907,7 @@ const LawyerManagement = () => {
               {selectedOptionsService.map((option) => (
                 <div key={option.value} className='mt-2'>
                   <label htmlFor={`additional-${option.value}`}>
-                    Add Limit value for {option.label}:
+                    Maximun Leads for {option.label}:
                   </label>
                   <input
                     type='text'
