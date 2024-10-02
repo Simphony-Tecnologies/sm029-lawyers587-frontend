@@ -48,7 +48,7 @@ export const routesSidebar: dataItem[] = [
     rol: ['lawyer'],
   },
   {
-    name: 'Select lead',
+    name: 'New Leads',
     route: '/select-lead',
     icon: MdChecklist,
     rol: ['lawyer'],

@@ -31,6 +31,8 @@ const AllLeads = () => {
   const [dataServiceType, setDataServiceType] = useState([]);
   const [originalData, setOriginalData] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectStatus, setSelectStatus] = useState();
+
   const { setLoading, isLoading } = useLoadingStore();
 
   const statusSelect = [
@@ -43,7 +45,7 @@ const AllLeads = () => {
       value: 'PROBLEMATIC',
     },
     {
-      name: 'Lost',
+      name: 'Send back',
       value: 'LOST',
     },
     {
@@ -228,6 +230,7 @@ const AllLeads = () => {
               values={statusSelect}
               statusColors={statusColors}
               defaultValue={selectedLead?.status}
+              setStatusSelected={setSelectStatus}
             />
             <p></p>
             <p>Email:</p>
@@ -247,6 +250,7 @@ const AllLeads = () => {
               name='comments'
               className='col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md'
               placeholder=' Leave your comment.....'
+              required={selectStatus === 'LOST' ? true : false}
             >
               {selectedLead?.comments}
             </textarea>
@@ -264,7 +268,7 @@ const AllLeads = () => {
               >
                 <i className='fi fi-rr-check absolute  text-sm  peer-checked:block '></i>
               </label>{' '}
-              Not contact this lead again
+              Do not contact this lead again
             </p>
             <div className='col-end-4 text-right'>
               <Button name='Save' type='submit' />
