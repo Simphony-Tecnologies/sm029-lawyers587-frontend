@@ -420,13 +420,13 @@ const SelectLead = () => {
           ) : (
             <SkeletonText />
           )}
-          <Button
+          {/* <Button
             disabled={isLoading}
             type='button'
             name='Pull leads'
             onClick={postAssignLeads}
             color={`${isLoading ? 'animate-pulse bg-gray-400' : 'bg-primary'} `}
-          />
+          /> */}
         </div>
       </Tilte>
 
@@ -436,6 +436,15 @@ const SelectLead = () => {
         onSelectRow={handleSelectRow}
         selectedRows={selectedRows}
         statusColors={statusColors}
+        pullButton={
+          <Button
+            disabled={isLoading}
+            type='button'
+            name='Pull leads'
+            onClick={postAssignLeads}
+            color={`${isLoading ? 'animate-pulse bg-gray-400' : 'bg-primary'} `}
+          />
+        }
       />
     </div>
   );

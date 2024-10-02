@@ -42,7 +42,7 @@ const LeadManagement = () => {
       value: 'PROBLEMATIC',
     },
     {
-      name: 'Lost',
+      name: 'Send back',
       value: 'LOST',
     },
     {
@@ -54,7 +54,7 @@ const LeadManagement = () => {
       value: 'DISABLED',
     },
     {
-      name: 'Expired',
+      name: 'Dead',
       value: 'EXPIRED',
     },
   ];

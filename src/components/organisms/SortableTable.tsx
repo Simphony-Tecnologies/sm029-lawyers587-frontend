@@ -11,6 +11,7 @@ import {
 } from 'react-icons/md';
 import SkeletonTable from '../atoms/SkeletonTable';
 import SkeletonText from '../atoms/SkeletonText';
+import { useAuth } from '@/store/useAuth.store';
 
 type SortDirection = 'ascending' | 'descending';
 
@@ -33,6 +34,7 @@ type SortableTableProps = {
   isDeleteMultiple?: boolean;
   onDeleteMultiple?: (index: number) => void;
   onLastActive?: any;
+  pullButton?: any;
 };
 
 const SortableTable = ({
@@ -49,12 +51,14 @@ const SortableTable = ({
   isDeleteMultiple,
   onDeleteMultiple,
   onLastActive,
+  pullButton,
 }: SortableTableProps) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [indexedData, setIndexedData] = useState<any[]>([]);
-
+  const { user } = useAuth();
+  const rol = user?.role?.name;
   useEffect(() => {
     if (data) {
       const dataWithIndex = data.map((item, index) => ({
@@ -132,7 +136,8 @@ const SortableTable = ({
             <tr>
               {onSelectRow && (
                 <th className='px-4 py-2 border-b-2 border-gray-200'>
-                  <input type='checkbox' disabled />
+                  {pullButton}
+                  {/* <input type='checkbox' disabled /> */}
                 </th>
               )}
               {columns
@@ -178,8 +183,8 @@ const SortableTable = ({
             {paginatedData?.map((item: any, localIndex) => (
               <tr key={calculateGlobalIndex(localIndex)}>
                 {onSelectRow && (
-                  <td className='px-4 py-2 border-b border-gray-200 mx-auto'>
-                    <div className='flex text-center justify-center'>
+                  <td className='px-4 py-2 border-b border-gray-200 mx-auto '>
+                    <div className='flex text-center justify-center '>
                       <input
                         id={`checkbox-${item.originalIndex}`} // Usa un id único basado en el índice original
                         className='peer hidden'
@@ -201,7 +206,12 @@ const SortableTable = ({
                   .map((column: any) => (
                     <td
                       key={column}
-                      className='px-4 py-2 border-b border-gray-200'
+                      className={`${
+                        rol === 'lawyer' &&
+                        item.status === 'ASSIGNED' &&
+                        ' blur-sm select-none'
+                      } px-4 py-2 border-b border-gray-200 `}
+                      //onContextMenu={(e) => e.preventDefault()}
                     >
                       {column === 'date' ? (
                         dayjs
@@ -262,6 +272,10 @@ const SortableTable = ({
                             <div className='w-full'>
                               <SkeletonText />
                             </div>
+                          ) : item[column] === 'LOST' ? (
+                            'Send Back'
+                          ) : item[column] === 'EXPIRED' ? (
+                            'Dead'
                           ) : (
                             item[column]
                           )}

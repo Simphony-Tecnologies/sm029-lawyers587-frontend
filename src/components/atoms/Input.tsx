@@ -1,19 +1,7 @@
 import { useState } from 'react';
 import Select from 'react-select';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
-
-const Input = ({
-  defaultValue,
-  name,
-  label,
-  required,
-  type,
-  values,
-  onChange,
-  statusColors,
-  placeholder,
-  handleChangeService,
-}: {
+type inputProps = {
   defaultValue?: any;
   name: string;
   label?: string;
@@ -31,7 +19,21 @@ const Input = ({
   statusColors?: any;
   placeholder?: string;
   handleChangeService?: any;
-}) => {
+  setStatusSelected?: any;
+};
+const Input = ({
+  defaultValue,
+  name,
+  label,
+  required,
+  type,
+  values,
+  onChange,
+  statusColors,
+  placeholder,
+  handleChangeService,
+  setStatusSelected,
+}: inputProps) => {
   const [selectedColor, setSelectedColor] = useState(
     statusColors ? statusColors[defaultValue] : null
   );
@@ -40,6 +42,8 @@ const Input = ({
 
   const handleChangeColor = (event: any) => {
     const newValue = event.target.value;
+    setStatusSelected(newValue);
+
     if (statusColors) {
       setSelectedColor(statusColors[newValue]);
     }
