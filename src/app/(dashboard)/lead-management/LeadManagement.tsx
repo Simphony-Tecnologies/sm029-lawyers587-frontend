@@ -24,6 +24,7 @@ const LeadManagement = () => {
   const [selectedLead, setSelectedLead] = useState<any>({});
 
   const [loading, setloading] = useState(false);
+
   const statusSelect = [
     {
       name: 'Assigned',
@@ -58,6 +59,27 @@ const LeadManagement = () => {
       value: 'EXPIRED',
     },
   ];
+  const lawyerAssigned = async () => {
+    const res = await database.fetchData(
+      process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED || ''
+    );
+
+    if (!res.success) {
+      toast.error('Error conecting with database');
+    }
+    const updatedDataLeads = filterData.map((items: any) => {
+      const lawyer = res.data.find(
+        (lawyer: any) => lawyer.lead === items['lead id']
+      );
+      return {
+        ...items,
+        lawyer: lawyer
+          ? `${lawyer.lawyer.firstName} ${lawyer.lawyer.lastName} `
+          : 'No assigned',
+      };
+    });
+    setFilterData(updatedDataLeads);
+  };
   const filterSearch = (text: string | null) => {
     if (text) {
       if (dataLeads) {
@@ -164,6 +186,12 @@ const LeadManagement = () => {
       setUniqueStatuses(uniqueStatus);
     }
   }, [dataLeads]);
+  useEffect(() => {
+    if (filterData) {
+      lawyerAssigned();
+    }
+  }, [dataLeads]);
+
   useEffect(() => {
     if (selecArray.length <= 0) {
       fetchLeads();
