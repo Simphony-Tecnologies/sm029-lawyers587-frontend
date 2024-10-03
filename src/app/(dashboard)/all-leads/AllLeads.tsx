@@ -77,10 +77,10 @@ const AllLeads = () => {
 
       // Verifica si dataLeads es undefined o vacío y lanza un error
       if (!dataLeads || dataLeads.length === 0) {
-        throw new Error('No leads data found');
+        return console.log('No leads data found');
       }
-
-      const filterLeads = dataLeads.filter((item: any) =>
+      const datafilter = dataLeads.map(({ lawyer, ...rest }: any) => rest);
+      const filterLeads = datafilter.filter((item: any) =>
         filterItems
           .map((filterItem: any) => filterItem.lead)
           .includes(item['lead id'])
