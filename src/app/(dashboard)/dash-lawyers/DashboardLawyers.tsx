@@ -114,7 +114,7 @@ const DashboardLawyers = () => {
   };
   useEffect(() => {
     setStatistics(initialStatistics);
-    if (lawyerData) {
+    if (dataLeads) {
       setData.forEach((res) => filterLeads(res.value, res.index));
     }
     if (dataLeads) getLawyer();
