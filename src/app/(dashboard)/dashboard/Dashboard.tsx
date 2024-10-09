@@ -16,11 +16,12 @@ const Dashboard = () => {
   const setData = [
     { value: 'NEW', index: 0 },
     { value: 'ASSIGNED', index: 1 },
-    { value: 'PROBLEMATIC', index: 2 },
     { value: 'IN PROGRESS', index: 2 },
-    { value: 'LOST', index: 3 },
-    { value: 'EXPIRED', index: 3 },
-    { value: 'DISABLED', index: 3 },
+    { value: 'PROBLEMATIC', index: 3 },
+    { value: 'LOST', index: 4 },
+    { value: 'CLOSED', index: 5 },
+    { value: 'EXPIRED', index: 6 },
+    { value: 'DISABLED', index: 7 },
   ];
 
   const filterLeads = (value: string, index: number) => {
@@ -59,7 +60,7 @@ const Dashboard = () => {
   return (
     <div className='flex flex-col gap-5'>
       <Tilte name='Dashboard' />
-      <div className='grid lg:grid-cols-2 lg:gap-10 gap-5'>
+      <div className='grid lg:grid-cols-3 md:grid-cols-2 lg:gap-10 gap-5'>
         {statistics.map((statistic: any, index: any) => (
           <Cards
             key={index}

@@ -42,9 +42,15 @@ export const routesSidebar: dataItem[] = [
     rol: ['admin'],
   },
   {
+    name: 'Dashboard',
+    route: '/dash-lawyers',
+    icon: MdDashboard,
+    rol: ['lawyer'],
+  },
+  {
     name: 'All Leads',
     route: '/all-leads',
-    icon: MdDashboard,
+    icon: MdWork,
     rol: ['lawyer'],
   },
   {

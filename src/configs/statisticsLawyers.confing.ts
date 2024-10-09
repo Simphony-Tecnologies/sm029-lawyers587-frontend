@@ -5,12 +5,11 @@ import LeadsforReview from '@/assets/leads-for-review.png';
 import DeadLeads from '@/assets/dead-leads.png';
 import Closed from '@/assets/closed-leads.png';
 import Expired from '@/assets/expired-leads.png';
-import Disabled from '@/assets/disabled-leads.png';
 import { statusColors } from './statusColor';
 export const statistics: typeStatistis[] = [
   {
-    title: 'New Leads',
-    value: 0,
+    title: 'Avalible Leads',
+    value: '0 of 0',
     date: 'today',
     icon: NewLeads,
     color: statusColors.NEW,
@@ -56,12 +55,5 @@ export const statistics: typeStatistis[] = [
     date: 'today',
     icon: Expired,
     color: statusColors.EXPIRED,
-  },
-  {
-    title: 'Disabled',
-    value: 0,
-    date: 'today',
-    icon: Disabled,
-    color: statusColors.DISABLED,
   },
 ];

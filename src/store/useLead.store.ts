@@ -1,4 +1,5 @@
 // store/useLeadsStore.ts
+import { database } from '@/services/database';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -22,7 +23,13 @@ export const useLeadsStore = create<LeadsStore>((set) => ({
       if (!leadsData.success) {
         throw new Error('Failed to fetch leads data');
       }
+      const lawyersAssigned = await database.fetchData(
+        process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED || ''
+      );
 
+      if (!lawyersAssigned.success) {
+        throw new Error('Error conecting with database');
+      }
       const data = leadsData.data.map((lead: any) => ({
         'lead id': lead.id,
         date: new Date(lead.created_at),
@@ -36,10 +43,21 @@ export const useLeadsStore = create<LeadsStore>((set) => ({
         lawyer: 'No assigned',
         status: lead.status,
       }));
+      const updatedDataLeads = data.map((items: any) => {
+        const lawyer = lawyersAssigned.data.find(
+          (lawyer: any) => lawyer.lead === items['lead id']
+        );
+        return {
+          ...items,
+          lawyer: lawyer
+            ? `${lawyer.lawyer.firstName} ${lawyer.lawyer.lastName} `
+            : 'No assigned',
+        };
+      });
 
       set({
         columns: Object.keys(data[0]),
-        dataLeads: data,
+        dataLeads: updatedDataLeads,
         error: null,
       });
     } catch (err) {
