@@ -31,13 +31,13 @@ export async function middleware(req: any) {
     '/lead-management',
     '/dashboard',
   ];
-  const protectedRoutesLawyer = ['/all-leads', '/select-lead'];
+  const protectedRoutesLawyer = ['/all-leads', '/select-lead', '/dash-lawyers'];
 
   if (role === 'admin' && currentUser && req.nextUrl.pathname === '/') {
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
   if (role === 'lawyer' && currentUser && req.nextUrl.pathname === '/') {
-    return NextResponse.redirect(new URL('/all-leads', req.url));
+    return NextResponse.redirect(new URL('/dash-lawyers', req.url));
   }
   if (
     (role !== 'admin' || !currentUser) &&

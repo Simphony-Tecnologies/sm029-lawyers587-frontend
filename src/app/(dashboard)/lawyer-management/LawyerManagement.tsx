@@ -644,6 +644,9 @@ const LawyerManagement = () => {
     getLastLogin(index);
     setisOpenSession(true);
   };
+  const removeLawyer = (title: string) => {
+    return title.replace('Lawyer', '').trim();
+  };
   useEffect(() => {
     getServiceType();
     getRole();
@@ -725,7 +728,7 @@ const LawyerManagement = () => {
               {selectedOptionsService.map((option) => (
                 <div key={option.value} className='mt-2'>
                   <label htmlFor={`additional-${option.value}`}>
-                    Maximun leads for {option.label}:
+                    Maximun Leads for {removeLawyer(option.label)}:
                   </label>
                   <input
                     type='text'
@@ -907,7 +910,7 @@ const LawyerManagement = () => {
               {selectedOptionsService.map((option) => (
                 <div key={option.value} className='mt-2'>
                   <label htmlFor={`additional-${option.value}`}>
-                    Maximun leads for {option.label}:
+                    Maximun Leads for {removeLawyer(option.label)}:
                   </label>
                   <input
                     type='text'

@@ -13,10 +13,12 @@ import toast from 'react-hot-toast';
 import Input from '@/components/atoms/Input';
 import Button from '@/components/atoms/Button';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
+import ReLoading from '@/components/atoms/ReLoading';
 const LeadManagement = () => {
   const { columns, dataLeads, error, fetchLeads }: any = useLeadsStore();
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [filterData, setFilterData] = useState(dataLeads);
+
   //const [selecArray, setselecArray] = useState([]);
   const [uniqueStatuses, setUniqueStatuses] = useState([]);
   const { selecArray, setSelecArray } = useSelectStatus();
@@ -59,27 +61,7 @@ const LeadManagement = () => {
       value: 'EXPIRED',
     },
   ];
-  const lawyerAssigned = async () => {
-    const res = await database.fetchData(
-      process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED || ''
-    );
 
-    if (!res.success) {
-      toast.error('Error conecting with database');
-    }
-    const updatedDataLeads = filterData.map((items: any) => {
-      const lawyer = res.data.find(
-        (lawyer: any) => lawyer.lead === items['lead id']
-      );
-      return {
-        ...items,
-        lawyer: lawyer
-          ? `${lawyer.lawyer.firstName} ${lawyer.lawyer.lastName} `
-          : 'No assigned',
-      };
-    });
-    setFilterData(updatedDataLeads);
-  };
   const filterSearch = (text: string | null) => {
     if (text) {
       if (dataLeads) {
@@ -186,18 +168,16 @@ const LeadManagement = () => {
       setUniqueStatuses(uniqueStatus);
     }
   }, [dataLeads]);
-  useEffect(() => {
-    if (filterData) {
-      lawyerAssigned();
-    }
-  }, [dataLeads]);
 
-  useEffect(() => {
-    if (selecArray.length <= 0) {
-      fetchLeads();
-    }
-  }, []);
+  // useEffect(() => {
+  //   if (selecArray.length <= 0) {
+  //     fetchLeads();
+  //   }
+  // }, []);
 
+  if (loading) {
+    return <ReLoading />;
+  }
   return (
     <div className='flex flex-col gap-5'>
       <Modal title='Lead info' isOpen={isOpenLead} setIsOpen={setIsOpenLead}>
@@ -227,6 +207,7 @@ const LeadManagement = () => {
               values={statusSelect}
               statusColors={statusColors}
               defaultValue={selectedLead?.status}
+              setStatusSelected={setSelectedStatus}
             />
             <p></p>
             <p>Email:</p>

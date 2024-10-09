@@ -18,6 +18,8 @@ import { MdOutlineCases } from 'react-icons/md';
 import useLoadingStore from '@/store/useLoadingStore';
 import SkeletonText from '@/components/atoms/SkeletonText';
 import Loading from '../loading';
+import CountdownTimer from '@/components/organisms/CountdownTimer';
+import { useSelectStatus } from '@/store/useSelectStatus';
 
 const AllLeads = () => {
   dayjs.extend(utc);
@@ -32,7 +34,7 @@ const AllLeads = () => {
   const [originalData, setOriginalData] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectStatus, setSelectStatus] = useState();
-
+  const { selecArray, setSelecArray } = useSelectStatus();
   const { setLoading, isLoading } = useLoadingStore();
 
   const statusSelect = [
@@ -77,7 +79,7 @@ const AllLeads = () => {
 
       // Verifica si dataLeads es undefined o vacío y lanza un error
       if (!dataLeads || dataLeads.length === 0) {
-        return console.log('No leads data found');
+        throw new Error('No leads data found');
       }
       const datafilter = dataLeads.map(({ lawyer, ...rest }: any) => rest);
       const filterLeads = datafilter.filter((item: any) =>
@@ -89,7 +91,7 @@ const AllLeads = () => {
       // Establece los datos filtrados en los estados correspondientes
       setOriginalData(filterLeads);
       setLawyerData(filterLeads);
-
+      filterArray(filterLeads);
       if (filterLeads.length > 0) {
         const titles: any = Object.keys(filterLeads[0]);
         setColumns(titles);
@@ -107,20 +109,38 @@ const AllLeads = () => {
     setIsOpenLead(true);
     if (lawyerData) {
       setSelectedLead(lawyerData[index]);
-
-      if (lawyerData[index].status === 'ASSIGNED') {
-        const dataUpdate = {
-          status: 'IN PROGRESS',
-        };
-        await database.updateData(
-          `${process.env.NEXT_PUBLIC_URL_LEADS}/${lawyerData[index]['lead id']}`,
-          dataUpdate
-        );
-        fetchLeads();
-
-        setSelectedLead({ ...lawyerData[index], status: 'IN PROGRESS' });
-      }
     }
+  };
+  const filterArray = (lawyerData: any) => {
+    let accumulatedResults: any[] = [];
+    if (lawyerData && selecArray.length > 0) {
+      handleStatusClick('');
+      selecArray.forEach((keyword: string) => {
+        const dataFilter = lawyerData.filter((item: any) =>
+          item?.status.toLowerCase().includes(keyword.toLowerCase())
+        );
+
+        dataFilter.forEach((lead: any) => {
+          if (
+            !accumulatedResults.some(
+              (accItem) => accItem['lead id'] === lead['lead id']
+            )
+          ) {
+            accumulatedResults.push(lead);
+          }
+        });
+      });
+
+      // Actualiza el estado con los datos acumulados
+
+      setLawyerData(accumulatedResults);
+      return accumulatedResults;
+    }
+
+    // Si no hay texto o keywords, se restablecen los leads originales
+    setSelecArray([]);
+    setLawyerData(lawyerData);
+    return lawyerData;
   };
   const getServiceType = async () => {
     const resType = await database.getData(
@@ -177,6 +197,7 @@ const AllLeads = () => {
   );
 
   const handleStatusClick = (status: string | null) => {
+    setSelecArray([]);
     setSelectedStatus(status);
     filterSearch(status);
   };
@@ -184,6 +205,7 @@ const AllLeads = () => {
     getLawyer();
     getServiceType();
   }, [user, dataLeads]);
+
   if (isLoading) {
     return <Loading />;
   }
@@ -220,6 +242,9 @@ const AllLeads = () => {
           <p className='text-red-500'>
             This lead will be marked as lost and will not be reinstated.
           </p>
+          {selectedLead.status === 'ASSIGNED' && (
+            <CountdownTimer targetDate={selectedLead['date_updated']} />
+          )}
           <p className='text-4xl py-6 '>{selectedLead?.['lead name']}</p>
           <form onSubmit={saveLeadContact} className='grid grid-cols-3 gap-2 '>
             <p className=''>Status:</p>

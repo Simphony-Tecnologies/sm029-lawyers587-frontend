@@ -206,11 +206,7 @@ const SortableTable = ({
                   .map((column: any) => (
                     <td
                       key={column}
-                      className={`${
-                        rol === 'lawyer' &&
-                        item.status === 'ASSIGNED' &&
-                        ' blur-sm select-none'
-                      } px-4 py-2 border-b border-gray-200 `}
+                      className={` px-4 py-2 border-b border-gray-200 `}
                       //onContextMenu={(e) => e.preventDefault()}
                     >
                       {column === 'date' ? (
@@ -218,6 +214,30 @@ const SortableTable = ({
                           .utc(item[column] as string)
                           .local()
                           .format('MM/DD/YYYY')
+                      ) : column === 'email' ? (
+                        <p
+                          className={`${
+                            rol === 'lawyer' &&
+                            item.status === 'ASSIGNED' &&
+                            ' blur-sm select-none'
+                          }`}
+                        >
+                          {rol === 'lawyer' && item.status === 'ASSIGNED'
+                            ? 'xxx@587lawyers.com'
+                            : item[column]}
+                        </p>
+                      ) : column === 'phone number' ? (
+                        <p
+                          className={`${
+                            rol === 'lawyer' &&
+                            item.status === 'ASSIGNED' &&
+                            ' blur-sm select-none'
+                          }`}
+                        >
+                          {rol === 'lawyer' && item.status === 'ASSIGNED'
+                            ? '0000000000'
+                            : item[column]}
+                        </p>
                       ) : column === 'lawyer name' ? (
                         <p
                           onClick={() => onRoute && onRoute(item.originalIndex)}
@@ -325,8 +345,8 @@ const SortableTable = ({
                   </td>
                 )}
                 {onContact && (
-                  <td className='px-4 py-2 border-b border-gray-200'>
-                    <button
+                  <td className='px-4 py-2 border-b border-gray-200  text-center'>
+                    {/* <button
                       onClick={() =>
                         item.status !== 'DISABLED' &&
                         onContact(item.originalIndex)
@@ -341,7 +361,19 @@ const SortableTable = ({
                       }
                     >
                       Contact
-                    </button>
+                    </button> */}
+                    {item.status === 'EXPIRED' || item.status === 'DISABLED' ? (
+                      <button className='text-white bg-gray-500 bg-opacity-70 p-1 rounded-full mr-2 hover:cursor-not-allowed'>
+                        <MdEdit />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onContact(item.originalIndex)}
+                        className='text-white bg-customGreen bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customGreen'
+                      >
+                        <MdEdit />
+                      </button>
+                    )}
                   </td>
                 )}
               </tr>

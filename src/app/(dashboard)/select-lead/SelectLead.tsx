@@ -294,6 +294,7 @@ const SelectLead = () => {
         'lead name': leadName,
         comments,
         status,
+        lawyer,
         ...rest
       }) => {
         const modifiedStatus = status === 'EXPIRED' ? 'REASSIGNED' : status;
@@ -339,6 +340,7 @@ const SelectLead = () => {
         'lead name': leadName,
         comments,
         status,
+        lawyer,
         ...rest
       }) => {
         const modifiedStatus = status === 'EXPIRED' ? 'REASSIGNED' : status;
