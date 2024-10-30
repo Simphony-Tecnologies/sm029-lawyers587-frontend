@@ -1,5 +1,11 @@
 import type { dataItem } from '@/types/routes.interface';
-import { MdBusiness, MdChecklist, MdDashboard, MdWork } from 'react-icons/md';
+import {
+  MdBusiness,
+  MdChecklist,
+  MdDashboard,
+  MdNotifications,
+  MdWork,
+} from 'react-icons/md';
 
 export const routesSidebar: dataItem[] = [
   {
@@ -56,7 +62,7 @@ export const routesSidebar: dataItem[] = [
   {
     name: 'New Leads',
     route: '/select-lead',
-    icon: MdChecklist,
+    icon: MdNotifications,
     rol: ['lawyer'],
   },
 ];

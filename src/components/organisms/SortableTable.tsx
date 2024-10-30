@@ -174,7 +174,7 @@ const SortableTable = ({
               )}
               {onContact && (
                 <th className='px-4 py-2 border-b-2 border-gray-200 uppercase text-start'>
-                  CONTACT
+                  ACTIONS
                 </th>
               )}
             </tr>
@@ -294,6 +294,8 @@ const SortableTable = ({
                             </div>
                           ) : item[column] === 'LOST' ? (
                             'Send Back'
+                          ) : item[column] === 'CLOSED' ? (
+                            'Retained'
                           ) : item[column] === 'EXPIRED' ? (
                             'Dead'
                           ) : (

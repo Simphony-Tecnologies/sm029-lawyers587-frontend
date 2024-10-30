@@ -16,7 +16,7 @@ export const statistics: typeStatistis[] = [
     color: statusColors.NEW,
   },
   {
-    title: 'Assigned Leads',
+    title: 'Pulled Leads',
     value: 0,
     date: 'today',
     icon: NewLeads,
@@ -37,14 +37,14 @@ export const statistics: typeStatistis[] = [
     color: statusColors.PROBLEMATIC,
   },
   {
-    title: 'Send back Leads',
+    title: 'Send Back Leads (REVIEW)',
     value: 0,
     date: 'today',
     icon: DeadLeads,
     color: statusColors.LOST,
   },
   {
-    title: 'Closed',
+    title: 'Retained',
     value: 0,
     date: 'today',
     icon: Closed,

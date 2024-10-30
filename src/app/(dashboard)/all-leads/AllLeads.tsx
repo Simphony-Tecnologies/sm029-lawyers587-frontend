@@ -51,7 +51,7 @@ const AllLeads = () => {
       value: 'LOST',
     },
     {
-      name: 'Closed',
+      name: 'Retained',
       value: 'CLOSED',
     },
   ];

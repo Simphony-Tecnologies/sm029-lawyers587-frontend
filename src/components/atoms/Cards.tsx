@@ -16,7 +16,7 @@ const Cards = ({ title, value, date, icon, color, onClick }: typeStatistis) => {
           </h1>
           <p
             className={`${
-              title === 'Avalible Leads' ? 'lg:text-5xl' : 'lg:text-6xl'
+              title === 'Available Leads' ? 'lg:text-5xl' : 'lg:text-6xl'
             }  text-5xl font-bold`}
             style={{ color: `${color}` }}
           >
