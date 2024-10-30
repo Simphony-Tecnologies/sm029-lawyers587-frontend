@@ -52,9 +52,12 @@ const Header = () => {
       const dataLawyerUser = await database.getLawyer(user.id);
       setLocasUser(dataLawyerUser.data.data);
 
-      const countFalse = resData.data.filter(
-        (item: any) => item.is_active === false
-      );
+      const countFalse = resData.data
+        .filter((item: any) => item.is_active === false)
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
       setdataNotification(countFalse);
       setCount(countFalse.length);
     }
@@ -69,6 +72,9 @@ const Header = () => {
     );
 
     getNotifications();
+    router.push(
+      user.role.name === 'admin' ? '/lead-management' : '/select-lead'
+    );
   };
   const signOut = () => {
     database.signout();
@@ -142,7 +148,7 @@ const Header = () => {
         <MenuItems
           transition
           anchor='bottom end'
-          className='flex flex-col bg-white w-72  rounded-xl border shadow-sm   transition duration-100 items-center divide-y py-2'
+          className='flex flex-col bg-white w-72 rounded-xl border border-gray-200 shadow-lg transition duration-200 items-start divide-y py-2'
         >
           {dataNotification ? (
             dataNotification.length > 0 ? (
@@ -150,17 +156,28 @@ const Header = () => {
                 <div
                   onClick={() => handleTrueNotification(res.id)}
                   key={res.id}
-                  className='hover:bg-gray-200 px-2 rounded-md cursor-pointer '
+                  className='w-full px-4 py-3 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors duration-200 flex flex-col gap-1'
                 >
-                  <p className='text-sm'>{formatDate(res.created_at)}</p>
-                  <p className='text-primary'>{res.text}</p>
+                  <div className='flex items-center justify-between'>
+                    <p className='text-xs text-gray-500'>
+                      {formatDate(res.created_at)}
+                    </p>
+                    {!res.seen && (
+                      <span className='h-2 w-2 bg-blue-500 rounded-full'></span>
+                    )}
+                  </div>
+                  <p className='text-sm font-medium text-gray-800'>
+                    {res.text}
+                  </p>
                 </div>
               ))
             ) : (
-              <div>There are not notifications yet</div>
+              <div className='w-full text-center text-gray-500 py-4'>
+                No notifications yet
+              </div>
             )
           ) : (
-            <div className='w-full p-2'>
+            <div className='w-full p-4'>
               <SkeletonText lines={3} />
             </div>
           )}

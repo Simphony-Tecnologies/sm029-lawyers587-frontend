@@ -49,7 +49,7 @@ const LeadManagement = () => {
       value: 'LOST',
     },
     {
-      name: 'Closed',
+      name: 'Retained',
       value: 'CLOSED',
     },
     {
