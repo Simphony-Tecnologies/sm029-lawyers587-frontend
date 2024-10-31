@@ -24,22 +24,15 @@ const LeadManagement = () => {
   const { selecArray, setSelecArray } = useSelectStatus();
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>({});
-
+  const [isOpenDelete, setIsOpenDelete] = useState(false);
   const [loading, setloading] = useState(false);
 
   const statusSelect = [
     {
-      name: 'Assigned',
-      value: 'ASSIGNED',
-    },
-    {
       name: 'In progress',
       value: 'IN PROGRESS',
     },
-    {
-      name: 'New',
-      value: 'NEW',
-    },
+
     {
       name: 'Problematic',
       value: 'PROBLEMATIC',
@@ -115,6 +108,11 @@ const LeadManagement = () => {
     setSelectedStatus(status);
     filterSearch(status);
   };
+  const handleDelete = async (index: number) => {
+    setIsOpenDelete(true);
+
+    setSelectedLead(filterData[index]);
+  };
   const handleContact = async (index: number) => {
     setIsOpenLead(true);
     if (filterData) {
@@ -134,9 +132,15 @@ const LeadManagement = () => {
       // }
     }
   };
+
   const saveLeadContact = async (e: any) => {
-    setloading(true);
     e.preventDefault();
+    if (selectedLead.status === 'NEW' || selectedStatus !== 'DISABLED') {
+      return toast.error(
+        "You can't modify the lead if it isn't assigned to a lawyer"
+      );
+    }
+    setloading(true);
 
     const dataUpdate = {
       status:
@@ -157,6 +161,17 @@ const LeadManagement = () => {
     setIsOpenLead(false);
     fetchLeads();
     setloading(false);
+  };
+  const DeleteLead = async () => {
+    const dataDelete = await database.deleteData(
+      `${process.env.NEXT_PUBLIC_URL_LEADS}/${selectedLead['lead id']}`
+    );
+    if (!dataDelete.success) {
+      return toast.error('Error to delete lawyer');
+    }
+    toast.success('Success to delete');
+    setIsOpenDelete(false);
+    fetchLeads();
   };
 
   useEffect(() => {
@@ -179,9 +194,9 @@ const LeadManagement = () => {
     return <ReLoading />;
   }
   return (
-    <div className='flex flex-col gap-5'>
-      <Modal title='Lead info' isOpen={isOpenLead} setIsOpen={setIsOpenLead}>
-        <div className='px-8'>
+    <div className="flex flex-col gap-5">
+      <Modal title="Lead info" isOpen={isOpenLead} setIsOpen={setIsOpenLead}>
+        <div className="px-8">
           <p>
             Selection date :{' '}
             {Object.keys(selectedLead).length > 0 &&
@@ -194,67 +209,72 @@ const LeadManagement = () => {
             <CountdownTimer targetDate={selectedLead['date_updated']} />
           )}
 
-          <p className='text-red-500'>
+          <p className="text-red-500">
             This lead will be marked as lost and will not be reinstated.
           </p>
-          <p className='text-4xl py-6 '>{selectedLead?.['lead name']}</p>
-          <form onSubmit={saveLeadContact} className='grid grid-cols-3 gap-2 '>
-            <p className=''>Status:</p>
+          <p className="text-4xl py-6 ">{selectedLead?.['lead name']}</p>
+          <form onSubmit={saveLeadContact} className="grid grid-cols-3 gap-2 ">
+            <p className="">Status:</p>
 
             <Input
-              type='select'
-              name='status'
+              type="select"
+              name="status"
               values={statusSelect}
               statusColors={statusColors}
-              defaultValue={selectedLead?.status}
+              defaultValue={
+                selectedLead.status === 'ASSIGNED' ||
+                selectedLead.status === 'NEW'
+                  ? ''
+                  : selectedLead?.status
+              }
               setStatusSelected={setSelectedStatus}
             />
             <p></p>
             <p>Email:</p>
-            <p className='col-span-2 text-gray-500 '>{selectedLead?.email}</p>
+            <p className="col-span-2 text-gray-500 ">{selectedLead?.email}</p>
             <p>Phone number:</p>
-            <p className='col-span-2 text-gray-500'>
+            <p className="col-span-2 text-gray-500">
               {selectedLead?.['phone number']}
             </p>
             <p>Service Type:</p>
-            <p className='col-span-2 text-gray-500'>{selectedLead?.service}</p>
+            <p className="col-span-2 text-gray-500">{selectedLead?.service}</p>
             <p>Description:</p>
             <textarea
-              name='description'
-              className='col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md'
-              placeholder=' Leave your comment.....'
+              name="description"
+              className="col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md"
+              placeholder=" Leave your comment....."
             >
               {selectedLead?.['description lead']}
             </textarea>
 
             <p>Comment:</p>
             <textarea
-              name='comments'
-              className='col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md'
-              placeholder=' Leave your comment.....'
+              name="comments"
+              className="col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md"
+              placeholder=" Leave your comment....."
             >
               {selectedLead?.comments}
             </textarea>
             <p></p>
-            <p className='flex gap-1 col-span-2 text-gray-500 '>
+            <p className="flex gap-1 col-span-2 text-gray-500 ">
               <input
-                name='checkbox'
+                name="checkbox"
                 id={`checkbox-lead`}
-                className='peer hidden'
-                type='checkbox'
+                className="peer hidden"
+                type="checkbox"
               />
               <label
                 htmlFor={`checkbox-lead`}
-                className='flex items-center justify-center w-5 h-5 border border-green-500 rounded bg-white cursor-pointer relative  text-white peer-checked:text-green-500'
+                className="flex items-center justify-center w-5 h-5 border border-green-500 rounded bg-white cursor-pointer relative  text-white peer-checked:text-green-500"
               >
-                <i className='fi fi-rr-check absolute  text-sm  peer-checked:block '></i>
+                <i className="fi fi-rr-check absolute  text-sm  peer-checked:block "></i>
               </label>{' '}
               Not contact this lead again
             </p>
-            <div className='col-end-4 text-right'>
+            <div className="col-end-4 text-right">
               <Button
-                name='Save'
-                type='submit'
+                name="Save"
+                type="submit"
                 disabled={loading}
                 color={`${
                   loading ? 'bg-gray-500 animate-pulse' : 'bg-primary'
@@ -262,13 +282,42 @@ const LeadManagement = () => {
               />
             </div>
           </form>
-          <p className='text-red-500 text-sm py-4'>
+          <p className="text-red-500 text-sm py-4">
             The super admin will review this case, leave us a clear comment.
           </p>
         </div>
       </Modal>
-      <Tilte name='Lead Management' search={true} filterSearch={filterSearch} />
-      <div className='flex gap-2 flex-wrap'>
+      <Modal
+        title="Delete"
+        isOpen={isOpenDelete}
+        setIsOpen={setIsOpenDelete}
+        className="max-w-sm"
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex justify-center text-center">
+            <p>
+              Are you sure you want to delete the lead{' '}
+              <span className="font-medium">{selectedLead?.email}?</span>
+            </p>
+          </div>
+
+          <div className="flex justify-around">
+            <Button
+              name="Cancel"
+              type="button"
+              onClick={() => setIsOpenDelete(false)}
+            />
+            <Button
+              name="Delete"
+              type="button"
+              color="bg-red-500"
+              onClick={DeleteLead}
+            />
+          </div>
+        </div>
+      </Modal>
+      <Tilte name="Lead Management" search={true} filterSearch={filterSearch} />
+      <div className="flex gap-2 flex-wrap">
         <button
           onClick={() => handleStatusClick(null)}
           className={`px-4 p-1 rounded text-sm ${
@@ -301,6 +350,7 @@ const LeadManagement = () => {
           data={filterData}
           statusColors={statusColors}
           onEdit={handleContact}
+          onDelete={handleDelete}
         />
       )}
     </div>
