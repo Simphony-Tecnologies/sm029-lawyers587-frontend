@@ -42,7 +42,7 @@ const Input = ({
 
   const handleChangeColor = (event: any) => {
     const newValue = event.target.value;
-    setStatusSelected(newValue);
+    //setStatusSelected(newValue);
 
     if (statusColors) {
       setSelectedColor(statusColors[newValue]);
@@ -54,13 +54,13 @@ const Input = ({
   };
 
   return (
-    <div className='relative'>
-      <label className='capitalize font-bold' htmlFor={name}>
+    <div className="relative">
+      <label className="capitalize font-bold" htmlFor={name}>
         {label}
       </label>
       {type === 'select' ? (
         <select
-          className='flex flex-row w-full max-w-lg border border-gray-300 p-1 rounded-lg placeholder:font-light text-text'
+          className="flex flex-row w-full max-w-lg border border-gray-300 p-1 rounded-lg placeholder:font-light text-text"
           name={name}
           defaultValue={defaultValue}
           onChange={handleChangeColor}
@@ -70,7 +70,7 @@ const Input = ({
             outline: 'none',
           }}
         >
-          <option value='' disabled>
+          <option value="" disabled>
             select
           </option>
           {values.map((value: any, index: number) => (
@@ -93,18 +93,18 @@ const Input = ({
           type={type}
           maxLength={10}
           minLength={10}
-          pattern='\d{10}'
+          pattern="\d{10}"
           defaultValue={defaultValue}
           id={name}
           name={name}
           required={required}
           placeholder={placeholder}
-          autoComplete='on'
-          className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500'
+          autoComplete="on"
+          className="border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500"
           onChange={onChange}
         />
       ) : type === 'password' ? (
-        <div className='flex items-center border border-gray-300 rounded-md'>
+        <div className="flex items-center border border-gray-300 rounded-md">
           <input
             type={showPassword ? 'text' : 'password'}
             defaultValue={defaultValue}
@@ -112,27 +112,27 @@ const Input = ({
             id={name}
             required={required}
             placeholder={placeholder}
-            className='w-full p-1 text-sm text-gray-500'
-            autoComplete='new-password'
+            className="w-full p-1 text-sm text-gray-500"
+            autoComplete="new-password"
             onChange={onChange}
           />
           <button
-            type='button'
+            type="button"
             onClick={togglePasswordVisibility}
-            className='p-2 text-gray-500 hover:text-gray-700'
+            className="p-2 text-gray-500 hover:text-gray-700"
           >
             {showPassword ? <MdVisibilityOff /> : <MdVisibility />}
           </button>
         </div>
       ) : type === 'multiselect' ? (
-        <div className=''>
+        <div className="">
           <Select
             defaultValue={defaultValue}
             isMulti
             name={name}
             options={values}
-            className='basic-multi-select'
-            classNamePrefix='select'
+            className="basic-multi-select"
+            classNamePrefix="select"
             onChange={handleChangeService}
             required={required}
           />
@@ -145,8 +145,8 @@ const Input = ({
           id={name}
           required={required}
           placeholder={placeholder}
-          className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500'
-          autoComplete='on'
+          className="border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500"
+          autoComplete="on"
           onChange={onChange}
         />
       )}

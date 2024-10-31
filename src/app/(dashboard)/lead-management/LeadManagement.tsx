@@ -29,17 +29,10 @@ const LeadManagement = () => {
 
   const statusSelect = [
     {
-      name: 'Assigned',
-      value: 'ASSIGNED',
-    },
-    {
       name: 'In progress',
       value: 'IN PROGRESS',
     },
-    {
-      name: 'New',
-      value: 'NEW',
-    },
+
     {
       name: 'Problematic',
       value: 'PROBLEMATIC',
@@ -139,9 +132,15 @@ const LeadManagement = () => {
       // }
     }
   };
+
   const saveLeadContact = async (e: any) => {
-    setloading(true);
     e.preventDefault();
+    if (selectedLead.status === 'NEW' || selectedStatus !== 'DISABLED') {
+      return toast.error(
+        "You can't modify the lead if it isn't assigned to a lawyer"
+      );
+    }
+    setloading(true);
 
     const dataUpdate = {
       status:
@@ -222,7 +221,12 @@ const LeadManagement = () => {
               name="status"
               values={statusSelect}
               statusColors={statusColors}
-              defaultValue={selectedLead?.status}
+              defaultValue={
+                selectedLead.status === 'ASSIGNED' ||
+                selectedLead.status === 'NEW'
+                  ? ''
+                  : selectedLead?.status
+              }
               setStatusSelected={setSelectedStatus}
             />
             <p></p>

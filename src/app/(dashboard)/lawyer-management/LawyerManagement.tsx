@@ -78,7 +78,7 @@ const LawyerManagement = () => {
       status:
         data.status === undefined
           ? null
-          : data.status
+          : data.status && data.is_active
           ? 'Assignable'
           : 'Unassignable',
     };
@@ -657,47 +657,47 @@ const LawyerManagement = () => {
   }, [dataLeads, dataProject === null, dataLawyerLeads === null]);
 
   return (
-    <div className='mx-auto flex flex-col gap-5'>
-      <Modal title='Lawyer Details' isOpen={isOpen} setIsOpen={setIsOpen}>
-        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200'>
-          <div className='flex flex-col gap-5'>
-            <div className='text-gray-500 text-sm'>Code: {dataIndex?.id}</div>
-            <div className='flex items-center gap-2'>
+    <div className="mx-auto flex flex-col gap-5">
+      <Modal title="Lawyer Details" isOpen={isOpen} setIsOpen={setIsOpen}>
+        <div className="p-5 border-2 border-t-none border-solid rounded-lg border-gray-200">
+          <div className="flex flex-col gap-5">
+            <div className="text-gray-500 text-sm">Code: {dataIndex?.id}</div>
+            <div className="flex items-center gap-2">
               {imagePreview ? (
                 <img
                   src={imagePreview}
-                  alt='Preview'
+                  alt="Preview"
                   width={300}
                   height={300}
-                  className='object-cover rounded-full w-20 h-20  '
+                  className="object-cover rounded-full w-20 h-20  "
                 />
               ) : dataIndex?.profile_image_url ? (
                 <img
                   src={dataIndex.profile_image_url}
-                  alt='Preview'
+                  alt="Preview"
                   width={300}
                   height={300}
-                  className='object-cover rounded-full w-20 h-20  '
+                  className="object-cover rounded-full w-20 h-20  "
                 />
               ) : (
-                <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
+                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer">
                   <MdOutlineImage size={32} />
                 </div>
               )}
-              <div className='relative'>
+              <div className="relative">
                 <input
-                  type='file'
-                  accept='image/*'
-                  className='absolute inset-0  cursor-pointer opacity-0'
-                  name='Change image'
+                  type="file"
+                  accept="image/*"
+                  className="absolute inset-0  cursor-pointer opacity-0"
+                  name="Change image"
                   onChange={updateImage}
                 />
-                <p className='underline cursor-pointer '>Change image</p>
+                <p className="underline cursor-pointer ">Change image</p>
               </div>
 
               <MdOutlineImage size={24} />
             </div>
-            <form onSubmit={UpdateLawyer} className='grid grid-cols-2 gap-5'>
+            <form onSubmit={UpdateLawyer} className="grid grid-cols-2 gap-5">
               {modalLawyerInput.map(
                 (res: any, index: number) =>
                   res.mode !== 'edit' && (
@@ -714,27 +714,27 @@ const LawyerManagement = () => {
                     />
                   )
               )}
-              <div className='col-span-2'>
+              <div className="col-span-2">
                 <Input
-                  name='service_type_id'
-                  label='area of law'
+                  name="service_type_id"
+                  label="area of law"
                   required={true}
-                  type='multiselect'
+                  type="multiselect"
                   values={labelService}
                   defaultValue={selectedOptionsService}
                   handleChangeService={handleChangeService}
                 />
               </div>
               {selectedOptionsService.map((option) => (
-                <div key={option.value} className='mt-2'>
+                <div key={option.value} className="mt-2">
                   <label htmlFor={`additional-${option.value}`}>
                     Maximun Leads for {removeLawyer(option.label)}:
                   </label>
                   <input
-                    type='text'
+                    type="text"
                     required
                     id={`additional-${option.value}`}
-                    className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500'
+                    className="border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500"
                     onChange={(event) =>
                       handleAdditionalValueUpdate(option, event)
                     }
@@ -742,38 +742,38 @@ const LawyerManagement = () => {
                   />
                 </div>
               ))}
-              <div className='col-span-2'>
-                <label className='font-bold' htmlFor='Notes'>
+              <div className="col-span-2">
+                <label className="font-bold" htmlFor="Notes">
                   Notes
                 </label>
                 <textarea
                   defaultValue={dataIndex?.notes}
-                  name='notes'
-                  className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
+                  name="notes"
+                  className="border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 "
                 />
               </div>
-              <div className=''>
-                <p className='text-primary font-bold'>Password</p>
+              <div className="">
+                <p className="text-primary font-bold">Password</p>
                 <p
                   onClick={() => setIsopenPassword(true)}
-                  className='hover:underline cursor-pointer '
+                  className="hover:underline cursor-pointer "
                 >
                   Update password
                 </p>
               </div>
 
-              <button className='relative'>
-                <p className='rounded-md bg-primary text-white inline-block bottom-0 absolute right-0 px-4'>
+              <button className="relative">
+                <p className="rounded-md bg-primary text-white inline-block bottom-0 absolute right-0 px-4">
                   save
                 </p>
               </button>
             </form>
           </div>
         </div>
-        <footer className='flex flex-col gap-6 mt-6'>
+        <footer className="flex flex-col gap-6 mt-6">
           <p>
             Info about the leads assigned to this lawyer{' '}
-            <span className='text-gray-500'>
+            <span className="text-gray-500">
               Since{' '}
               {dayjs
                 .utc(dataIndex?.created_at)
@@ -786,7 +786,7 @@ const LawyerManagement = () => {
                 .format('MM/DD/YYYY hh:mm:ss a')}
             </span>
           </p>
-          <div className='flex  gap-2 flex-wrap'>
+          <div className="flex  gap-2 flex-wrap">
             {lawyerStatistic.map((res: any, index) => (
               <div
                 onClick={
@@ -807,21 +807,21 @@ const LawyerManagement = () => {
                   color: res.color,
                 }}
               >
-                <p className=' '>{res.name}</p>
+                <p className=" ">{res.name}</p>
                 <p>: {res.value}</p>
               </div>
             ))}
           </div>
-          <div className='flex gap-4 items-center'>
+          <div className="flex gap-4 items-center">
             <p>Status:</p>
             {assignable === null ? (
-              <div className='w-full'>
+              <div className="w-full">
                 <SkeletonText />
               </div>
             ) : (
               <>
                 <p
-                  className='px-4 py-1 rounded-lg '
+                  className="px-4 py-1 rounded-lg "
                   style={{
                     backgroundColor: `${
                       !!assignable.isAssignable
@@ -853,38 +853,38 @@ const LawyerManagement = () => {
           </div>
         </footer>
       </Modal>
-      <Modal title='New Lawyer ' isOpen={isOpenNew} setIsOpen={setIsOpenNew}>
-        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200'>
-          <div className='flex flex-col gap-5'>
-            <div className='text-gray-500 text-sm'>Code: {dataIndex?.code}</div>
-            <div className='flex items-center gap-2'>
+      <Modal title="New Lawyer " isOpen={isOpenNew} setIsOpen={setIsOpenNew}>
+        <div className="p-5 border-2 border-t-none border-solid rounded-lg border-gray-200">
+          <div className="flex flex-col gap-5">
+            <div className="text-gray-500 text-sm">Code: {dataIndex?.code}</div>
+            <div className="flex items-center gap-2">
               {imagePreview ? (
                 <Image
                   src={imagePreview}
-                  alt='Preview'
+                  alt="Preview"
                   width={300}
                   height={300}
-                  className='object-cover rounded-full w-20 h-20  '
+                  className="object-cover rounded-full w-20 h-20  "
                 />
               ) : (
-                <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
+                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer">
                   <MdOutlineImage size={32} />
                 </div>
               )}
-              <div className='relative'>
+              <div className="relative">
                 <input
-                  type='file'
-                  accept='image/*'
-                  className='absolute inset-0  cursor-pointer opacity-0'
-                  name='Change image'
+                  type="file"
+                  accept="image/*"
+                  className="absolute inset-0  cursor-pointer opacity-0"
+                  name="Change image"
                   onChange={updateImage}
                 />
-                <p className='underline cursor-pointer '>Change image</p>
+                <p className="underline cursor-pointer ">Change image</p>
               </div>
 
               <MdOutlineImage size={24} />
             </div>
-            <form onSubmit={createlawyer} className='grid grid-cols-2 gap-5'>
+            <form onSubmit={createlawyer} className="grid grid-cols-2 gap-5">
               {modalNewLawyerInput.map((res: any, index: number) => (
                 <Input
                   key={index}
@@ -897,88 +897,88 @@ const LawyerManagement = () => {
                   onChange={handleFormNewLawyerPersist}
                 />
               ))}
-              <div className='col-span-2'>
+              <div className="col-span-2">
                 <Input
-                  name='service_type_id'
-                  label='area of law'
+                  name="service_type_id"
+                  label="area of law"
                   required={true}
-                  type='multiselect'
+                  type="multiselect"
                   values={labelService}
                   handleChangeService={handleChangenewLawyer}
                 />
               </div>
               {selectedOptionsService.map((option) => (
-                <div key={option.value} className='mt-2'>
+                <div key={option.value} className="mt-2">
                   <label htmlFor={`additional-${option.value}`}>
                     Maximun Leads for {removeLawyer(option.label)}:
                   </label>
                   <input
-                    type='text'
+                    type="text"
                     required
                     id={`additional-${option.value}`}
-                    className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500'
+                    className="border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500"
                     onChange={(event) =>
                       handleAdditionalValueChange(option, event)
                     }
                   />
                 </div>
               ))}
-              <div className='col-span-2'>
-                <label className='font-bold' htmlFor='notes'>
+              <div className="col-span-2">
+                <label className="font-bold" htmlFor="notes">
                   Notes
                 </label>
                 <textarea
                   defaultValue={formValues?.['notes']}
                   onChange={handleFormNewLawyerPersist}
-                  name='notes'
-                  id='notes'
-                  className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
+                  name="notes"
+                  id="notes"
+                  className="border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 "
                 />
               </div>
-              <div className='col-span-2 flex justify-end'>
-                <Button name='Save' type='submit' />
+              <div className="col-span-2 flex justify-end">
+                <Button name="Save" type="submit" />
               </div>
             </form>
           </div>
         </div>
       </Modal>
       <Modal
-        title='Delete'
+        title="Delete"
         isOpen={isOpenDelete}
         setIsOpen={setIsOpenDelete}
-        className='max-w-sm'
+        className="max-w-sm"
       >
-        <div className='flex flex-col gap-4'>
-          <div className='flex justify-center text-center'>
+        <div className="flex flex-col gap-4">
+          <div className="flex justify-center text-center">
             <p>
               Are you sure you want to delete the user{' '}
-              <span className='font-medium'>{dataIndex?.firstName}?</span>
+              <span className="font-medium">{dataIndex?.firstName}?</span>
             </p>
           </div>
 
-          <div className='flex justify-around'>
+          <div className="flex justify-around">
             <Button
-              name='Cancel'
-              type='button'
+              name="Cancel"
+              type="button"
               onClick={() => setIsOpenDelete(false)}
             />
             <Button
-              name='Delete'
-              type='button'
-              color='bg-red-500'
+              name="Delete"
+              type="button"
+              color="bg-red-500"
               onClick={DeleteLawyer}
             />
           </div>
         </div>
       </Modal>
       <Modal
-        title='Update password'
+        title="Update password"
         isOpen={isOpenPassword}
         setIsOpen={setIsopenPassword}
-        className='max-w-sm'
+        className="max-w-sm"
       >
-        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200 '>
-          <form className='flex flex-col gap-5' onSubmit={updatePassword}>
+        <div className="p-5 border-2 border-t-none border-solid rounded-lg border-gray-200 ">
+          <form className="flex flex-col gap-5" onSubmit={updatePassword}>
             {modalUpdatePassword.map((res: any, index: number) => (
               <Input
                 key={index}
@@ -988,27 +988,27 @@ const LawyerManagement = () => {
                 required={res.required}
               />
             ))}
-            <div className='flex justify-end'>
-              <Button name='Save' type='submit' />
+            <div className="flex justify-end">
+              <Button name="Save" type="submit" />
             </div>
           </form>
         </div>
       </Modal>
       <Modal
-        title='Session History'
+        title="Session History"
         setIsOpen={setisOpenSession}
         isOpen={isOpenSession}
-        className='max-w-sm'
+        className="max-w-sm"
       >
-        <div className='w-full max-w-md mx-auto p-4 bg-white rounded-lg shadow-md'>
-          <ul className='divide-y divide-gray-200'>
+        <div className="w-full max-w-md mx-auto p-4 bg-white rounded-lg shadow-md">
+          <ul className="divide-y divide-gray-200">
             {history.map((entry: any, index: number) => (
               <li
                 key={index}
-                className='py-2 flex justify-between items-center'
+                className="py-2 flex justify-between items-center"
               >
                 <span>{dayjs(entry.login_date).format('DD/MM/YYYY')}</span>
-                <span className='text-gray-500'>
+                <span className="text-gray-500">
                   {dayjs(entry.login_date).format('HH:mm')}
                 </span>
               </li>
@@ -1017,33 +1017,33 @@ const LawyerManagement = () => {
         </div>
       </Modal>
       <Tilte
-        name='Lawyer Management'
+        name="Lawyer Management"
         search={true}
         filterSearch={filterSearch}
       />
-      <div className='flex justify-end gap-2 '>
-        <Button name='+ New Lawyer' type='button' onClick={newLawyer} />
-        <div className='flex justify-end '>
+      <div className="flex justify-end gap-2 ">
+        <Button name="+ New Lawyer" type="button" onClick={newLawyer} />
+        <div className="flex justify-end ">
           <div onClick={() => setIsDeleteMultiple(!isDeleteMultiple)}>
             <MdOutlineDeleteSweep
-              className='text-secondary text-opacity-80 hover:text-opacity-100 cursor-pointer'
+              className="text-secondary text-opacity-80 hover:text-opacity-100 cursor-pointer"
               size={30}
             />
           </div>
         </div>
       </div>
       {Object.keys(selectedRows).length > 0 && (
-        <div className='flex justify-end gap-2 '>
+        <div className="flex justify-end gap-2 ">
           <Button
-            color='bg-red-500'
-            name='Confirm Multiple Delete '
-            type='button'
+            color="bg-red-500"
+            name="Confirm Multiple Delete "
+            type="button"
             onClick={() => ConfirmMultipleDelete()}
           />
           <Button
-            color='bg-gray-500'
-            name='Cancel '
-            type='button'
+            color="bg-gray-500"
+            name="Cancel "
+            type="button"
             onClick={() => {
               setIsDeleteMultiple(false);
               setSelectedRows({});
