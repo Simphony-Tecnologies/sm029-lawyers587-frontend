@@ -25,6 +25,7 @@ const LeadManagement = () => {
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>({});
   const [isOpenDelete, setIsOpenDelete] = useState(false);
+  const [selectedChange, setSelectedChange] = useState('');
   const [loading, setloading] = useState(false);
 
   const statusSelect = [
@@ -54,7 +55,27 @@ const LeadManagement = () => {
       value: 'EXPIRED',
     },
   ];
+  const statusNew = [
+    {
+      name: 'New',
+      value: 'NEW',
+    },
+  ];
+  const statusDisable = [
+    {
+      name: 'New',
+      value: 'IN PROGRESS',
+    },
 
+    {
+      name: 'Send Back',
+      value: 'LOST',
+    },
+    {
+      name: 'Expired',
+      value: 'EXPIRED',
+    },
+  ];
   const filterSearch = (text: string | null) => {
     if (text) {
       if (dataLeads) {
@@ -135,10 +156,18 @@ const LeadManagement = () => {
 
   const saveLeadContact = async (e: any) => {
     e.preventDefault();
-    if (selectedLead.status === 'NEW' || selectedStatus !== 'DISABLED') {
+    if (selectedLead.status === 'NEW') {
       return toast.error(
         "You can't modify the lead if it isn't assigned to a lawyer"
       );
+    }
+    if (selectedChange === 'LOST') {
+      const deleteAssined = await database.deleteData(
+        `${process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED}/lead/${selectedLead['lead id']}`
+      );
+      if (!deleteAssined.success) {
+        return toast.error('Error to delete lawyer');
+      }
     }
     setloading(true);
 
@@ -166,7 +195,10 @@ const LeadManagement = () => {
     const dataDelete = await database.deleteData(
       `${process.env.NEXT_PUBLIC_URL_LEADS}/${selectedLead['lead id']}`
     );
-    if (!dataDelete.success) {
+    const deleteAssined = await database.deleteData(
+      `${process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED}/lead/${selectedLead['lead id']}`
+    );
+    if (!dataDelete.success || !deleteAssined.success) {
       return toast.error('Error to delete lawyer');
     }
     toast.success('Success to delete');
@@ -219,7 +251,13 @@ const LeadManagement = () => {
             <Input
               type="select"
               name="status"
-              values={statusSelect}
+              values={
+                selectedLead.status === 'DISABLED'
+                  ? statusDisable
+                  : selectedLead.status === 'NEW'
+                  ? statusNew
+                  : statusSelect
+              }
               statusColors={statusColors}
               defaultValue={
                 selectedLead.status === 'ASSIGNED' ||
@@ -228,6 +266,7 @@ const LeadManagement = () => {
                   : selectedLead?.status
               }
               setStatusSelected={setSelectedStatus}
+              setOnChange={setSelectedChange}
             />
             <p></p>
             <p>Email:</p>
@@ -331,7 +370,7 @@ const LeadManagement = () => {
         {uniqueStatuses.map((status: any, index) => (
           <button
             key={index}
-            onClick={() => handleStatusClick(status)}
+            onClick={() => selectedLead(status)}
             className={`px-4 p-1 rounded text-sm ${
               selectedStatus === status
                 ? 'bg-primary bg-opacity-80 text-white'

@@ -129,13 +129,13 @@ const SortableTable = ({
   }
 
   return (
-    <div className='flex flex-col gap-10'>
-      <div className='overflow-x-auto shadow-sm sm:rounded-lg border'>
-        <table className='min-w-full bg-white'>
-          <thead className='bg-gray-50'>
+    <div className="flex flex-col gap-10">
+      <div className="overflow-x-auto shadow-sm sm:rounded-lg border">
+        <table className="min-w-full bg-white">
+          <thead className="bg-gray-50">
             <tr>
               {onSelectRow && (
-                <th className='px-4 py-2 border-b-2 border-gray-200'>
+                <th className="px-4 py-2 border-b-2 border-gray-200">
                   {pullButton}
                   {/* <input type='checkbox' disabled /> */}
                 </th>
@@ -146,14 +146,14 @@ const SortableTable = ({
                   <th
                     key={column}
                     onClick={() => onSort(column)}
-                    className='px-4 py-2 border-b-2 border-gray-200 cursor-pointer'
+                    className="px-4 py-2 border-b-2 border-gray-200 cursor-pointer"
                   >
-                    <div className='uppercase flex items-center text-start'>
+                    <div className="uppercase flex items-center text-start">
                       {column}
                       {sortConfig?.key === column && (
                         <span>
                           {sortConfig.direction === 'ascending' ? (
-                            <MdImportExport className='text-gray-500' />
+                            <MdImportExport className="text-gray-500" />
                           ) : (
                             <MdImportExport />
                           )}
@@ -163,17 +163,17 @@ const SortableTable = ({
                   </th>
                 ))}
               {(onEdit || onDelete) && (
-                <th className='px-4 py-2 border-b-2 border-gray-200 uppercase text-start'>
+                <th className="px-4 py-2 border-b-2 border-gray-200 uppercase text-start">
                   Actions
                 </th>
               )}
               {isDeleteMultiple && (
-                <th className='px-4 py-2 border-b-2 border-gray-200 uppercase text-start'>
+                <th className="px-4 py-2 border-b-2 border-gray-200 uppercase text-start">
                   Delete
                 </th>
               )}
               {onContact && (
-                <th className='px-4 py-2 border-b-2 border-gray-200 uppercase text-start'>
+                <th className="px-4 py-2 border-b-2 border-gray-200 uppercase text-start">
                   ACTIONS
                 </th>
               )}
@@ -183,20 +183,20 @@ const SortableTable = ({
             {paginatedData?.map((item: any, localIndex) => (
               <tr key={calculateGlobalIndex(localIndex)}>
                 {onSelectRow && (
-                  <td className='px-4 py-2 border-b border-gray-200 mx-auto '>
-                    <div className='flex text-center justify-center '>
+                  <td className="px-4 py-2 border-b border-gray-200 mx-auto ">
+                    <div className="flex text-center justify-center ">
                       <input
                         id={`checkbox-${item.originalIndex}`} // Usa un id único basado en el índice original
-                        className='peer hidden'
-                        type='checkbox'
+                        className="peer hidden"
+                        type="checkbox"
                         checked={selectedRows[item.originalIndex] || false}
                         onChange={() => onSelectRow(item)}
                       />
                       <label
                         htmlFor={`checkbox-${item.originalIndex}`} // Asegúrate de que el label apunte al id único
-                        className='flex items-center justify-center w-6 h-6 border border-green-500 rounded bg-white cursor-pointer relative text-white peer-checked:text-green-500'
+                        className="flex items-center justify-center w-6 h-6 border border-green-500 rounded bg-white cursor-pointer relative text-white peer-checked:text-green-500"
                       >
-                        <i className='fi fi-rr-check absolute text-lg '></i>
+                        <i className="fi fi-rr-check absolute text-lg "></i>
                       </label>
                     </div>
                   </td>
@@ -218,11 +218,14 @@ const SortableTable = ({
                         <p
                           className={`${
                             rol === 'lawyer' &&
-                            item.status === 'ASSIGNED' &&
+                            (item.status === 'ASSIGNED' ||
+                              item.status === 'DISABLED') &&
                             ' blur-sm select-none'
                           }`}
                         >
-                          {rol === 'lawyer' && item.status === 'ASSIGNED'
+                          {rol === 'lawyer' &&
+                          (item.status === 'ASSIGNED' ||
+                            item.status === 'DISABLED')
                             ? 'xxx@587lawyers.com'
                             : item[column]}
                         </p>
@@ -230,11 +233,14 @@ const SortableTable = ({
                         <p
                           className={`${
                             rol === 'lawyer' &&
-                            item.status === 'ASSIGNED' &&
+                            (item.status === 'ASSIGNED' ||
+                              item.status === 'DISABLED') &&
                             ' blur-sm select-none'
                           }`}
                         >
-                          {rol === 'lawyer' && item.status === 'ASSIGNED'
+                          {rol === 'lawyer' &&
+                          (item.status === 'ASSIGNED' ||
+                            item.status === 'DISABLED')
                             ? '0000000000'
                             : item[column]}
                         </p>
@@ -252,7 +258,7 @@ const SortableTable = ({
                           ''
                         ) : (
                           <div
-                            className='cursor-pointer'
+                            className="cursor-pointer"
                             onClick={() => onLastActive(item)}
                           >
                             {dayjs
@@ -263,7 +269,7 @@ const SortableTable = ({
                         )
                       ) : column === 'service type' ? (
                         !item[column] ? (
-                          <div className='w-full'>
+                          <div className="w-full">
                             <SkeletonText />
                           </div>
                         ) : (
@@ -289,7 +295,7 @@ const SortableTable = ({
                           }}
                         >
                           {item[column] === null ? (
-                            <div className='w-full'>
+                            <div className="w-full">
                               <SkeletonText />
                             </div>
                           ) : item[column] === 'LOST' ? (
@@ -308,11 +314,11 @@ const SortableTable = ({
                     </td>
                   ))}
                 {(onEdit || onDelete) && (
-                  <td className='px-4 py-2 border-b border-gray-200'>
+                  <td className="px-4 py-2 border-b border-gray-200">
                     {onEdit && (
                       <button
                         onClick={() => onEdit(item.originalIndex)}
-                        className='text-white bg-customGreen bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customGreen'
+                        className="text-white bg-customGreen bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customGreen"
                       >
                         <MdEdit />
                       </button>
@@ -320,7 +326,7 @@ const SortableTable = ({
                     {onDelete && (
                       <button
                         onClick={() => onDelete(item.originalIndex)}
-                        className='text-white bg-customRed bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customRed'
+                        className="text-white bg-customRed bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customRed"
                       >
                         <MdOutlineDelete />
                       </button>
@@ -328,26 +334,26 @@ const SortableTable = ({
                   </td>
                 )}
                 {isDeleteMultiple && onDeleteMultiple && (
-                  <td className='px-4 py-2 border-b border-gray-200 mx-auto'>
-                    <div className='flex text-center justify-center'>
+                  <td className="px-4 py-2 border-b border-gray-200 mx-auto">
+                    <div className="flex text-center justify-center">
                       <input
                         id={`checkbox-${item.originalIndex}`} // Usa un id único basado en el índice original
-                        className='peer hidden'
-                        type='checkbox'
+                        className="peer hidden"
+                        type="checkbox"
                         checked={selectedRows[item.originalIndex] || false}
                         onChange={() => onDeleteMultiple(item.originalIndex)}
                       />
                       <label
                         htmlFor={`checkbox-${item.originalIndex}`}
-                        className='flex items-center justify-center w-6 h-6 border border-red-500 rounded bg-white cursor-pointer relative text-white peer-checked:text-red-500'
+                        className="flex items-center justify-center w-6 h-6 border border-red-500 rounded bg-white cursor-pointer relative text-white peer-checked:text-red-500"
                       >
-                        <i className='fi fi-rr-check absolute text-lg '></i>
+                        <i className="fi fi-rr-check absolute text-lg "></i>
                       </label>
                     </div>
                   </td>
                 )}
                 {onContact && (
-                  <td className='px-4 py-2 border-b border-gray-200  text-center'>
+                  <td className="px-4 py-2 border-b border-gray-200  text-center">
                     {/* <button
                       onClick={() =>
                         item.status !== 'DISABLED' &&
@@ -365,13 +371,13 @@ const SortableTable = ({
                       Contact
                     </button> */}
                     {item.status === 'EXPIRED' || item.status === 'DISABLED' ? (
-                      <button className='text-white bg-gray-500 bg-opacity-70 p-1 rounded-full mr-2 hover:cursor-not-allowed'>
+                      <button className="text-white bg-gray-500 bg-opacity-70 p-1 rounded-full mr-2 hover:cursor-not-allowed">
                         <MdEdit />
                       </button>
                     ) : (
                       <button
                         onClick={() => onContact(item.originalIndex)}
-                        className='text-white bg-customGreen bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customGreen'
+                        className="text-white bg-customGreen bg-opacity-70 p-1 rounded-full mr-2 hover:bg-customGreen"
                       >
                         <MdEdit />
                       </button>
@@ -383,13 +389,13 @@ const SortableTable = ({
           </tbody>
         </table>
       </div>
-      <div className='flex justify-between items-center mb-4'>
+      <div className="flex justify-between items-center mb-4">
         <div>
-          <span className='mr-2'>Showing</span>
+          <span className="mr-2">Showing</span>
           <select
             value={itemsPerPage}
             onChange={handleItemsPerPageChange}
-            className='px-2 py-1 border border-gray-300 rounded'
+            className="px-2 py-1 border border-gray-300 rounded"
           >
             {[10, 25, 50, data?.length].map((pageSize) => (
               <option key={pageSize} value={pageSize}>
@@ -397,7 +403,7 @@ const SortableTable = ({
               </option>
             ))}
           </select>
-          <span className='ml-2'>of {data?.length}</span>
+          <span className="ml-2">of {data?.length}</span>
         </div>
         <div>
           <button

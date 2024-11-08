@@ -20,6 +20,7 @@ type inputProps = {
   placeholder?: string;
   handleChangeService?: any;
   setStatusSelected?: any;
+  setOnChange?: any;
 };
 const Input = ({
   defaultValue,
@@ -33,6 +34,7 @@ const Input = ({
   placeholder,
   handleChangeService,
   setStatusSelected,
+  setOnChange,
 }: inputProps) => {
   const [selectedColor, setSelectedColor] = useState(
     statusColors ? statusColors[defaultValue] : null
@@ -42,10 +44,12 @@ const Input = ({
 
   const handleChangeColor = (event: any) => {
     const newValue = event.target.value;
-    //setStatusSelected(newValue);
 
     if (statusColors) {
       setSelectedColor(statusColors[newValue]);
+    }
+    if (setOnChange) {
+      setOnChange(newValue);
     }
   };
 

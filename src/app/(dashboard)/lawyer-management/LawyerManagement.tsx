@@ -335,6 +335,12 @@ const LawyerManagement = () => {
   };
 
   const handleDelete = async (index: number) => {
+    const reviewLeads = withOutFormat[index].totalLeads;
+    if (reviewLeads > 0) {
+      return toast.error(
+        "You can't delete this lawyer because they have leads assigned."
+      );
+    }
     setIsOpenDelete(true);
     const dataId = await database.getLawyer(withOutFormat[index].id);
 
