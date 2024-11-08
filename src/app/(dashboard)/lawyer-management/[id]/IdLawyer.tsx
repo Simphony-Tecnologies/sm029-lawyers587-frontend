@@ -26,7 +26,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   const { selecArray, setSelecArray } = useSelectStatus();
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>({});
-  const [selectStatus, setSelectStatus] = useState();
+  const [selectedChange, setSelectedChange] = useState('');
   const statusSelect = [
     {
       name: 'Assigned',
@@ -58,6 +58,27 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     },
     {
       name: 'Dead',
+      value: 'EXPIRED',
+    },
+  ];
+  const statusNew = [
+    {
+      name: 'New',
+      value: 'NEW',
+    },
+  ];
+  const statusDisable = [
+    {
+      name: 'New',
+      value: 'IN PROGRESS',
+    },
+
+    {
+      name: 'Send Back',
+      value: 'LOST',
+    },
+    {
+      name: 'Expired',
       value: 'EXPIRED',
     },
   ];
@@ -163,6 +184,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
       </NoData>
     );
   }
+
   const saveLeadContact = async (e: any) => {
     e.preventDefault();
 
@@ -176,6 +198,14 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
       `${process.env.NEXT_PUBLIC_URL_LEADS}/${selectedLead['lead id']}`,
       dataUpdate
     );
+    if (selectedChange === 'LOST') {
+      const deleteAssined = await database.deleteData(
+        `${process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED}/lead/${selectedLead['lead id']}`
+      );
+      if (!deleteAssined.success) {
+        return toast.error('Error to delete lawyer');
+      }
+    }
     if (!responseUpdate.success) {
       toast.error('Error updating Lead information');
     }
@@ -217,7 +247,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
               values={statusSelect}
               statusColors={statusColors}
               defaultValue={selectedLead?.status}
-              setStatusSelected={setSelectStatus}
+              setOnChange={setSelectedChange}
             />
             <p></p>
             <p>Email:</p>
@@ -237,7 +267,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
               name="comments"
               className="col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md"
               placeholder=" Leave your comment....."
-              required={selectStatus === 'LOST' ? true : false}
+              required={selectedChange === 'LOST' ? true : false}
             >
               {selectedLead?.comments}
             </textarea>

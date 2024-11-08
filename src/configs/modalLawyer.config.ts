@@ -73,7 +73,7 @@ export const modalLawyerInput: ModalLawyerInput[] = [
     values: [],
   },
   {
-    label: 'Active',
+    label: 'Lawyer Status',
     name: 'is_active',
     type: 'select',
     defaultValue: '',

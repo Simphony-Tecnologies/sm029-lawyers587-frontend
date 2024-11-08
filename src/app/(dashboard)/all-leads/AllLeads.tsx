@@ -104,13 +104,25 @@ const AllLeads = () => {
       setLoading(false); // Finaliza la carga
     }
   };
-
+  const esMenorA48Horas = (fecha: any) => {
+    const fechaIngresada: any = new Date(fecha);
+    const fechaActual: any = new Date();
+    const diferenciaEnHoras = (fechaActual - fechaIngresada) / (1000 * 60 * 60);
+    return diferenciaEnHoras < 48;
+  };
   const handleContact = async (index: number) => {
+    const res = esMenorA48Horas(lawyerData[index].date_updated);
+
+    if (!res && lawyerData[index].status === 'ASSIGNED') {
+      toast.error('This lead has expired');
+      return;
+    }
     setIsOpenLead(true);
     if (lawyerData) {
       setSelectedLead(lawyerData[index]);
     }
   };
+
   const filterArray = (lawyerData: any) => {
     let accumulatedResults: any[] = [];
     if (lawyerData && selecArray.length > 0) {
@@ -154,7 +166,14 @@ const AllLeads = () => {
   };
   const saveLeadContact = async (e: any) => {
     e.preventDefault();
-
+    if (selectStatus === 'LOST') {
+      const deleteAssined = await database.deleteData(
+        `${process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED}/lead/${selectedLead['lead id']}`
+      );
+      if (!deleteAssined.success) {
+        return toast.error('Error to delete lawyer');
+      }
+    }
     const dataUpdate = {
       status:
         e.target.checkbox.checked === true ? 'DISABLED' : e.target.status.value,
@@ -257,7 +276,7 @@ const AllLeads = () => {
               defaultValue={
                 selectedLead.status === 'ASSIGNED' ? '' : selectedLead?.status
               }
-              setStatusSelected={setSelectStatus}
+              setOnChange={setSelectStatus}
             />
             <p></p>
             <p>Email:</p>
