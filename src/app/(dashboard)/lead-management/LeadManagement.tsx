@@ -72,8 +72,8 @@ const LeadManagement = () => {
       value: 'LOST',
     },
     {
-      name: 'Expired',
-      value: 'EXPIRED',
+      name: 'Disabled',
+      value: 'DISABLED',
     },
   ];
   const filterSearch = (text: string | null) => {
@@ -252,7 +252,8 @@ const LeadManagement = () => {
               type="select"
               name="status"
               values={
-                selectedLead.status === 'DISABLED'
+                selectedLead.status === 'DISABLED' ||
+                selectedLead.status === 'LOST'
                   ? statusDisable
                   : selectedLead.status === 'NEW'
                   ? statusNew
