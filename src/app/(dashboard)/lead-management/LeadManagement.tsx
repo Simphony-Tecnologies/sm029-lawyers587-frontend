@@ -13,6 +13,7 @@ import Input from '@/components/atoms/Input';
 import Button from '@/components/atoms/Button';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
 import ReLoading from '@/components/atoms/ReLoading';
+import { statusSelectAll } from '@/constants/status';
 const LeadManagement = () => {
   const { columns, dataLeads, error, fetchLeads }: any = useLeadsStore();
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
@@ -48,10 +49,6 @@ const LeadManagement = () => {
     {
       name: 'Disabled',
       value: 'DISABLED',
-    },
-    {
-      name: 'Dead',
-      value: 'EXPIRED',
     },
   ];
   const statusNew = [
@@ -377,7 +374,8 @@ const LeadManagement = () => {
                 : 'bg-gray-200'
             }`}
           >
-            {status}
+            {statusSelectAll.find((item) => item.value === status)?.name ||
+              status}
           </button>
         ))}
       </div>
