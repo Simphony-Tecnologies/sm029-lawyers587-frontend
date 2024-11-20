@@ -370,7 +370,7 @@ const LeadManagement = () => {
         {uniqueStatuses.map((status: any, index) => (
           <button
             key={index}
-            onClick={() => selectedLead(status)}
+            onClick={() => handleStatusClick(status)}
             className={`px-4 p-1 rounded text-sm ${
               selectedStatus === status
                 ? 'bg-primary bg-opacity-80 text-white'
