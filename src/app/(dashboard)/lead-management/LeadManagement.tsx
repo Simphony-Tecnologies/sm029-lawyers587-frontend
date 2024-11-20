@@ -1,5 +1,4 @@
 'use client';
-
 import SortableTable from '@/components/organisms/SortableTable';
 import Tilte from '@/components/organisms/Tilte';
 import { useEffect, useState } from 'react';
