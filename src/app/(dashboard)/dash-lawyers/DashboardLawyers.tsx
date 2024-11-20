@@ -8,10 +8,10 @@ import { useLeadsStore } from '@/store/useLead.store';
 import useLoadingStore from '@/store/useLoadingStore';
 import { useSelectStatus } from '@/store/useSelectStatus';
 import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
-import { error } from 'console';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { usePathname } from 'next/navigation';
 
 const DashboardLawyers = () => {
   const { dataLeads, fetchLeads } = useLeadsStore();
@@ -24,6 +24,7 @@ const DashboardLawyers = () => {
   const [userId, setUserId] = useState<any>(null);
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const getLastElement = (arr: any) => arr[0];
   const setData = [
     { value: 'ASSIGNED', index: 1 },
@@ -127,6 +128,10 @@ const DashboardLawyers = () => {
     fetchLeads();
     getServiceType();
   }, []);
+
+  useEffect(() => {
+    fetchLeads();
+  }, [pathname]);
 
   return (
     <div className="flex flex-col gap-5">

@@ -20,6 +20,7 @@ import SkeletonText from '@/components/atoms/SkeletonText';
 import Loading from '../loading';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
 import { useSelectStatus } from '@/store/useSelectStatus';
+import { statusSelectAll } from '@/constants/status';
 
 const AllLeads = () => {
   dayjs.extend(utc);
@@ -385,7 +386,8 @@ const AllLeads = () => {
                   : 'bg-gray-200'
               }`}
             >
-              {status}
+              {statusSelectAll.find((item) => item.value === status)?.name ||
+                status}
             </button>
           ))}
         </div>

@@ -7,6 +7,7 @@ import NoData from '@/components/organisms/NoData';
 import SortableTable from '@/components/organisms/SortableTable';
 import Tilte from '@/components/organisms/Tilte';
 import { statusColors } from '@/configs/statusColor';
+import { statusSelectAll } from '@/constants/status';
 import { database } from '@/services/database';
 import { useLeadsStore } from '@/store/useLead.store';
 import { useSelectStatus } from '@/store/useSelectStatus';
@@ -55,10 +56,6 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     {
       name: 'Disabled',
       value: 'DISABLED',
-    },
-    {
-      name: 'Dead',
-      value: 'EXPIRED',
     },
   ];
   const statusNew = [
@@ -322,7 +319,8 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
                 : 'bg-gray-200'
             }`}
           >
-            {status}
+            {statusSelectAll.find((item) => item.value === status)?.name ||
+              status}
           </button>
         ))}
       </div>
