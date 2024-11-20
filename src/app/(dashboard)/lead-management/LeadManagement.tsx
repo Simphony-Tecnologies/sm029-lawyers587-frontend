@@ -63,7 +63,7 @@ const LeadManagement = () => {
   const statusDisable = [
     {
       name: 'New',
-      value: 'IN PROGRESS',
+      value: 'NEW',
     },
 
     {
