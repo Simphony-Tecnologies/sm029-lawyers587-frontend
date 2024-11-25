@@ -40,7 +40,7 @@ export const useLeadsStore = create<LeadsStore>((set) => ({
         service: lead.lawyer_type,
         'description lead': lead.description,
         comments: lead.comments,
-        lawyer: 'Not assigned',
+        lawyer: 'No assigned',
         status: lead.status,
       }));
       const updatedDataLeads = data.map((items: any) => {
@@ -56,14 +56,14 @@ export const useLeadsStore = create<LeadsStore>((set) => ({
       });
 
       set({
-        columns: Object.keys(data[0]),
+        columns: data ? Object.keys(data[0]) : [],
         dataLeads: updatedDataLeads,
-        error: null,
+        error: '',
       });
     } catch (err) {
-      console.error('Error fetching leads data:', err);
+      console.log('Error fetching leads data:', err);
       set({
-        error: 'There was an error loading the data. Please try again later.',
+        error: 'There are no new leads, please try again later.',
       });
     }
   },

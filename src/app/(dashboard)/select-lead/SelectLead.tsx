@@ -195,7 +195,6 @@ const SelectLead = () => {
   };
 
   const getLawyer = async () => {
-    setLoading(true);
     if (Object.keys(user).length > 0) {
       const dataLawyer = await database.getLawyer(user.id);
       setUserId(dataLawyer.data.data);
@@ -374,8 +373,15 @@ const SelectLead = () => {
     setDifferenceLeads(callValidateLeads);
   }, [leadsAssignedWithData, maxLeadsAssigned]);
 
-  if (isLoading || !newData) {
+  if (isLoading) {
     return <Loading />;
+  }
+  if (!newData) {
+    return (
+      <NoData
+        text={`There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.`}
+      ></NoData>
+    );
   }
   if (newData.length <= 0) {
     return (

@@ -31,7 +31,7 @@ const AssignedLeads = async () => {
     columns = Object.keys(data[0]);
   } catch (err) {
     console.error('Error fetching leads data:', err);
-    error = 'There was an error loading the data. Please try again later.';
+    error = 'There are no new leads, please try again later.';
   }
 
   return (
