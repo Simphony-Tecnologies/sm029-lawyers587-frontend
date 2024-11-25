@@ -31,7 +31,7 @@ const Header = () => {
     if (Object.keys(user).length > 0) {
       // if (user.role.name === 'admin') {
       //   const resData = await database.fetchData(
-      //     `${process.env.NEXT_PUBLIC_URL_NOTIFICATIONS}`
+      //     `${process.env.NEXT_PUBLIC_URL}/notifications`
       //   );
       //   if (!resData.success) {
       //     toast.error('Error getting notifications');
@@ -44,7 +44,7 @@ const Header = () => {
       // }
 
       const resData = await database.fetchData(
-        `${process.env.NEXT_PUBLIC_URL_NOTIFICATIONS}/lawyer/${user.id}`
+        `${process.env.NEXT_PUBLIC_URL}/notifications/lawyer/${user.id}`
       );
       if (!resData.success) {
         toast.error('Error getting notifications');
@@ -67,7 +67,7 @@ const Header = () => {
       is_active: true,
     };
     await database.updateData(
-      `${process.env.NEXT_PUBLIC_URL_NOTIFICATIONS}/${id}`,
+      `${process.env.NEXT_PUBLIC_URL}/notifications/${id}`,
       updateData
     );
 

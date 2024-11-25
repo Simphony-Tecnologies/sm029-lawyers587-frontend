@@ -3,7 +3,9 @@ import { setCookie, destroyCookie } from 'nookies';
 export const database = {
   auth: async (email: string, password: string) => {
     try {
-      const url: string | undefined = process.env.NEXT_PUBLIC_URL_AUTH;
+      const url:
+        | string
+        | undefined = `${process.env.NEXT_PUBLIC_URL}/auth/login`;
 
       if (!url) {
         throw new Error('Authentication URL is not defined');
@@ -50,8 +52,9 @@ export const database = {
   },
   resetPassword: async (token: string, newPassword: string) => {
     try {
-      const url: string | undefined =
-        process.env.NEXT_PUBLIC_URL_RESET_PASSWORD;
+      const url:
+        | string
+        | undefined = `${process.env.NEXT_PUBLIC_URL}/auth/reset-password`;
 
       if (!url) {
         throw new Error('Authentication URL is not defined');
@@ -98,8 +101,9 @@ export const database = {
   },
   requestPassword: async (email: string) => {
     try {
-      const url: string | undefined =
-        process.env.NEXT_PUBLIC_URL_REQUEST_PASSWORD;
+      const url:
+        | string
+        | undefined = `${process.env.NEXT_PUBLIC_URL}/auth/request-password-reset`;
 
       if (!url) {
         throw new Error('Authentication URL is not defined');
@@ -142,7 +146,7 @@ export const database = {
     try {
       const url:
         | string
-        | undefined = `${process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT}/${id}`;
+        | undefined = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
       const response: Response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -183,7 +187,7 @@ export const database = {
     try {
       const url:
         | string
-        | undefined = `${process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT}/${id}`;
+        | undefined = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
       const response: Response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -257,7 +261,7 @@ export const database = {
     }
   },
   getLeadsAssigned: async (): Promise<ResponseEndpoint> => {
-    const url = process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED || '';
+    const url = `${process.env.NEXT_PUBLIC_URL}/leads-assigned` || '';
 
     try {
       const response = await fetch(url);
@@ -278,7 +282,7 @@ export const database = {
     }
   },
   getSelectTypeLawyer: async (): Promise<ResponseEndpoint> => {
-    const url = process.env.NEXT_PUBLIC_URL_LAWYERS_SERVICE || '';
+    const url = `${process.env.NEXT_PUBLIC_URL}/lawyers-services` || '';
 
     try {
       const response = await fetch(url);
@@ -300,7 +304,7 @@ export const database = {
   },
   CreateLawyer: async (sendData: object): Promise<ResponseEndpoint> => {
     try {
-      const url: string = process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT || '';
+      const url: string = `${process.env.NEXT_PUBLIC_URL}/lawyers` || '';
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -383,7 +387,7 @@ export const database = {
     }
   },
   uploadProfile: async (formData: any): Promise<ResponseEndpoint> => {
-    const url = `${process.env.NEXT_PUBLIC_URL_PROFILE_IMAGE}`;
+    const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/upload-profile-image`;
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -469,7 +473,7 @@ export const database = {
     id?: number | undefined
   ): Promise<ResponseEndpoint> => {
     try {
-      const url: string = `${process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT}/${id}`;
+      const url: string = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
@@ -495,7 +499,7 @@ export const database = {
     }
   },
   deleteData: async (url: string): Promise<ResponseEndpoint> => {
-    //const url: string = `${process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT}/${id}`;
+    //const url: string = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
     await fetch(url, {
       method: 'DELETE',
     });
@@ -509,7 +513,7 @@ export const database = {
   },
   DeleteLawyer: async (id?: number | undefined): Promise<ResponseEndpoint> => {
     try {
-      const url: string = `${process.env.NEXT_PUBLIC_URL_LAWYER_MANAGMENT}/${id}`;
+      const url: string = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
       const response = await fetch(url, {
         method: 'DELETE',
       });

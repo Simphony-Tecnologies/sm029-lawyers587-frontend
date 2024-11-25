@@ -79,7 +79,7 @@ const DashboardLawyers = () => {
   };
   const getServiceType = async () => {
     const resType = await database.getData(
-      process.env.NEXT_PUBLIC_URL_SERVICE_TYPE || ''
+      `${process.env.NEXT_PUBLIC_URL}/service_types` || ''
     );
     if (!resType.success) {
       return toast.error('Error to get service type');
@@ -98,7 +98,7 @@ const DashboardLawyers = () => {
           updatedStatistics[index] = {
             ...initialStatistics[index],
             value: (updatedStatistics[index]?.value || 0) + leads.length,
-            date: lastNewLead.date,
+            date: lastNewLead.date_updated,
           };
 
           return updatedStatistics;
@@ -128,15 +128,18 @@ const DashboardLawyers = () => {
     fetchLeads();
     getServiceType();
   }, []);
+  useEffect(() => {
+    fetchLeads();
+  }, []);
 
   useEffect(() => {
     fetchLeads();
   }, [pathname]);
 
   return (
-    <div className="flex flex-col gap-5">
-      <Tilte name="Dashboard" />
-      <div className="grid lg:grid-cols-3 md:grid-cols-2 lg:gap-10 gap-5">
+    <div className='flex flex-col gap-5'>
+      <Tilte name='Dashboard' />
+      <div className='grid lg:grid-cols-3 md:grid-cols-2 lg:gap-10 gap-5'>
         {statistics.map((statistic: any, index: any) => (
           <Cards
             key={index}
