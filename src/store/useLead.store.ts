@@ -16,7 +16,7 @@ export const useLeadsStore = create<LeadsStore>((set) => ({
   error: null,
   fetchLeads: async () => {
     try {
-      const url = `${process.env.NEXT_PUBLIC_URL_LEADS}`;
+      const url = `${process.env.NEXT_PUBLIC_URL}/leads`;
       const response = await fetch(url);
       const leadsData = await response.json();
 
@@ -24,7 +24,7 @@ export const useLeadsStore = create<LeadsStore>((set) => ({
         throw new Error('Failed to fetch leads data');
       }
       const lawyersAssigned = await database.fetchData(
-        process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED || ''
+        `${process.env.NEXT_PUBLIC_URL}/leads-assigned` || ''
       );
 
       if (!lawyersAssigned.success) {
@@ -40,7 +40,7 @@ export const useLeadsStore = create<LeadsStore>((set) => ({
         service: lead.lawyer_type,
         'description lead': lead.description,
         comments: lead.comments,
-        lawyer: 'No assigned',
+        lawyer: 'Not assigned',
         status: lead.status,
       }));
       const updatedDataLeads = data.map((items: any) => {
@@ -51,7 +51,7 @@ export const useLeadsStore = create<LeadsStore>((set) => ({
           ...items,
           lawyer: lawyer
             ? `${lawyer.lawyer.firstName} ${lawyer.lawyer.lastName} `
-            : 'No assigned',
+            : 'Not assigned',
         };
       });
 

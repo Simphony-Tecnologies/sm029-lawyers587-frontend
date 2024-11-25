@@ -56,6 +56,12 @@ const AllLeads = () => {
       value: 'CLOSED',
     },
   ];
+  const statusClosed = [
+    {
+      name: 'Retained',
+      value: 'CLOSED',
+    },
+  ];
   const getLawyer = async () => {
     setLoading(true); // Inicia la carga
     try {
@@ -99,7 +105,7 @@ const AllLeads = () => {
       }
     } catch (error: any) {
       // Manejo centralizado de errores
-      toast.error(error.message || 'An error occurred while fetching data.');
+      //toast.error(error.message || 'An error occurred while fetching data.');
       console.error('Error fetching lawyer data:', error);
     } finally {
       setLoading(false); // Finaliza la carga
@@ -157,7 +163,7 @@ const AllLeads = () => {
   };
   const getServiceType = async () => {
     const resType = await database.getData(
-      process.env.NEXT_PUBLIC_URL_SERVICE_TYPE || ''
+      `${process.env.NEXT_PUBLIC_URL}/service_types` || ''
     );
     if (!resType.success) {
       return toast.error('Error to get service type');
@@ -167,22 +173,47 @@ const AllLeads = () => {
   };
   const saveLeadContact = async (e: any) => {
     e.preventDefault();
+    const verifyLead = await database.fetchData(
+      `${process.env.NEXT_PUBLIC_URL}/leads-assigned/find-by-lawyer/${user.id}`
+    );
+
+    const findLead = verifyLead.data.find(
+      (res: any) => res.lead_id === selectedLead['lead id']
+    );
+
+    if (!findLead) {
+      setIsOpenLead(false);
+      fetchLeads();
+      return toast.error('This lead is no longer assigned to you.');
+    }
     if (selectStatus === 'LOST') {
       const deleteAssined = await database.deleteData(
-        `${process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED}/lead/${selectedLead['lead id']}`
+        `${process.env.NEXT_PUBLIC_URL}/leads-assigned/lead/${selectedLead['lead id']}`
       );
+
       if (!deleteAssined.success) {
-        return toast.error('Error to delete lawyer');
+        return toast.error('Error to delete lead');
       }
+
+      // const removeComment = await database.updateData(
+      //   `${process.env.NEXT_PUBLIC_URL}/leads/${selectedLead['lead id']}`,
+      //   { comments: '' }
+      // );
+      // console.log(removeComment);
+
+      // if (!removeComment.success) {
+      //   return toast.error('Error to delete lead');
+      // }
     }
     const dataUpdate = {
-      status:
-        e.target.checkbox.checked === true ? 'DISABLED' : e.target.status.value,
+      // status:
+      //   e.target.checkbox.checked === true ? 'DISABLED' : e.target.status.value,
+      status: e.target.status.value,
       comments: e.target.comments.value,
     };
 
     const responseUpdate = await database.updateData(
-      `${process.env.NEXT_PUBLIC_URL_LEADS}/${selectedLead['lead id']}`,
+      `${process.env.NEXT_PUBLIC_URL}/leads/${selectedLead['lead id']}`,
       dataUpdate
     );
     if (!responseUpdate.success) {
@@ -234,7 +265,7 @@ const AllLeads = () => {
       <NoData
         text={`Here you will see your selected leads. Go to the 'Select Lead' section to get started.`}
       >
-        <MdOutlineCases size={70} color="#00234D" />
+        <MdOutlineCases size={70} color='#00234D' />
       </NoData>
     );
   }
@@ -243,15 +274,15 @@ const AllLeads = () => {
       <NoData
         text={`Here you will see your selected leads. Go to the 'Select Lead' section to get started.`}
       >
-        <MdOutlineCases size={70} color="#00234D" />
+        <MdOutlineCases size={70} color='#00234D' />
       </NoData>
     );
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <Modal title="Lead info" isOpen={isOpenLead} setIsOpen={setIsOpenLead}>
-        <div className="px-8">
+    <div className='flex flex-col gap-5'>
+      <Modal title='Lead info' isOpen={isOpenLead} setIsOpen={setIsOpenLead}>
+        <div className='px-8'>
           <p>
             Selection date :{' '}
             {dayjs
@@ -259,20 +290,22 @@ const AllLeads = () => {
               .local()
               .format('MM/DD/YYYY hh:mm a')}
           </p>
-          <p className="text-red-500">
+          <p className='text-red-500'>
             This lead will be marked as lost and will not be reinstated.
           </p>
           {selectedLead.status === 'ASSIGNED' && (
             <CountdownTimer targetDate={selectedLead['date_updated']} />
           )}
-          <p className="text-4xl py-6 ">{selectedLead?.['lead name']}</p>
-          <form onSubmit={saveLeadContact} className="grid grid-cols-3 gap-2 ">
-            <p className="">Status:</p>
+          <p className='text-4xl py-6 '>{selectedLead?.['lead name']}</p>
+          <form onSubmit={saveLeadContact} className='grid grid-cols-3 gap-2 '>
+            <p className=''>Status:</p>
 
             <Input
-              type="select"
-              name="status"
-              values={statusSelect}
+              type='select'
+              name='status'
+              values={
+                selectedLead.status === 'CLOSED' ? statusClosed : statusSelect
+              }
               statusColors={statusColors}
               defaultValue={
                 selectedLead.status === 'ASSIGNED' ? '' : selectedLead?.status
@@ -322,34 +355,34 @@ const AllLeads = () => {
             </p>
             <p>Comment:</p>
             <textarea
-              name="comments"
-              className="col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md"
-              placeholder=" Leave your comment....."
+              name='comments'
+              className='col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md'
+              placeholder=' Leave your comment.....'
               required={selectStatus === 'LOST' ? true : false}
             >
               {selectedLead?.comments}
             </textarea>
             <p></p>
-            <p className="flex gap-1 col-span-2 text-gray-500 ">
+            {/* <p className='flex gap-1 col-span-2 text-gray-500 '>
               <input
-                name="checkbox"
+                name='checkbox'
                 id={`checkbox-lead`}
-                className="peer hidden"
-                type="checkbox"
+                className='peer hidden'
+                type='checkbox'
               />
               <label
                 htmlFor={`checkbox-lead`}
-                className="flex items-center justify-center w-5 h-5 border border-green-500 rounded bg-white cursor-pointer relative  text-white peer-checked:text-green-500"
+                className='flex items-center justify-center w-5 h-5 border border-green-500 rounded bg-white cursor-pointer relative  text-white peer-checked:text-green-500'
               >
-                <i className="fi fi-rr-check absolute  text-sm  peer-checked:block "></i>
+                <i className='fi fi-rr-check absolute  text-sm  peer-checked:block '></i>
               </label>{' '}
               Do not contact this lead again
-            </p>
-            <div className="col-end-4 text-right">
-              <Button name="Save" type="submit" />
+            </p> */}
+            <div className='col-end-4 text-right'>
+              <Button name='Save' type='submit' />
             </div>
           </form>
-          <p className="text-red-500 text-sm py-4">
+          <p className='text-red-500 text-sm py-4'>
             The super admin will review this case, leave us a clear comment.
           </p>
         </div>
@@ -365,7 +398,7 @@ const AllLeads = () => {
         filterSearch={filterSearch}
       />
       {!isLoading ? (
-        <div className="flex gap-2 flex-wrap">
+        <div className='flex gap-2 flex-wrap'>
           <button
             onClick={() => handleStatusClick(null)}
             className={`px-4 p-1 rounded text-sm ${

@@ -56,7 +56,7 @@ const SelectLead = () => {
   };
   const getServiceType = async () => {
     const resType = await database.getData(
-      process.env.NEXT_PUBLIC_URL_SERVICE_TYPE || ''
+      `${process.env.NEXT_PUBLIC_URL}/service_types` || ''
     );
     if (!resType.success) {
       return toast.error('Error to get service type');
@@ -263,7 +263,7 @@ const SelectLead = () => {
       }
 
       const response = await database.insertData(
-        process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED || '',
+        `${process.env.NEXT_PUBLIC_URL}/leads-assigned` || '',
         {
           lead: leadId,
           lawyer_id: user.id,

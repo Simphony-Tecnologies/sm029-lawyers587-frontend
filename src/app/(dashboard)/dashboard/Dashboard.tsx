@@ -4,7 +4,7 @@ import Tilte from '@/components/organisms/Tilte';
 import { statistics as initialStatistics } from '@/configs/statistics.confing';
 import { useLeadsStore } from '@/store/useLead.store';
 import { useSelectStatus } from '@/store/useSelectStatus';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 const Dashboard = () => {
@@ -12,6 +12,7 @@ const Dashboard = () => {
   const [statistics, setStatistics] = useState(initialStatistics);
   const { setSelecArray } = useSelectStatus();
   const router = useRouter();
+  const pathname = usePathname();
   const getLastElement = (arr: any) => arr[0];
   const setData = [
     { value: 'NEW', index: 0 },
@@ -35,7 +36,10 @@ const Dashboard = () => {
           updatedStatistics[index] = {
             ...initialStatistics[index],
             value: (updatedStatistics[index]?.value || 0) + leads.length,
-            date: lastNewLead.date,
+            date:
+              lastNewLead.status === 'NEW'
+                ? lastNewLead.date
+                : lastNewLead.date_updated,
           };
 
           return updatedStatistics;
@@ -56,6 +60,9 @@ const Dashboard = () => {
   useEffect(() => {
     fetchLeads();
   }, []);
+  useEffect(() => {
+    fetchLeads();
+  }, [pathname]);
 
   return (
     <div className='flex flex-col gap-5'>

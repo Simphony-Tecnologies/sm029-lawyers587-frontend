@@ -177,7 +177,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
       <NoData
         text={`${userId?.firstName} ${userId?.lastName} hasn't been assigned any leads yet`}
       >
-        <MdOutlineCases size={70} color="#00234D" />
+        <MdOutlineCases size={70} color='#00234D' />
       </NoData>
     );
   }
@@ -192,12 +192,12 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     };
 
     const responseUpdate = await database.updateData(
-      `${process.env.NEXT_PUBLIC_URL_LEADS}/${selectedLead['lead id']}`,
+      `${process.env.NEXT_PUBLIC_URL}/leads/${selectedLead['lead id']}`,
       dataUpdate
     );
     if (selectedChange === 'LOST') {
       const deleteAssined = await database.deleteData(
-        `${process.env.NEXT_PUBLIC_URL_LEADS_ASSIGNED}/lead/${selectedLead['lead id']}`
+        `${process.env.NEXT_PUBLIC_URL}/leads-assigned/lead/${selectedLead['lead id']}`
       );
       if (!deleteAssined.success) {
         return toast.error('Error to delete lawyer');
@@ -218,9 +218,9 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     }
   };
   return (
-    <div className="flex flex-col gap-5">
-      <Modal title="Lead info" isOpen={isOpenLead} setIsOpen={setIsOpenLead}>
-        <div className="px-8">
+    <div className='flex flex-col gap-5'>
+      <Modal title='Lead info' isOpen={isOpenLead} setIsOpen={setIsOpenLead}>
+        <div className='px-8'>
           <p>
             Selection date :{' '}
             {dayjs
@@ -228,19 +228,19 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
               .local()
               .format('MM/DD/YYYY hh:mm a')}
           </p>
-          <p className="text-red-500">
+          <p className='text-red-500'>
             This lead will be marked as lost and will not be reinstated.
           </p>
           {selectedLead.status === 'ASSIGNED' && (
             <CountdownTimer targetDate={selectedLead['date_updated']} />
           )}
-          <p className="text-4xl py-6 ">{selectedLead?.['lead name']}</p>
-          <form onSubmit={saveLeadContact} className="grid grid-cols-3 gap-2 ">
-            <p className="">Status:</p>
+          <p className='text-4xl py-6 '>{selectedLead?.['lead name']}</p>
+          <form onSubmit={saveLeadContact} className='grid grid-cols-3 gap-2 '>
+            <p className=''>Status:</p>
 
             <Input
-              type="select"
-              name="status"
+              type='select'
+              name='status'
               values={statusSelect}
               statusColors={statusColors}
               defaultValue={selectedLead?.status}
@@ -248,47 +248,47 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
             />
             <p></p>
             <p>Email:</p>
-            <p className="col-span-2 text-gray-500 ">{selectedLead?.email}</p>
+            <p className='col-span-2 text-gray-500 '>{selectedLead?.email}</p>
             <p>Phone number:</p>
-            <p className="col-span-2 text-gray-500">
+            <p className='col-span-2 text-gray-500'>
               {selectedLead?.['phone number']}
             </p>
             <p>Service Type:</p>
-            <p className="col-span-2 text-gray-500">{selectedLead?.service}</p>
+            <p className='col-span-2 text-gray-500'>{selectedLead?.service}</p>
             <p>Description:</p>
-            <p className="col-span-2 text-gray-500">
+            <p className='col-span-2 text-gray-500'>
               {selectedLead?.['description lead']}
             </p>
             <p>Comment:</p>
             <textarea
-              name="comments"
-              className="col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md"
-              placeholder=" Leave your comment....."
+              name='comments'
+              className='col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md'
+              placeholder=' Leave your comment.....'
               required={selectedChange === 'LOST' ? true : false}
             >
               {selectedLead?.comments}
             </textarea>
             <p></p>
-            <p className="flex gap-1 col-span-2 text-gray-500 ">
+            <p className='flex gap-1 col-span-2 text-gray-500 '>
               <input
-                name="checkbox"
+                name='checkbox'
                 id={`checkbox-lead`}
-                className="peer hidden"
-                type="checkbox"
+                className='peer hidden'
+                type='checkbox'
               />
               <label
                 htmlFor={`checkbox-lead`}
-                className="flex items-center justify-center w-5 h-5 border border-green-500 rounded bg-white cursor-pointer relative  text-white peer-checked:text-green-500"
+                className='flex items-center justify-center w-5 h-5 border border-green-500 rounded bg-white cursor-pointer relative  text-white peer-checked:text-green-500'
               >
-                <i className="fi fi-rr-check absolute  text-sm  peer-checked:block "></i>
+                <i className='fi fi-rr-check absolute  text-sm  peer-checked:block '></i>
               </label>{' '}
               Do not contact this lead again
             </p>
-            <div className="col-end-4 text-right">
-              <Button name="Save" type="submit" />
+            <div className='col-end-4 text-right'>
+              <Button name='Save' type='submit' />
             </div>
           </form>
-          <p className="text-red-500 text-sm py-4">
+          <p className='text-red-500 text-sm py-4'>
             The super admin will review this case, leave us a clear comment.
           </p>
         </div>
@@ -298,7 +298,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
         search={true}
         filterSearch={filterSearch}
       />
-      <div className="flex flex-wrap  gap-2">
+      <div className='flex flex-wrap  gap-2'>
         <button
           onClick={() => handleStatusClick(null)}
           className={`px-4 p-1 rounded text-sm ${

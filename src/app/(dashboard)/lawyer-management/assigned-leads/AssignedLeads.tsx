@@ -11,7 +11,7 @@ const AssignedLeads = async () => {
     Unassignable: '#FF4240',
   };
   try {
-    const url = `${process.env.NEXT_PUBLIC_URL_LEADS}`;
+    const url = `${process.env.NEXT_PUBLIC_URL}/leads`;
     const leadsData = await database.getData(url);
 
     if (!leadsData.success) {
