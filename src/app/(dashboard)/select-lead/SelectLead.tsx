@@ -195,7 +195,6 @@ const SelectLead = () => {
   };
 
   const getLawyer = async () => {
-    setLoading(true);
     if (Object.keys(user).length > 0) {
       const dataLawyer = await database.getLawyer(user.id);
       setUserId(dataLawyer.data.data);
@@ -374,7 +373,7 @@ const SelectLead = () => {
     setDifferenceLeads(callValidateLeads);
   }, [leadsAssignedWithData, maxLeadsAssigned]);
 
-  if (isLoading || !newData) {
+  if (isLoading) {
     return <Loading />;
   }
   if (newData.length <= 0) {
