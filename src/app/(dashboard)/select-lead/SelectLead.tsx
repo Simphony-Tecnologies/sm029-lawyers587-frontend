@@ -376,6 +376,13 @@ const SelectLead = () => {
   if (isLoading) {
     return <Loading />;
   }
+  if (!newData) {
+    return (
+      <NoData
+        text={`There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.`}
+      ></NoData>
+    );
+  }
   if (newData.length <= 0) {
     return (
       <NoData
