@@ -8,14 +8,14 @@ import Expired from '@/assets/expired-leads.png';
 import { statusColors } from './statusColor';
 export const statistics: typeStatistis[] = [
   {
-    title: 'Available Leads',
+    title: 'Lead Summary',
     value: '0 of 0',
     date: 'today',
     icon: NewLeads,
     color: statusColors.NEW,
   },
   {
-    title: 'Assigned Leads',
+    title: 'Lead Summary',
     value: 0,
     date: 'today',
     icon: NewLeads,

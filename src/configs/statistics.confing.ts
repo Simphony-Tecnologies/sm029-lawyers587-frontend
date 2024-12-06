@@ -37,7 +37,7 @@ export const statistics: typeStatistis[] = [
     color: statusColors.PROBLEMATIC,
   },
   {
-    title: 'Send Back Leads (REVIEW)',
+    title: 'Sent Back Leads (REVIEW)',
     value: 0,
     date: 'today',
     icon: DeadLeads,
