@@ -90,6 +90,7 @@ export const LeadInfoModal = ({
   const [doNotContact, setDoNotContact] = useState<boolean>(true);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineFilter, setTimelineFilter] = useState<'all' | 'audit' | 'comment'>('all');
   const [newComment, setNewComment] = useState('');
   const [newCommentType, setNewCommentType] = useState<NoteType>('internal');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
@@ -104,11 +105,14 @@ export const LeadInfoModal = ({
     setNewCommentType('internal');
   }, [open, lead]);
 
-  const fetchTimeline = async (leadId: number | string) => {
+  const fetchTimeline = async (
+    leadId: number | string,
+    filter: 'all' | 'audit' | 'comment' = 'all'
+  ) => {
     if (typeof leadId !== 'number' && Number.isNaN(Number(leadId))) return;
     setTimelineLoading(true);
     const res = await api.leads.timeline(Number(leadId), {
-      type: 'all',
+      type: filter,
       limit: 25,
     });
     setTimelineLoading(false);
@@ -122,10 +126,12 @@ export const LeadInfoModal = ({
   useEffect(() => {
     if (!open || !lead) {
       setTimeline([]);
+      setTimelineFilter('all');
       return;
     }
-    void fetchTimeline(lead.id);
-  }, [open, lead?.id]);
+    void fetchTimeline(lead.id, timelineFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, lead?.id, timelineFilter]);
 
   const handleAddComment = async () => {
     if (!lead) return;
@@ -139,7 +145,7 @@ export const LeadInfoModal = ({
     setCommentSubmitting(false);
     if (!res.success) return;
     setNewComment('');
-    void fetchTimeline(lead.id);
+    void fetchTimeline(lead.id, timelineFilter);
   };
 
   const currentMeta = useMemo(
@@ -520,13 +526,30 @@ export const LeadInfoModal = ({
                     <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
                       Activity &amp; Notes
                     </span>
-                    {timelineLoading ? (
-                      <span className='text-[10px] font-semibold text-slate-400'>
-                        Loading…
-                      </span>
-                    ) : null}
+                    <div className='flex items-center gap-1.5'>
+                      <FilterChip
+                        label='All'
+                        active={timelineFilter === 'all'}
+                        onClick={() => setTimelineFilter('all')}
+                      />
+                      <FilterChip
+                        label='Audit'
+                        active={timelineFilter === 'audit'}
+                        onClick={() => setTimelineFilter('audit')}
+                      />
+                      <FilterChip
+                        label='Comments'
+                        active={timelineFilter === 'comment'}
+                        onClick={() => setTimelineFilter('comment')}
+                      />
+                      {timelineLoading ? (
+                        <span className='text-[10px] font-semibold text-slate-400'>
+                          Loading…
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className='flex max-h-[220px] flex-col divide-y divide-slate-100 overflow-y-auto rounded-[10px] border border-slate-200 bg-white'>
+                  <div className='flex max-h-[260px] flex-col divide-y divide-slate-100 overflow-y-auto rounded-[10px] border border-slate-200 bg-white'>
                     {timeline.length === 0 && !timelineLoading ? (
                       <div className='px-3.5 py-4 text-center text-[12px] font-medium text-slate-400'>
                         No activity yet.
@@ -540,49 +563,14 @@ export const LeadInfoModal = ({
                       ))
                     )}
                   </div>
-                  <div className='flex flex-col gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3.5 py-3'>
-                    <div className='flex items-center justify-between'>
-                      <label
-                        htmlFor='lead-new-comment'
-                        className='text-[10px] font-bold uppercase tracking-[0.04em] text-slate-600'
-                      >
-                        Add a note
-                      </label>
-                      <select
-                        value={newCommentType}
-                        onChange={(e) =>
-                          setNewCommentType(e.target.value as NoteType)
-                        }
-                        disabled={commentSubmitting}
-                        className='h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none'
-                      >
-                        <option value='internal'>Internal</option>
-                        <option value='client_facing'>Client facing</option>
-                        <option value='urgent'>Urgent</option>
-                      </select>
-                    </div>
-                    <textarea
-                      id='lead-new-comment'
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder='Write a note for this lead…'
-                      rows={2}
-                      disabled={commentSubmitting}
-                      className='w-full resize-none rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60'
-                    />
-                    <div className='flex justify-end'>
-                      <button
-                        type='button'
-                        onClick={handleAddComment}
-                        disabled={
-                          commentSubmitting || newComment.trim().length === 0
-                        }
-                        className='inline-flex h-7 items-center gap-1 rounded-md bg-slate-900 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50'
-                      >
-                        {commentSubmitting ? 'Adding…' : 'Add note'}
-                      </button>
-                    </div>
-                  </div>
+                  <CommentComposer
+                    value={newComment}
+                    type={newCommentType}
+                    submitting={commentSubmitting}
+                    onChangeValue={setNewComment}
+                    onChangeType={setNewCommentType}
+                    onSubmit={handleAddComment}
+                  />
                 </section>
 
                 {/* Toggle (destructive only) */}
@@ -730,14 +718,33 @@ const DetailRow = ({
 
 const NOTE_TYPE_LABEL: Record<NoteType, string> = {
   internal: 'Internal',
-  client_facing: 'Client facing',
+  client_facing: 'Client-facing',
   urgent: 'Urgent',
 };
 
-const NOTE_TYPE_CLASS: Record<NoteType, string> = {
-  internal: 'bg-slate-100 text-slate-600',
+// Color tokens alineados al mock 17:
+//  - internal → ink-500 (slate-700/800)
+//  - client_facing → sky-500
+//  - urgent → coral (customRed)
+const NOTE_TYPE_BADGE: Record<NoteType, string> = {
+  internal: 'bg-slate-100 text-slate-700',
   client_facing: 'bg-sky-50 text-sky-700',
-  urgent: 'bg-red-50 text-red-700',
+  urgent: 'bg-red-50 text-customRed',
+};
+
+const NOTE_TYPE_DOT: Record<NoteType, string> = {
+  internal: 'bg-slate-700',
+  client_facing: 'bg-sky-500',
+  urgent: 'bg-customRed',
+};
+
+const NOTE_TYPE_PLACEHOLDER: Record<NoteType, string> = {
+  internal:
+    'Write a note about this case. Only admins and assigned lawyers will see this.',
+  client_facing:
+    'Write a note safe to share with the client. Keep tone professional.',
+  urgent:
+    'Flag this lead for immediate attention. Super admin gets notified.',
 };
 
 const formatTs = (ts: string) => {
@@ -754,56 +761,221 @@ const formatTs = (ts: string) => {
   }
 };
 
+const initialsFromActor = (
+  actor: { firstName?: string; lastName?: string } | undefined
+): string => {
+  const f = (actor?.firstName ?? '').trim().charAt(0);
+  const l = (actor?.lastName ?? '').trim().charAt(0);
+  return (f + l || '·').toUpperCase();
+};
+
+const FilterChip = ({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    type='button'
+    onClick={onClick}
+    className={cn(
+      'h-6 rounded-full px-2.5 text-[10px] font-bold uppercase tracking-[0.04em] transition-colors',
+      active
+        ? 'bg-slate-900 text-white'
+        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+    )}
+  >
+    {label}
+  </button>
+);
+
+const NOTE_TYPES: NoteType[] = ['internal', 'client_facing', 'urgent'];
+
+const CommentComposer = ({
+  value,
+  type,
+  submitting,
+  onChangeValue,
+  onChangeType,
+  onSubmit,
+}: {
+  value: string;
+  type: NoteType;
+  submitting: boolean;
+  onChangeValue: (next: string) => void;
+  onChangeType: (next: NoteType) => void;
+  onSubmit: () => void;
+}) => {
+  const urgent = type === 'urgent';
+  return (
+    <div
+      className={cn(
+        'flex flex-col gap-2 rounded-[10px] border bg-slate-50 px-3.5 py-3 transition-colors',
+        urgent ? 'border-rose-200 bg-red-50/40' : 'border-slate-200'
+      )}
+    >
+      <div className='flex items-center justify-between gap-2'>
+        <span className='text-[10px] font-bold uppercase tracking-[0.04em] text-slate-600'>
+          Add a note
+        </span>
+        <div className='flex items-center gap-1'>
+          {NOTE_TYPES.map((nt) => {
+            const selected = nt === type;
+            return (
+              <button
+                key={nt}
+                type='button'
+                onClick={() => onChangeType(nt)}
+                disabled={submitting}
+                className={cn(
+                  'inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] font-bold transition-colors',
+                  selected
+                    ? nt === 'urgent'
+                      ? 'border-customRed bg-customRed text-white'
+                      : nt === 'client_facing'
+                      ? 'border-sky-500 bg-sky-500 text-white'
+                      : 'border-slate-900 bg-slate-900 text-white'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+                  submitting && 'cursor-not-allowed opacity-60'
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-1.5 w-1.5 rounded-full',
+                    selected ? 'bg-white/80' : NOTE_TYPE_DOT[nt]
+                  )}
+                />
+                {NOTE_TYPE_LABEL[nt]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => onChangeValue(e.target.value)}
+        placeholder={NOTE_TYPE_PLACEHOLDER[type]}
+        rows={2}
+        disabled={submitting}
+        className={cn(
+          'w-full resize-none rounded-md border bg-white px-2.5 py-1.5 text-[12px] text-slate-800 placeholder:text-slate-400 focus:outline-none disabled:opacity-60 transition-colors',
+          urgent
+            ? 'border-rose-200 focus:border-customRed'
+            : 'border-slate-200 focus:border-slate-400'
+        )}
+      />
+      <div className='flex items-center justify-between'>
+        <span className='text-[10px] font-semibold tabular-nums text-slate-400'>
+          {value.length} / 500
+        </span>
+        <button
+          type='button'
+          onClick={onSubmit}
+          disabled={submitting || value.trim().length === 0}
+          className={cn(
+            'inline-flex h-7 items-center gap-1 rounded-md px-3 text-[11px] font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+            urgent
+              ? 'bg-customRed hover:bg-red-600'
+              : 'bg-slate-900 hover:bg-slate-800'
+          )}
+        >
+          {submitting ? 'Adding…' : urgent ? 'Send urgent' : 'Add note'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const TimelineRow = ({ entry }: { entry: TimelineEntry }) => {
   const actorName =
     `${entry.actor?.firstName ?? ''} ${entry.actor?.lastName ?? ''}`.trim() ||
     'System';
+  const initials = initialsFromActor(entry.actor);
+
   if (entry.type === 'comment') {
     return (
-      <div className='flex flex-col gap-1 px-3.5 py-2.5'>
-        <div className='flex items-center justify-between'>
-          <span className='text-[11px] font-bold text-slate-800'>
-            {actorName}
+      <div
+        className={cn(
+          'flex gap-2.5 px-3.5 py-3',
+          entry.note_type === 'urgent' && 'bg-red-50/40'
+        )}
+      >
+        <span
+          className={cn(
+            'mt-0.5 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white',
+            NOTE_TYPE_DOT[entry.note_type]
+          )}
+        >
+          {initials}
+        </span>
+        <div className='flex min-w-0 flex-1 flex-col gap-1'>
+          <div className='flex items-center justify-between gap-2'>
+            <span className='truncate text-[11px] font-bold text-slate-900'>
+              {actorName}
+            </span>
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em]',
+                NOTE_TYPE_BADGE[entry.note_type]
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'inline-block h-1.5 w-1.5 rounded-full',
+                  NOTE_TYPE_DOT[entry.note_type]
+                )}
+              />
+              {NOTE_TYPE_LABEL[entry.note_type]}
+            </span>
+          </div>
+          <span className='whitespace-pre-wrap text-[12px] leading-[1.5] text-slate-700'>
+            {entry.content}
           </span>
-          <span
-            className={cn(
-              'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em]',
-              NOTE_TYPE_CLASS[entry.note_type]
-            )}
-          >
-            {NOTE_TYPE_LABEL[entry.note_type]}
+          <span className='text-[10px] font-semibold text-slate-400'>
+            {formatTs(entry.timestamp)}
           </span>
         </div>
-        <span className='whitespace-pre-wrap text-[12px] leading-[1.5] text-slate-700'>
-          {entry.content}
-        </span>
-        <span className='text-[10px] font-semibold text-slate-400'>
-          {formatTs(entry.timestamp)}
-        </span>
       </div>
     );
   }
+
   const from = entry.old_value?.status;
   const to = entry.new_value?.status;
   const detail =
-    entry.action_type === 'status_change' && from && to
-      ? `${from} → ${to}`
-      : entry.action_type;
+    entry.action_type === 'status_change' && from && to ? (
+      <>
+        <strong className='font-bold text-slate-900'>{from}</strong>
+        {' → '}
+        <strong className='font-bold text-slate-900'>{to}</strong>
+      </>
+    ) : (
+      entry.action_type.replace('_', ' ')
+    );
+
   return (
-    <div className='flex flex-col gap-1 px-3.5 py-2.5'>
-      <div className='flex items-center justify-between'>
-        <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
-          {entry.action_type.replace('_', ' ')}
-        </span>
-        <span className='text-[10px] font-semibold text-slate-400'>
-          {formatTs(entry.timestamp)}
+    <div className='flex gap-2.5 px-3.5 py-3'>
+      <span className='mt-0.5 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-slate-100 text-[10px] font-bold text-slate-600'>
+        {initials}
+      </span>
+      <div className='flex min-w-0 flex-1 flex-col gap-1'>
+        <div className='flex items-center justify-between gap-2'>
+          <span className='truncate text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
+            {entry.action_type.replace('_', ' ')}
+          </span>
+          <span className='text-[10px] font-semibold text-slate-400'>
+            {formatTs(entry.timestamp)}
+          </span>
+        </div>
+        <span className='text-[12px] text-slate-700'>{detail}</span>
+        <span className='text-[10px] font-medium text-slate-500'>
+          by {actorName}
+          {entry.comment ? ` · "${entry.comment.slice(0, 80)}"` : ''}
         </span>
       </div>
-      <span className='text-[12px] text-slate-700'>{detail}</span>
-      <span className='text-[10px] font-medium text-slate-500'>
-        by {actorName}
-        {entry.comment ? ` · "${entry.comment.slice(0, 80)}"` : ''}
-      </span>
     </div>
   );
 };

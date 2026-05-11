@@ -6,20 +6,25 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import {
   MdAddCircleOutline,
   MdCheckCircleOutline,
+  MdChatBubbleOutline,
   MdHighlightOff,
   MdInfoOutline,
+  MdPersonAddAlt1,
+  MdPersonRemove,
+  MdSwapHoriz,
+  MdLogin as MdLoginIcon,
+  MdEdit,
+  MdBlock,
 } from 'react-icons/md';
 import { useLeadsStore } from '@/store/useLead.store';
 import { useSelectStatus } from '@/store/useSelectStatus';
+import { api } from '@/services/database';
+import type { ActionType, AuditEvent, LawyerListItem } from '@/types/api.types';
 import {
   ActivityPanel,
-  Avatar,
   KpiCard,
   PageHead,
   PeriodSelect,
-  StatusPill,
-  toneFromString,
-  variantFromStatus,
   type KpiTone,
   type PeriodKey,
   type PeriodOption,
@@ -114,19 +119,59 @@ const Dashboard = () => {
     router.push('/lead-management');
   };
 
-  // Síntesis client-side de actividad reciente: backend aún no expone
-  // /audit/recent global. Tomamos los N leads con date_updated más reciente
-  // dentro del período seleccionado.
-  const recentActivity = useMemo(() => {
-    return [...leadsInPeriod]
-      .filter((l: any) => l?.date_updated || l?.date)
-      .sort(
-        (a: any, b: any) =>
-          +new Date(b.date_updated ?? b.date) -
-          +new Date(a.date_updated ?? a.date)
-      )
+  // Audit log real combinado de los top lawyers activos.
+  // Backend NO expone /audit/recent global → hacemos N fetches a
+  // /lawyers/:id/history y mergeamos por timestamp. Aceptable porque
+  // solo ocurre en mount del dashboard.
+  type ActivityEvent = AuditEvent & {
+    _actorName: string;
+  };
+  const [recentEvents, setRecentEvents] = useState<ActivityEvent[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+
+  const fetchRecentActivity = async () => {
+    setRecentLoading(true);
+    const lawyersRes = await api.lawyers.list({ is_active: true, limit: 10 });
+    if (!lawyersRes.success || !lawyersRes.data) {
+      setRecentLoading(false);
+      setRecentEvents([]);
+      return;
+    }
+    const lawyers: LawyerListItem[] = lawyersRes.data.data;
+    const histories = await Promise.all(
+      lawyers.map((l) => api.lawyers.history(l.id, { limit: 5 }))
+    );
+    setRecentLoading(false);
+
+    const merged: ActivityEvent[] = histories
+      .flatMap((h, i) => {
+        if (!h.success || !h.data) return [];
+        const lawyer = lawyers[i];
+        const fullName =
+          `${lawyer.firstName ?? ''} ${lawyer.lastName ?? ''}`.trim() ||
+          `Lawyer #${lawyer.id}`;
+        return h.data.events.data.map((ev) => ({
+          ...ev,
+          _actorName: fullName,
+        }));
+      })
+      .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp))
       .slice(0, 8);
-  }, [leadsInPeriod]);
+    setRecentEvents(merged);
+  };
+
+  useEffect(() => {
+    void fetchRecentActivity();
+  }, []);
+
+  // Filtrar por período seleccionado.
+  const recentInPeriod = useMemo(() => {
+    if (period.days == null) return recentEvents;
+    const cutoff = Date.now() - period.days * 86_400_000;
+    return recentEvents.filter(
+      (ev) => new Date(ev.timestamp).getTime() >= cutoff
+    );
+  }, [recentEvents, period.days]);
 
   const handleActivityClick = () => {
     setSelecArray([]);
@@ -170,58 +215,178 @@ const Dashboard = () => {
       <ActivityPanel
         eyebrow='Audit log'
         title='Recent activity'
-        empty={recentActivity.length === 0}
-        emptyText='No recent leads yet'
+        empty={recentInPeriod.length === 0}
+        emptyText={
+          recentLoading
+            ? 'Loading recent activity…'
+            : 'No recent activity yet'
+        }
         onViewAll={
-          recentActivity.length > 0 ? handleActivityClick : undefined
+          recentInPeriod.length > 0 ? handleActivityClick : undefined
         }
       >
         <ul className='flex flex-col divide-y divide-slate-100'>
-          {recentActivity.map((lead: any) => {
-            const name = lead['lead name'] || '—';
-            const idLabel = `#${String(lead['lead id'] ?? '').padStart(5, '0')}`;
-            const ts = lead.date_updated ?? lead.date;
-            return (
-              <li key={lead['lead id']}>
-                <button
-                  type='button'
-                  onClick={handleActivityClick}
-                  className='flex w-full items-center gap-3 bg-transparent py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none'
-                >
-                  <Avatar
-                    initials={name.slice(0, 2).toUpperCase() || '·'}
-                    tone={toneFromString(name) as any}
-                    size='sm'
-                  />
-                  <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                    <div className='flex items-center gap-2'>
-                      <span className='truncate text-[13px] font-bold text-slate-900'>
-                        {name}
-                      </span>
-                      <span className='font-mono text-[10px] font-semibold text-slate-400'>
-                        {idLabel}
-                      </span>
-                    </div>
-                    <span className='truncate text-[11px] text-slate-500'>
-                      {lead.lawyer && lead.lawyer !== 'No assigned'
-                        ? `${lead.lawyer} · ${lead.service || '—'}`
-                        : `Unassigned · ${lead.service || '—'}`}
-                    </span>
-                  </div>
-                  <div className='flex flex-col items-end gap-1'>
-                    <StatusPill variant={variantFromStatus(lead.status) as any} />
-                    <span className='text-[10px] font-medium text-slate-400'>
-                      {ts ? dayjs(ts).fromNow() : '—'}
-                    </span>
-                  </div>
-                </button>
-              </li>
-            );
-          })}
+          {recentInPeriod.map((ev) => (
+            <li key={`${ev.entity_type}-${ev.entity_id}-${ev.id}`}>
+              <button
+                type='button'
+                onClick={handleActivityClick}
+                className='flex w-full items-center gap-3 bg-transparent py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none'
+              >
+                <ActionDot type={ev.action_type} />
+                <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                  <span className='truncate text-[12px] font-semibold text-slate-700'>
+                    {describeEvent(ev)}
+                  </span>
+                  <span className='truncate text-[11px] text-slate-500'>
+                    {ev.actor_role
+                      ? ev.actor_role.charAt(0).toUpperCase() +
+                        ev.actor_role.slice(1)
+                      : 'System'}{' '}
+                    · <strong className='font-semibold text-slate-700'>{ev._actorName}</strong>
+                  </span>
+                </div>
+                <span className='flex-shrink-0 text-[10px] font-medium text-slate-400'>
+                  {dayjs(ev.timestamp).fromNow()}
+                </span>
+              </button>
+            </li>
+          ))}
         </ul>
       </ActivityPanel>
     </div>
   );
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Helpers para Recent activity (HTML 23)
+// ────────────────────────────────────────────────────────────────────────────
+
+const ACTION_TONE: Record<
+  ActionType,
+  { bg: string; fg: string; icon: JSX.Element }
+> = {
+  assign: {
+    bg: 'bg-violet-100',
+    fg: 'text-violet-600',
+    icon: <MdPersonAddAlt1 size={14} />,
+  },
+  unassign: {
+    bg: 'bg-rose-100',
+    fg: 'text-rose-600',
+    icon: <MdPersonRemove size={14} />,
+  },
+  status_change: {
+    bg: 'bg-amber-100',
+    fg: 'text-amber-700',
+    icon: <MdSwapHoriz size={14} />,
+  },
+  update: {
+    bg: 'bg-sky-100',
+    fg: 'text-sky-700',
+    icon: <MdEdit size={14} />,
+  },
+  edit_denied: {
+    bg: 'bg-rose-100',
+    fg: 'text-rose-600',
+    icon: <MdBlock size={14} />,
+  },
+  create: {
+    bg: 'bg-emerald-100',
+    fg: 'text-emerald-600',
+    icon: <MdAddCircleOutline size={14} />,
+  },
+  delete: {
+    bg: 'bg-rose-100',
+    fg: 'text-rose-600',
+    icon: <MdHighlightOff size={14} />,
+  },
+  login: {
+    bg: 'bg-slate-100',
+    fg: 'text-slate-600',
+    icon: <MdLoginIcon size={14} />,
+  },
+};
+
+const ActionDot = ({ type }: { type: ActionType }) => {
+  const meta = ACTION_TONE[type] ?? ACTION_TONE.update;
+  return (
+    <span
+      className={`inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${meta.bg} ${meta.fg}`}
+    >
+      {meta.icon}
+    </span>
+  );
+};
+
+const describeEvent = (ev: AuditEvent): JSX.Element => {
+  const idLabel =
+    ev.entity_type === 'lead'
+      ? `#${String(ev.entity_id).padStart(5, '0')}`
+      : ev.entity_type === 'lawyer'
+      ? `Lawyer #${ev.entity_id}`
+      : '';
+  switch (ev.action_type) {
+    case 'assign':
+      return (
+        <>
+          Lead <strong className='font-bold text-slate-900'>{idLabel}</strong>{' '}
+          assigned
+        </>
+      );
+    case 'unassign':
+      return (
+        <>
+          Lead <strong className='font-bold text-slate-900'>{idLabel}</strong>{' '}
+          unassigned
+        </>
+      );
+    case 'status_change': {
+      const from = ev.old_value?.status;
+      const to = ev.new_value?.status;
+      return (
+        <>
+          <strong className='font-bold text-slate-900'>{idLabel}</strong>{' '}
+          status changed to{' '}
+          <strong className='font-bold text-slate-900'>{to ?? '—'}</strong>
+          {from ? (
+            <span className='text-slate-400'> (from {from})</span>
+          ) : null}
+        </>
+      );
+    }
+    case 'edit_denied':
+      return (
+        <>
+          Edit denied on{' '}
+          <strong className='font-bold text-slate-900'>{idLabel}</strong>
+        </>
+      );
+    case 'login':
+      return <>Logged in</>;
+    case 'create':
+      return (
+        <>
+          Created{' '}
+          <strong className='font-bold text-slate-900'>{idLabel}</strong>
+        </>
+      );
+    case 'delete':
+      return (
+        <>
+          Deleted{' '}
+          <strong className='font-bold text-slate-900'>{idLabel}</strong>
+        </>
+      );
+    case 'update':
+    default:
+      return (
+        <>
+          Updated{' '}
+          <strong className='font-bold text-slate-900'>{idLabel}</strong>
+        </>
+      );
+  }
 };
 
 export default Dashboard;
