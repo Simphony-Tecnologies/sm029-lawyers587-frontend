@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -21,6 +21,8 @@ import {
   toneFromString,
   variantFromStatus,
   type KpiTone,
+  type PeriodKey,
+  type PeriodOption,
 } from '@/components/ui';
 
 dayjs.extend(relativeTime);
@@ -84,14 +86,28 @@ const Dashboard = () => {
   const router = useRouter();
   const pathname = usePathname();
 
+  const [period, setPeriod] = useState<{ key: PeriodKey; days: number | null }>(
+    { key: 'week', days: 7 }
+  );
+
+  // Leads filtrados por la ventana temporal seleccionada en PeriodSelect.
+  const leadsInPeriod = useMemo(() => {
+    if (!Array.isArray(dataLeads)) return [];
+    if (period.days == null) return dataLeads as any[];
+    const cutoff = Date.now() - period.days * 86_400_000;
+    return (dataLeads as any[]).filter((lead: any) => {
+      const ts = new Date(lead.date_updated ?? lead.date).getTime();
+      return ts >= cutoff;
+    });
+  }, [dataLeads, period.days]);
+
   const counts = useMemo(() => {
-    if (!dataLeads) return KPI_DEFS.map(() => 0);
     return KPI_DEFS.map(({ statuses }) =>
-      (dataLeads as any[]).filter((lead: any) =>
+      leadsInPeriod.filter((lead: any) =>
         statuses.includes(lead.status)
       ).length
     );
-  }, [dataLeads]);
+  }, [leadsInPeriod]);
 
   const handleClickKpi = (statuses: LeadStatus[]) => {
     setSelecArray(statuses);
@@ -100,18 +116,17 @@ const Dashboard = () => {
 
   // Síntesis client-side de actividad reciente: backend aún no expone
   // /audit/recent global. Tomamos los N leads con date_updated más reciente
-  // como proxy de "Recent activity". Cuando exista el endpoint, reemplazar.
+  // dentro del período seleccionado.
   const recentActivity = useMemo(() => {
-    if (!Array.isArray(dataLeads) || dataLeads.length === 0) return [];
-    return [...(dataLeads as any[])]
-      .filter((l) => l?.date_updated || l?.date)
+    return [...leadsInPeriod]
+      .filter((l: any) => l?.date_updated || l?.date)
       .sort(
-        (a, b) =>
+        (a: any, b: any) =>
           +new Date(b.date_updated ?? b.date) -
           +new Date(a.date_updated ?? a.date)
       )
       .slice(0, 8);
-  }, [dataLeads]);
+  }, [leadsInPeriod]);
 
   const handleActivityClick = () => {
     setSelecArray([]);
@@ -128,7 +143,14 @@ const Dashboard = () => {
       <PageHead
         eyebrow='Overview'
         title='Dashboard'
-        action={<PeriodSelect label='This week' />}
+        action={
+          <PeriodSelect
+            value={period.key}
+            onChange={(opt: PeriodOption) =>
+              setPeriod({ key: opt.key, days: opt.days })
+            }
+          />
+        }
       />
 
       <div className='grid gap-3.5 md:grid-cols-2'>

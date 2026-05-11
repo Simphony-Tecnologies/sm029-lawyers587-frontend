@@ -1,1 +1,7 @@
-export { PeriodSelect, type PeriodSelectProps } from './PeriodSelect';
+export {
+  PeriodSelect,
+  DEFAULT_PERIODS,
+  type PeriodSelectProps,
+  type PeriodOption,
+  type PeriodKey,
+} from './PeriodSelect';
