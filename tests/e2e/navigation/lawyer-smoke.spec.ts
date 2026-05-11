@@ -3,7 +3,12 @@ import { loginAs } from '../helpers/auth.helper';
 import { LAWYER_ROUTES } from '../fixtures/test-data';
 
 // Lawyer specs anulan el storage admin pre-cargado y hacen login propio.
+// Skip toda la suite si no hay credenciales lawyer configuradas.
 test.use({ storageState: { cookies: [], origins: [] } });
+test.skip(
+  !process.env.E2E_LAWYER_EMAIL || !process.env.E2E_LAWYER_PASSWORD,
+  'E2E_LAWYER_EMAIL / E2E_LAWYER_PASSWORD no configurados'
+);
 
 test.describe('Lawyer — smoke navigation', () => {
   test.beforeEach(async ({ page }) => {

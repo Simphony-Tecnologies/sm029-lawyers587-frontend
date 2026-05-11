@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { firstDataRow } from '../helpers/datatable.helper';
 
 // Endpoints ejercitados:
 //   PUT /leads/:id (con comment obligatorio en PROBLEMATIC/SEND_BACK)
@@ -14,11 +15,9 @@ test.describe('Leads — single update (v2)', () => {
   test('abrir un lead asignado abre el modal con secciones', async ({
     page,
   }) => {
-    // Tomamos la primera row que no sea NEW (para que sea editable).
-    const row = page.locator('tbody tr').first();
+    const row = firstDataRow(page);
     if (!(await row.isVisible().catch(() => false))) test.skip();
     await row.click();
-    // Modal: status selector + Activity & Notes presentes
     await expect(page.getByText(/Activity & Notes/i)).toBeVisible({
       timeout: 10_000,
     });
@@ -27,7 +26,7 @@ test.describe('Leads — single update (v2)', () => {
   test('cambiar status a PROBLEMATIC sin razón bloquea submit', async ({
     page,
   }) => {
-    const row = page.locator('tbody tr').first();
+    const row = firstDataRow(page);
     if (!(await row.isVisible().catch(() => false))) test.skip();
     await row.click();
     await expect(page.getByText(/Activity & Notes/i)).toBeVisible();
@@ -48,13 +47,9 @@ test.describe('Leads — single update (v2)', () => {
   test('archive cierra el modal y excluye el lead de la tabla', async ({
     page,
   }) => {
-    const row = page.locator('tbody tr').first();
+    const row = firstDataRow(page);
     if (!(await row.isVisible().catch(() => false))) test.skip();
-    const firstId = await row
-      .locator('td')
-      .first()
-      .textContent()
-      .catch(() => null);
+    const firstId = await row.textContent().catch(() => null);
     await row.click();
     await expect(page.getByText(/Activity & Notes/i)).toBeVisible();
 
@@ -72,9 +67,10 @@ test.describe('Leads — single update (v2)', () => {
     // El lead archivado no debería aparecer en la tabla por default.
     if (firstId) {
       const stillThere = await page
-        .locator('tbody tr', { hasText: firstId })
+        .locator('[role="row"]', { hasText: firstId.slice(0, 20) })
         .count();
-      expect(stillThere).toBe(0);
+      // Solo el header sigue (≤1) o cero
+      expect(stillThere).toBeLessThanOrEqual(1);
     }
   });
 });

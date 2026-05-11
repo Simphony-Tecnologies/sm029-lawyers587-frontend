@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { rowCheckbox } from '../helpers/datatable.helper';
 
 // Endpoints:
 //   PATCH /leads/bulk/assign   - asignación masiva
@@ -13,7 +14,7 @@ test.describe('Leads — bulk actions (v2)', () => {
   });
 
   test('seleccionar 1 lead muestra la BulkActionBar', async ({ page }) => {
-    const checkbox = page.locator('tbody tr input[type="checkbox"]').first();
+    const checkbox = rowCheckbox(page, 0);
     if (!(await checkbox.isVisible().catch(() => false))) test.skip();
     await checkbox.check();
     await expect(
@@ -26,7 +27,7 @@ test.describe('Leads — bulk actions (v2)', () => {
   test('Assign to → LawyerPicker carga lawyers reales (no vacío)', async ({
     page,
   }) => {
-    const checkbox = page.locator('tbody tr input[type="checkbox"]').first();
+    const checkbox = rowCheckbox(page, 0);
     if (!(await checkbox.isVisible().catch(() => false))) test.skip();
     await checkbox.check();
     await page.getByRole('button', { name: /Assign to/i }).first().click();
@@ -40,7 +41,7 @@ test.describe('Leads — bulk actions (v2)', () => {
   });
 
   test('Bulk Archive: razón obligatoria bloquea confirm', async ({ page }) => {
-    const checkbox = page.locator('tbody tr input[type="checkbox"]').first();
+    const checkbox = rowCheckbox(page, 0);
     if (!(await checkbox.isVisible().catch(() => false))) test.skip();
     await checkbox.check();
     await page.getByRole('button', { name: /^Archive$/i }).first().click();
@@ -56,7 +57,7 @@ test.describe('Leads — bulk actions (v2)', () => {
   test('Bulk Change status: combobox + razón habilita confirm', async ({
     page,
   }) => {
-    const checkbox = page.locator('tbody tr input[type="checkbox"]').first();
+    const checkbox = rowCheckbox(page, 0);
     if (!(await checkbox.isVisible().catch(() => false))) test.skip();
     await checkbox.check();
     await page.getByRole('button', { name: /Change status/i }).first().click();

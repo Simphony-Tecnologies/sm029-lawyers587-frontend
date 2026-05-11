@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { firstDataRow } from '../helpers/datatable.helper';
 
 // Endpoints:
 //   GET /lawyers/:id/history          (audit + summary)
@@ -11,7 +12,7 @@ test.describe('Lawyer detail — history & export (v2)', () => {
   });
 
   test('abrir detalle dispara GET /lawyers/:id/history', async ({ page }) => {
-    const row = page.locator('tbody tr').first();
+    const row = firstDataRow(page);
     if (!(await row.isVisible().catch(() => false))) test.skip();
     const reqPromise = page.waitForRequest(
       (req) => /\/lawyers\/\d+\/history(\?|$)/.test(req.url()),
@@ -25,7 +26,7 @@ test.describe('Lawyer detail — history & export (v2)', () => {
   test('chip Status changes filtra audit con action_type=status_change', async ({
     page,
   }) => {
-    const row = page.locator('tbody tr').first();
+    const row = firstDataRow(page);
     if (!(await row.isVisible().catch(() => false))) test.skip();
     await row.click();
     await page.waitForLoadState('networkidle');
@@ -45,7 +46,7 @@ test.describe('Lawyer detail — history & export (v2)', () => {
   test('Export PDF del history del lawyer descarga archivo', async ({
     page,
   }) => {
-    const row = page.locator('tbody tr').first();
+    const row = firstDataRow(page);
     if (!(await row.isVisible().catch(() => false))) test.skip();
     await row.click();
     await page.waitForLoadState('networkidle');

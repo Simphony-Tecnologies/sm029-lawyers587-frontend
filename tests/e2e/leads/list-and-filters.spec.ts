@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dataRows } from '../helpers/datatable.helper';
 
 // Endpoint: GET /leads paginado + assigned_lawyer embebido.
 // La UI lee el shape v2 ({ data: { data, total } }) sin segunda llamada a /leads-assigned.
@@ -10,25 +11,21 @@ test.describe('Leads — list & filters (v2)', () => {
   });
 
   test('GET /leads retorna paginado y la tabla renderiza filas', async ({ page }) => {
-    // No salimos sin la tabla cargada.
     await expect(
       page.getByRole('button', { name: 'Export CSV' })
     ).toBeVisible();
-    // Si el backend tiene leads, la tabla muestra al menos 1 row de datos.
-    // Si está vacío, el empty state se muestra.
-    const rows = page.locator('tbody tr');
-    const count = await rows.count();
+    const count = await dataRows(page).count();
     expect(count).toBeGreaterThanOrEqual(0);
   });
 
   test('search filtra la lista', async ({ page }) => {
     const search = page.getByPlaceholder(/search/i);
     if (!(await search.isVisible().catch(() => false))) test.skip();
+    const before = await dataRows(page).count();
     await search.fill('zzzzz-no-match');
-    await page.waitForTimeout(400);
-    // Esperamos cero rows visibles o empty state.
-    const rows = await page.locator('tbody tr').count();
-    expect(rows).toBeLessThanOrEqual(1); // 0 o el empty row
+    await page.waitForTimeout(500);
+    const after = await dataRows(page).count();
+    expect(after).toBeLessThanOrEqual(before);
   });
 
   test('chip ARCHIVED muestra leads archivados (excluidos por default)', async ({

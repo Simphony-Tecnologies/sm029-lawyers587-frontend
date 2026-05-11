@@ -33,6 +33,11 @@ test.describe('Login', () => {
   test('lawyer con credenciales válidas llega a dash-lawyers', async ({
     page,
   }) => {
+    // Skip si no hay credenciales lawyer configuradas.
+    test.skip(
+      !process.env.E2E_LAWYER_EMAIL || !process.env.E2E_LAWYER_PASSWORD,
+      'E2E_LAWYER_EMAIL / E2E_LAWYER_PASSWORD no configurados'
+    );
     await page.goto('/');
     await page.getByPlaceholder('Email Address').fill(TEST_USERS.lawyer.email);
     await page.getByPlaceholder('Password').fill(TEST_USERS.lawyer.password);

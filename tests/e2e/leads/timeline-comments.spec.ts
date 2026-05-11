@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { firstDataRow } from '../helpers/datatable.helper';
 
 // Endpoints:
 //   GET /leads/:id/timeline?type=audit|comment|all
@@ -9,7 +10,7 @@ test.describe('Leads — timeline & comments (v2)', () => {
     await page.goto('/lead-management');
     await page.waitForLoadState('networkidle', { timeout: 20_000 });
 
-    const row = page.locator('tbody tr').first();
+    const row = firstDataRow(page);
     if (!(await row.isVisible().catch(() => false))) test.skip();
     await row.click();
     await expect(page.getByText(/Activity & Notes/i)).toBeVisible({
