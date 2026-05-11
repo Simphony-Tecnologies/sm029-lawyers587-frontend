@@ -423,7 +423,9 @@ export const LeadInfoModal = ({
                     htmlFor='lead-comment'
                     className='inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'
                   >
-                    {isDestructive ? 'Reason for marking as lost' : 'Comment'}
+                    {isDestructive
+                      ? `Reason for ${(selectedStatus ?? '').toLowerCase().replace('_', ' ')}`
+                      : 'Comment'}
                     {isDestructive ? (
                       <span className='rounded bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-customRed'>
                         Required
@@ -438,7 +440,7 @@ export const LeadInfoModal = ({
                     }
                     placeholder={
                       isDestructive
-                        ? 'Explain why this lead is being marked as lost. Super admin will review this comment.'
+                        ? 'Explain the reason for this status change. Super admin will review this comment.'
                         : 'Add a note about this case. Include any relevant context for review…'
                     }
                     disabled={loading}
@@ -454,7 +456,7 @@ export const LeadInfoModal = ({
                   <div className='flex items-center justify-between'>
                     {reasonRequiredMissing ? (
                       <span className='text-[10px] font-semibold text-customRed'>
-                        A reason is required to mark this lead as lost.
+                        A reason is required for this status change.
                       </span>
                     ) : (
                       <span />

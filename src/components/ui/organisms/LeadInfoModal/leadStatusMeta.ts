@@ -98,5 +98,9 @@ export const getLeadStatusMeta = (raw?: string): LeadStatusMeta => {
   return LEAD_STATUS_META[key] ?? LEAD_STATUS_META.DISABLED;
 };
 
+// Statuses que requieren razón obligatoria — alineado con backend
+// (PROBLEMATIC y SEND_BACK validan `comment` server-side; LOST implica unassign).
+const REASON_REQUIRED_STATUSES = new Set(['LOST', 'PROBLEMATIC', 'SEND_BACK']);
+
 export const isDestructiveStatus = (raw?: string): boolean =>
-  (raw ?? '').toUpperCase() === 'LOST';
+  REASON_REQUIRED_STATUSES.has((raw ?? '').toUpperCase());

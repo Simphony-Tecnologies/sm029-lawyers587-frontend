@@ -1,6 +1,6 @@
 'use client';
 import Modal from '@/components/organisms/Modal';
-import { database } from '@/services/database';
+import { api, database } from '@/services/database';
 import { useState, useEffect, useMemo } from 'react';
 import {
   MdAdd,
@@ -20,6 +20,7 @@ import axios from 'axios';
 import {
   Avatar,
   CapacityBar,
+  ConfirmationDialog,
   DataTable,
   FilterButton,
   IconActionButton,
@@ -49,6 +50,13 @@ const LawyerManagement = () => {
   const [file, setFile] = useState<any>(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isOpenPassword, setIsopenPassword] = useState(false);
+  const [statusToggleTarget, setStatusToggleTarget] = useState<{
+    id: number;
+    name: string;
+    nextActive: boolean;
+  } | null>(null);
+  const [statusToggleComment, setStatusToggleComment] = useState('');
+  const [statusToggleLoading, setStatusToggleLoading] = useState(false);
   const [lawyerStats, setLawyerStats] = useState<{
     total: number;
     available: number;
@@ -611,12 +619,12 @@ const LawyerManagement = () => {
   }): Promise<void> => {
     if (!dataIndex) return;
     setLoadingModal(true);
-    const updateData = await database.UpdateLawyer(
-      { password } as any,
-      dataIndex.id
-    );
-    if (updateData.code === 401) {
-      toast.error(updateData.messages);
+    const res = await api.lawyers.updatePassword(dataIndex.id, {
+      password,
+      comment: 'Password reset via admin panel',
+    });
+    if (!res.success) {
+      toast.error(res.message || 'Could not update password');
       setLoadingModal(false);
       return;
     }
@@ -624,6 +632,31 @@ const LawyerManagement = () => {
     toast.success("Lawyer's password updated successfully");
     setIsopenPassword(false);
     setLoadingModal(false);
+  };
+
+  const handleStatusToggleConfirm = async (): Promise<void> => {
+    if (!statusToggleTarget) return;
+    const trimmed = statusToggleComment.trim();
+    if (!trimmed) {
+      toast.error('Reason is required');
+      return;
+    }
+    setStatusToggleLoading(true);
+    const res = await api.lawyers.updateStatus(statusToggleTarget.id, {
+      is_active: statusToggleTarget.nextActive,
+      comment: trimmed,
+    });
+    setStatusToggleLoading(false);
+    if (!res.success) {
+      toast.error(res.message || 'Could not update lawyer status');
+      return;
+    }
+    toast.success(
+      statusToggleTarget.nextActive ? 'Lawyer activated' : 'Lawyer deactivated'
+    );
+    setStatusToggleTarget(null);
+    setStatusToggleComment('');
+    fetchData();
   };
   const handleRoute = async (index: number) => {
     const dataId = await database.getLawyer(withOutFormat[index].id);
@@ -952,6 +985,49 @@ const LawyerManagement = () => {
         onSubmit={handleUpdatePassword}
         loading={loadingModal}
       />
+      <ConfirmationDialog
+        open={Boolean(statusToggleTarget)}
+        onClose={() => {
+          if (statusToggleLoading) return;
+          setStatusToggleTarget(null);
+          setStatusToggleComment('');
+        }}
+        variant={statusToggleTarget?.nextActive ? 'default' : 'danger'}
+        title={
+          statusToggleTarget?.nextActive
+            ? 'Activate lawyer'
+            : 'Deactivate lawyer'
+        }
+        subtitle={statusToggleTarget?.name || undefined}
+        confirmLabel={
+          statusToggleTarget?.nextActive ? 'Activate' : 'Deactivate'
+        }
+        onConfirm={handleStatusToggleConfirm}
+        loading={statusToggleLoading}
+        confirmDisabled={statusToggleComment.trim().length === 0}
+      >
+        <div className='space-y-2'>
+          <label
+            htmlFor='status-toggle-reason'
+            className='block text-xs font-medium text-slate-600'
+          >
+            Reason (required)
+          </label>
+          <textarea
+            id='status-toggle-reason'
+            value={statusToggleComment}
+            onChange={(e) => setStatusToggleComment(e.target.value)}
+            rows={3}
+            placeholder={
+              statusToggleTarget?.nextActive
+                ? 'Why is this lawyer being reactivated?'
+                : 'Why is this lawyer being deactivated?'
+            }
+            className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none'
+            disabled={statusToggleLoading}
+          />
+        </div>
+      </ConfirmationDialog>
       <Modal
         title='Session History'
         setIsOpen={setisOpenSession}
@@ -1334,14 +1410,14 @@ const LawyerManagement = () => {
                     label={r.isActive ? 'Deactivate lawyer' : 'Activate lawyer'}
                     icon={<MdPowerSettingsNew size={12} />}
                     tone='warning'
-                    onClick={() =>
-                      toast(
-                        r.isActive
-                          ? 'Deactivate flow pending endpoint'
-                          : 'Activate flow pending endpoint',
-                        { icon: 'ℹ️' }
-                      )
-                    }
+                    onClick={() => {
+                      setStatusToggleTarget({
+                        id: r.id,
+                        name: r.name,
+                        nextActive: !r.isActive,
+                      });
+                      setStatusToggleComment('');
+                    }}
                   />
                   <IconActionButton
                     label='Delete lawyer'

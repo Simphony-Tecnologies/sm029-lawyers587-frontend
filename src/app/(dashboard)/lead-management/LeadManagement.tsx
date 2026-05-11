@@ -13,7 +13,8 @@ import {
 } from 'react-icons/md';
 import { useLeadsStore } from '@/store/useLead.store';
 import { useSelectStatus } from '@/store/useSelectStatus';
-import { database } from '@/services/database';
+import { api, database } from '@/services/database';
+import type { LeadStatus } from '@/types/api.types';
 import { statusSelectAll } from '@/constants/status';
 import {
   Avatar,
@@ -171,28 +172,28 @@ const LeadManagement = () => {
       );
       return;
     }
-    if (status === 'LOST') {
-      const deleteAssigned = await database.deleteData(
-        `${process.env.NEXT_PUBLIC_URL}/leads-assigned/lead/${selectedLead['lead id']}`
-      );
-      if (!deleteAssigned.success) {
-        toast.error('Error to delete lawyer');
-        return;
-      }
+    const upper = (status ?? '').toUpperCase() as LeadStatus;
+    const reasonRequired = upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST';
+    const reason = (comments ?? '').trim();
+    if (reasonRequired && reason.length === 0) {
+      toast.error('A reason is required for this status change');
+      return;
     }
+
     setLoading(true);
-    const dataUpdate = {
-      status,
-      comments: status === 'NEW' ? '' : comments,
-      description: selectedLead['description lead'] ?? '',
-    };
-    const responseUpdate = await database.updateData(
-      `${process.env.NEXT_PUBLIC_URL}/leads/${selectedLead['lead id']}`,
-      dataUpdate
-    );
-    if (!responseUpdate.success) {
+    // Statuses que implican quitar asignación → endpoint /unassign dedicado.
+    const unassignStatuses: LeadStatus[] = ['LOST', 'SEND_BACK'];
+    const leadId = selectedLead['lead id'];
+    const res = unassignStatuses.includes(upper)
+      ? await api.leads.unassign(leadId, { status: upper, comment: reason })
+      : await api.leads.update(leadId, {
+          status: upper,
+          comment: reason || undefined,
+          description: selectedLead['description lead'] ?? '',
+        });
+    if (!res.success) {
       setLoading(false);
-      toast.error('Error updating Lead information');
+      toast.error(res.message || 'Error updating Lead information');
       return;
     }
     toast.success('Lead information updated successfully');
