@@ -112,12 +112,13 @@ const LeadManagement = () => {
   const [selectedLead, setSelectedLead] = useState<any>({});
   const [loading, setLoading] = useState(false);
 
-  // ── Bulk selection state (UI only — endpoints pending) ──
+  // ── Bulk selection state ──
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDialog, setBulkDialog] = useState<BulkDialogType>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [assignLawyerId, setAssignLawyerId] = useState<number | ''>('');
   const [bulkStatus, setBulkStatus] = useState<string>('');
+  const [bulkComment, setBulkComment] = useState<string>('');
   const [lawyers, setLawyers] = useState<LawyerOption[]>([]);
   const [lawyersLoading, setLawyersLoading] = useState(false);
 
@@ -278,6 +279,7 @@ const LeadManagement = () => {
     if (type === 'status') {
       setBulkStatus('');
     }
+    setBulkComment('');
     setBulkDialog(type);
   };
 
@@ -286,55 +288,94 @@ const LeadManagement = () => {
     setBulkDialog(null);
   };
 
-  // UI-only stub: simulate latency, toast success, clear selection
-  const runBulkStub = async (message: string) => {
-    setBulkLoading(true);
-    try {
-      await new Promise((r) => setTimeout(r, 350));
-      toast.success(message);
-      clearSelection();
-      setBulkDialog(null);
-    } finally {
-      setBulkLoading(false);
+  const summarizeBulkResult = (
+    action: string,
+    res: { success: boolean; data?: { total: number; succeeded: number; failed: number } | null; message?: string }
+  ) => {
+    if (!res.success || !res.data) {
+      toast.error(res.message || `Bulk ${action} failed`);
+      return false;
     }
+    const { succeeded, failed, total } = res.data;
+    if (failed > 0) {
+      toast(`Bulk ${action}: ${succeeded}/${total} ok, ${failed} failed`, {
+        icon: '⚠️',
+      });
+    } else {
+      toast.success(`Bulk ${action}: ${succeeded} lead${succeeded === 1 ? '' : 's'} ok`);
+    }
+    return true;
   };
 
-  const handleConfirmAssign = () => {
+  const finishBulk = () => {
+    clearSelection();
+    setBulkDialog(null);
+    fetchLeads();
+  };
+
+  const handleConfirmAssign = async () => {
     const lawyer = lawyers.find((l) => l.id === assignLawyerId);
     if (!lawyer) return;
-    void runBulkStub(
-      `Assigned ${selectedIds.size} lead${
-        selectedIds.size === 1 ? '' : 's'
-      } to ${lawyer.name} (UI demo — endpoint pending)`
-    );
+    const comment = bulkComment.trim();
+    if (comment.length === 0) {
+      toast.error('Reason is required');
+      return;
+    }
+    setBulkLoading(true);
+    const res = await api.leads.bulk.assign({
+      lead_ids: Array.from(selectedIds),
+      lawyer_id: Number(lawyer.id),
+      comment,
+    });
+    setBulkLoading(false);
+    if (summarizeBulkResult('assign', res)) finishBulk();
   };
 
-  const handleConfirmStatus = () => {
+  const handleConfirmStatus = async () => {
     if (!bulkStatus) return;
-    const label =
-      BULK_STATUS_OPTIONS.find((o) => o.value === bulkStatus)?.name ??
-      bulkStatus;
-    void runBulkStub(
-      `Status updated to "${label}" for ${selectedIds.size} lead${
-        selectedIds.size === 1 ? '' : 's'
-      } (UI demo — endpoint pending)`
-    );
+    const comment = bulkComment.trim();
+    if (comment.length === 0) {
+      toast.error('Reason is required');
+      return;
+    }
+    setBulkLoading(true);
+    const res = await api.leads.bulk.status({
+      lead_ids: Array.from(selectedIds),
+      status: bulkStatus as LeadStatus,
+      comment,
+    });
+    setBulkLoading(false);
+    if (summarizeBulkResult('status update', res)) finishBulk();
   };
 
-  const handleConfirmArchive = () => {
-    void runBulkStub(
-      `Archived ${selectedIds.size} lead${
-        selectedIds.size === 1 ? '' : 's'
-      } (UI demo — endpoint pending)`
-    );
+  const handleConfirmArchive = async () => {
+    const comment = bulkComment.trim();
+    if (comment.length === 0) {
+      toast.error('Reason is required');
+      return;
+    }
+    setBulkLoading(true);
+    const res = await api.leads.bulk.archive({
+      lead_ids: Array.from(selectedIds),
+      comment,
+    });
+    setBulkLoading(false);
+    if (summarizeBulkResult('archive', res)) finishBulk();
   };
 
-  const handleConfirmDelete = () => {
-    void runBulkStub(
-      `Deleted ${selectedIds.size} lead${
-        selectedIds.size === 1 ? '' : 's'
-      } (UI demo — endpoint pending)`
-    );
+  const handleConfirmDelete = async () => {
+    const comment = bulkComment.trim();
+    if (comment.length === 0) {
+      toast.error('Reason is required');
+      return;
+    }
+    setBulkLoading(true);
+    const res = await api.leads.bulk.delete({
+      lead_ids: Array.from(selectedIds),
+      comment,
+    });
+    setBulkLoading(false);
+    if (summarizeBulkResult('delete', res)) finishBulk();
   };
 
   // Preview helpers shared by dialogs
@@ -732,7 +773,7 @@ const LeadManagement = () => {
         confirmLabel='Confirm assignment'
         onConfirm={handleConfirmAssign}
         loading={bulkLoading}
-        confirmDisabled={!assignLawyerId}
+        confirmDisabled={!assignLawyerId || bulkComment.trim().length === 0}
       >
         <div className='mb-1 flex flex-col gap-1.5'>
           <label
@@ -760,6 +801,12 @@ const LeadManagement = () => {
             ))}
           </select>
         </div>
+        <BulkCommentField
+          value={bulkComment}
+          onChange={setBulkComment}
+          disabled={bulkLoading}
+          placeholder='Why are these leads being assigned to this lawyer?'
+        />
       </ConfirmationDialog>
 
       <ConfirmationDialog
@@ -772,7 +819,7 @@ const LeadManagement = () => {
         confirmLabel='Apply status'
         onConfirm={handleConfirmStatus}
         loading={bulkLoading}
-        confirmDisabled={!bulkStatus}
+        confirmDisabled={!bulkStatus || bulkComment.trim().length === 0}
       >
         <div className='mb-1 flex flex-col gap-1.5'>
           <label
@@ -795,6 +842,12 @@ const LeadManagement = () => {
             ))}
           </select>
         </div>
+        <BulkCommentField
+          value={bulkComment}
+          onChange={setBulkComment}
+          disabled={bulkLoading}
+          placeholder='Why is the status changing for these leads?'
+        />
       </ConfirmationDialog>
 
       <ConfirmationDialog
@@ -809,7 +862,15 @@ const LeadManagement = () => {
         confirmLabel='Archive'
         onConfirm={handleConfirmArchive}
         loading={bulkLoading}
-      />
+        confirmDisabled={bulkComment.trim().length === 0}
+      >
+        <BulkCommentField
+          value={bulkComment}
+          onChange={setBulkComment}
+          disabled={bulkLoading}
+          placeholder='Why are these leads being archived?'
+        />
+      </ConfirmationDialog>
 
       <ConfirmationDialog
         open={bulkDialog === 'delete'}
@@ -826,9 +887,47 @@ const LeadManagement = () => {
         }`}
         onConfirm={handleConfirmDelete}
         loading={bulkLoading}
-      />
+        confirmDisabled={bulkComment.trim().length === 0}
+      >
+        <BulkCommentField
+          value={bulkComment}
+          onChange={setBulkComment}
+          disabled={bulkLoading}
+          placeholder='Why are these leads being deleted?'
+        />
+      </ConfirmationDialog>
     </div>
   );
 };
+
+const BulkCommentField = ({
+  value,
+  onChange,
+  disabled,
+  placeholder,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}) => (
+  <div className='mt-2 flex flex-col gap-1.5'>
+    <label
+      htmlFor='bulk-comment'
+      className='text-[11px] font-semibold uppercase tracking-[0.04em] text-slate-500'
+    >
+      Reason (required)
+    </label>
+    <textarea
+      id='bulk-comment'
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      rows={2}
+      disabled={disabled}
+      placeholder={placeholder}
+      className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60'
+    />
+  </div>
+);
 
 export default LeadManagement;

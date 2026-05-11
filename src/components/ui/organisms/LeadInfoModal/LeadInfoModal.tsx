@@ -24,6 +24,8 @@ import {
   isDestructiveStatus,
   type LeadStatusKey,
 } from './leadStatusMeta';
+import { api } from '@/services/database';
+import type { NoteType, TimelineEntry } from '@/types/api.types';
 
 const REASON_MAX = 500;
 
@@ -86,6 +88,11 @@ export const LeadInfoModal = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [comment, setComment] = useState<string>('');
   const [doNotContact, setDoNotContact] = useState<boolean>(true);
+  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [newCommentType, setNewCommentType] = useState<NoteType>('internal');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
 
   // Reset internal state when the modal opens with a new lead
   useEffect(() => {
@@ -93,7 +100,47 @@ export const LeadInfoModal = ({
     setSelectedStatus(lead.status ?? '');
     setComment(lead.comments ?? '');
     setDoNotContact(true);
+    setNewComment('');
+    setNewCommentType('internal');
   }, [open, lead]);
+
+  const fetchTimeline = async (leadId: number | string) => {
+    if (typeof leadId !== 'number' && Number.isNaN(Number(leadId))) return;
+    setTimelineLoading(true);
+    const res = await api.leads.timeline(Number(leadId), {
+      type: 'all',
+      limit: 25,
+    });
+    setTimelineLoading(false);
+    if (res.success && res.data) {
+      setTimeline(res.data.data);
+    } else {
+      setTimeline([]);
+    }
+  };
+
+  useEffect(() => {
+    if (!open || !lead) {
+      setTimeline([]);
+      return;
+    }
+    void fetchTimeline(lead.id);
+  }, [open, lead?.id]);
+
+  const handleAddComment = async () => {
+    if (!lead) return;
+    const content = newComment.trim();
+    if (content.length === 0) return;
+    setCommentSubmitting(true);
+    const res = await api.leads.comments.create(Number(lead.id), {
+      content,
+      note_type: newCommentType,
+    });
+    setCommentSubmitting(false);
+    if (!res.success) return;
+    setNewComment('');
+    void fetchTimeline(lead.id);
+  };
 
   const currentMeta = useMemo(
     () => getLeadStatusMeta(lead?.status),
@@ -467,6 +514,77 @@ export const LeadInfoModal = ({
                   </div>
                 </section>
 
+                {/* Activity & Notes (timeline + add comment) */}
+                <section className='flex flex-col gap-2'>
+                  <div className='flex items-center justify-between'>
+                    <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
+                      Activity &amp; Notes
+                    </span>
+                    {timelineLoading ? (
+                      <span className='text-[10px] font-semibold text-slate-400'>
+                        Loading…
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className='flex max-h-[220px] flex-col divide-y divide-slate-100 overflow-y-auto rounded-[10px] border border-slate-200 bg-white'>
+                    {timeline.length === 0 && !timelineLoading ? (
+                      <div className='px-3.5 py-4 text-center text-[12px] font-medium text-slate-400'>
+                        No activity yet.
+                      </div>
+                    ) : (
+                      timeline.map((entry) => (
+                        <TimelineRow
+                          key={`${entry.type}-${entry.id}`}
+                          entry={entry}
+                        />
+                      ))
+                    )}
+                  </div>
+                  <div className='flex flex-col gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3.5 py-3'>
+                    <div className='flex items-center justify-between'>
+                      <label
+                        htmlFor='lead-new-comment'
+                        className='text-[10px] font-bold uppercase tracking-[0.04em] text-slate-600'
+                      >
+                        Add a note
+                      </label>
+                      <select
+                        value={newCommentType}
+                        onChange={(e) =>
+                          setNewCommentType(e.target.value as NoteType)
+                        }
+                        disabled={commentSubmitting}
+                        className='h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none'
+                      >
+                        <option value='internal'>Internal</option>
+                        <option value='client_facing'>Client facing</option>
+                        <option value='urgent'>Urgent</option>
+                      </select>
+                    </div>
+                    <textarea
+                      id='lead-new-comment'
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder='Write a note for this lead…'
+                      rows={2}
+                      disabled={commentSubmitting}
+                      className='w-full resize-none rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60'
+                    />
+                    <div className='flex justify-end'>
+                      <button
+                        type='button'
+                        onClick={handleAddComment}
+                        disabled={
+                          commentSubmitting || newComment.trim().length === 0
+                        }
+                        className='inline-flex h-7 items-center gap-1 rounded-md bg-slate-900 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50'
+                      >
+                        {commentSubmitting ? 'Adding…' : 'Add note'}
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
                 {/* Toggle (destructive only) */}
                 {isDestructive ? (
                   <div className='flex items-center gap-3 rounded-[11px] border border-slate-200 bg-slate-50 px-4 py-3.5'>
@@ -606,6 +724,86 @@ const DetailRow = ({
           <MdLock size={11} />
         </span>
       ) : null}
+    </div>
+  );
+};
+
+const NOTE_TYPE_LABEL: Record<NoteType, string> = {
+  internal: 'Internal',
+  client_facing: 'Client facing',
+  urgent: 'Urgent',
+};
+
+const NOTE_TYPE_CLASS: Record<NoteType, string> = {
+  internal: 'bg-slate-100 text-slate-600',
+  client_facing: 'bg-sky-50 text-sky-700',
+  urgent: 'bg-red-50 text-red-700',
+};
+
+const formatTs = (ts: string) => {
+  try {
+    const d = new Date(ts);
+    return d.toLocaleString(undefined, {
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return ts;
+  }
+};
+
+const TimelineRow = ({ entry }: { entry: TimelineEntry }) => {
+  const actorName =
+    `${entry.actor?.firstName ?? ''} ${entry.actor?.lastName ?? ''}`.trim() ||
+    'System';
+  if (entry.type === 'comment') {
+    return (
+      <div className='flex flex-col gap-1 px-3.5 py-2.5'>
+        <div className='flex items-center justify-between'>
+          <span className='text-[11px] font-bold text-slate-800'>
+            {actorName}
+          </span>
+          <span
+            className={cn(
+              'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em]',
+              NOTE_TYPE_CLASS[entry.note_type]
+            )}
+          >
+            {NOTE_TYPE_LABEL[entry.note_type]}
+          </span>
+        </div>
+        <span className='whitespace-pre-wrap text-[12px] leading-[1.5] text-slate-700'>
+          {entry.content}
+        </span>
+        <span className='text-[10px] font-semibold text-slate-400'>
+          {formatTs(entry.timestamp)}
+        </span>
+      </div>
+    );
+  }
+  const from = entry.old_value?.status;
+  const to = entry.new_value?.status;
+  const detail =
+    entry.action_type === 'status_change' && from && to
+      ? `${from} → ${to}`
+      : entry.action_type;
+  return (
+    <div className='flex flex-col gap-1 px-3.5 py-2.5'>
+      <div className='flex items-center justify-between'>
+        <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
+          {entry.action_type.replace('_', ' ')}
+        </span>
+        <span className='text-[10px] font-semibold text-slate-400'>
+          {formatTs(entry.timestamp)}
+        </span>
+      </div>
+      <span className='text-[12px] text-slate-700'>{detail}</span>
+      <span className='text-[10px] font-medium text-slate-500'>
+        by {actorName}
+        {entry.comment ? ` · "${entry.comment.slice(0, 80)}"` : ''}
+      </span>
     </div>
   );
 };

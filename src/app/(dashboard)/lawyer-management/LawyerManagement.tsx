@@ -1,6 +1,7 @@
 'use client';
 import Modal from '@/components/organisms/Modal';
 import { api, database } from '@/services/database';
+import type { LawyerStats as LawyerStatsDTO } from '@/types/api.types';
 import { useState, useEffect, useMemo } from 'react';
 import {
   MdAdd,
@@ -57,6 +58,7 @@ const LawyerManagement = () => {
   } | null>(null);
   const [statusToggleComment, setStatusToggleComment] = useState('');
   const [statusToggleLoading, setStatusToggleLoading] = useState(false);
+  const [statsServer, setStatsServer] = useState<LawyerStatsDTO | null>(null);
   const [lawyerStats, setLawyerStats] = useState<{
     total: number;
     available: number;
@@ -825,20 +827,28 @@ const LawyerManagement = () => {
   }, [withOutFormat]);
 
   // ── KPIs derived from the full lawyer list ──
+  // Preferimos `statsServer` (autoritativo /lawyers/stats) cuando está
+  // disponible; los KPIs derivados se mantienen client-side porque
+  // miden capacidad/carga, no el conteo plano de cuentas.
   const kpis = useMemo(() => {
-    const total = lawyerRows.length;
+    const localTotal = lawyerRows.length;
+    const total = statsServer?.total ?? localTotal;
     const assignable = lawyerRows.filter((r) => r.status === 'assignable').length;
     const capacity = lawyerRows.filter((r) => r.status === 'capacity').length;
     const pending = lawyerRows.filter((r) => r.status === 'pending').length;
-    const unassignable = lawyerRows.filter((r) => r.status === 'unassignable').length;
-    const specialtyCount = new Set(
-      lawyerRows
-        .map((r) => r.specialty)
-        .filter((s) => s && s !== '—')
-        .map((s) => s.split(' +')[0])
-    ).size;
+    const unassignable =
+      statsServer?.inactive ??
+      lawyerRows.filter((r) => r.status === 'unassignable').length;
+    const specialtyCount =
+      statsServer?.by_service?.length ??
+      new Set(
+        lawyerRows
+          .map((r) => r.specialty)
+          .filter((s) => s && s !== '—')
+          .map((s) => s.split(' +')[0])
+      ).size;
     return { total, assignable, capacity, pending, unassignable, specialtyCount };
-  }, [lawyerRows]);
+  }, [lawyerRows, statsServer]);
 
   // ── filtered & search ──
   const filteredRows = useMemo<LawyerRow[]>(() => {
@@ -915,9 +925,15 @@ const LawyerManagement = () => {
     };
   }, [dataIndex, lawyerServiceRelacion, lawyerStats, assignable]);
 
+  const fetchLawyerStats = async () => {
+    const res = await api.lawyers.stats();
+    if (res.success && res.data) setStatsServer(res.data);
+  };
+
   useEffect(() => {
     getServiceType();
     getRole();
+    fetchLawyerStats();
   }, []);
   useEffect(() => {
     fetchData();

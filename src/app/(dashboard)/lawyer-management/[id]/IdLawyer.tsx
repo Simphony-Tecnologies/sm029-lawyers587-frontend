@@ -15,7 +15,12 @@ import {
   MdSquare,
 } from 'react-icons/md';
 import { useLeadsStore } from '@/store/useLead.store';
-import { database } from '@/services/database';
+import { api, database } from '@/services/database';
+import type {
+  ActionType,
+  AuditEvent as AuditEventDTO,
+  LawyerHistoryResponse,
+} from '@/types/api.types';
 import {
   AuditEvent,
   EmptyStateBox,
@@ -91,120 +96,124 @@ const STATUS_OPTIONS_SELECT: LeadStatusOption[] = [
 const ACTIVE_STATUSES = new Set(['ASSIGNED', 'IN PROGRESS']);
 const LOST_STATUSES = new Set(['LOST', 'EXPIRED']);
 
-const buildSyntheticAudit = (
-  leads: LeadRow[]
-): {
+const FILTER_TO_ACTION_TYPES: Record<AuditFilter, ActionType[] | null> = {
+  all: null,
+  assignments: ['assign', 'unassign'],
+  status: ['status_change'],
+  edits: ['update', 'edit_denied'],
+  comments: [],
+  logins: ['login'],
+};
+
+type AuditRow = {
   id: string;
   tone: AuditEventTone;
   type: string;
   detail: React.ReactNode;
   lead?: string;
   time: string;
-  raw: LeadRow;
-  filter: AuditFilter;
-}[] => {
-  return [...leads]
-    .sort((a, b) => +new Date(b.date_updated) - +new Date(a.date_updated))
-    .flatMap((row) => {
-      const id = String(row['lead id']).padStart(5, '0');
-      const baseTime = dayjs.utc(row.date_updated).local();
-      const events: ReturnType<typeof buildSyntheticAudit> = [];
+  leadId: number | null;
+};
 
-      events.push({
-        id: `${row['lead id']}-assigned`,
-        tone: 'violet',
-        type: 'Assigned',
-        detail: (
-          <>
-            Lead <strong className='font-bold text-slate-900'>#{id}</strong>{' '}
-            assigned · <strong className='font-bold text-slate-900'>{row['lead name']}</strong>
-          </>
-        ),
-        lead: `#${id}`,
-        time: baseTime.format('MMM DD, HH:mm'),
-        raw: row,
-        filter: 'assignments',
-      });
+const ACTION_META: Record<
+  ActionType,
+  { tone: AuditEventTone; label: string }
+> = {
+  assign: { tone: 'violet', label: 'Assigned' },
+  unassign: { tone: 'rose', label: 'Unassigned' },
+  status_change: { tone: 'amber', label: 'Status change' },
+  update: { tone: 'sky', label: 'Update' },
+  edit_denied: { tone: 'rose', label: 'Edit denied' },
+  create: { tone: 'emerald', label: 'Created' },
+  delete: { tone: 'rose', label: 'Deleted' },
+  login: { tone: 'emerald', label: 'Login' },
+};
 
-      if (row.status === 'PROBLEMATIC') {
-        events.push({
-          id: `${row['lead id']}-status-problematic`,
-          tone: 'amber',
-          type: 'Status change',
-          detail: (
+const formatLeadId = (n: number | null) =>
+  n != null ? `#${String(n).padStart(5, '0')}` : '—';
+
+const renderAuditDetail = (ev: AuditEventDTO): React.ReactNode => {
+  const idLabel = formatLeadId(ev.entity_type === 'lead' ? ev.entity_id : null);
+  switch (ev.action_type) {
+    case 'assign':
+      return (
+        <>
+          Lead <strong className='font-bold text-slate-900'>{idLabel}</strong>{' '}
+          assigned
+        </>
+      );
+    case 'unassign':
+      return (
+        <>
+          Lead <strong className='font-bold text-slate-900'>{idLabel}</strong>{' '}
+          unassigned
+          {ev.comment ? (
             <>
-              Marked <strong className='font-bold text-slate-900'>#{id}</strong>{' '}
-              as <strong className='font-bold text-slate-900'>Problematic</strong>
+              :{' '}
+              <strong className='font-bold text-slate-900'>
+                &ldquo;{ev.comment.slice(0, 60)}
+                {ev.comment.length > 60 ? '…' : ''}&rdquo;
+              </strong>
             </>
-          ),
-          lead: `#${id}`,
-          time: baseTime.format('MMM DD, HH:mm'),
-          raw: row,
-          filter: 'status',
-        });
-      }
+          ) : null}
+        </>
+      );
+    case 'status_change': {
+      const from = ev.old_value?.status ?? '—';
+      const to = ev.new_value?.status ?? '—';
+      return (
+        <>
+          <strong className='font-bold text-slate-900'>{idLabel}</strong>:{' '}
+          <strong className='font-bold text-slate-900'>{from}</strong> →{' '}
+          <strong className='font-bold text-slate-900'>{to}</strong>
+        </>
+      );
+    }
+    case 'edit_denied':
+      return (
+        <>
+          Edit on{' '}
+          <strong className='font-bold text-slate-900'>{idLabel}</strong>{' '}
+          denied
+        </>
+      );
+    case 'update':
+      return (
+        <>
+          Updated{' '}
+          <strong className='font-bold text-slate-900'>{idLabel}</strong>
+        </>
+      );
+    case 'login':
+      return <>Logged in</>;
+    default:
+      return (
+        <>
+          {ev.action_type} on{' '}
+          <strong className='font-bold text-slate-900'>{idLabel}</strong>
+        </>
+      );
+  }
+};
 
-      if (LOST_STATUSES.has(row.status)) {
-        events.push({
-          id: `${row['lead id']}-unassigned`,
-          tone: 'rose',
-          type: 'Unassigned',
-          detail: (
-            <>
-              Lead <strong className='font-bold text-slate-900'>#{id}</strong>{' '}
-              sent back
-              {row.comments ? (
-                <>
-                  : <strong className='font-bold text-slate-900'>&ldquo;{row.comments.slice(0, 60)}{row.comments.length > 60 ? '…' : ''}&rdquo;</strong>
-                </>
-              ) : null}
-            </>
-          ),
-          lead: `#${id}`,
-          time: baseTime.format('MMM DD, HH:mm'),
-          raw: row,
-          filter: 'status',
-        });
-      }
-
-      if (row.status === 'CLOSED') {
-        events.push({
-          id: `${row['lead id']}-closed`,
-          tone: 'emerald',
-          type: 'Retained',
-          detail: (
-            <>
-              Lead <strong className='font-bold text-slate-900'>#{id}</strong>{' '}
-              closed as <strong className='font-bold text-slate-900'>retained</strong>
-            </>
-          ),
-          lead: `#${id}`,
-          time: baseTime.format('MMM DD, HH:mm'),
-          raw: row,
-          filter: 'status',
-        });
-      }
-
-      if (row.comments) {
-        events.push({
-          id: `${row['lead id']}-comment`,
-          tone: 'emerald',
-          type: 'Comment',
-          detail: (
-            <>
-              Note on <strong className='font-bold text-slate-900'>#{id}</strong>:{' '}
-              <strong className='font-bold text-slate-900'>&ldquo;{row.comments.slice(0, 60)}{row.comments.length > 60 ? '…' : ''}&rdquo;</strong>
-            </>
-          ),
-          lead: `#${id}`,
-          time: baseTime.format('MMM DD, HH:mm'),
-          raw: row,
-          filter: 'comments',
-        });
-      }
-
-      return events;
-    });
+const mapAuditEvent = (ev: AuditEventDTO): AuditRow => {
+  const meta = ACTION_META[ev.action_type] ?? {
+    tone: 'sky' as AuditEventTone,
+    label: ev.action_type,
+  };
+  const leadId =
+    ev.entity_type === 'lead' && typeof ev.entity_id === 'number'
+      ? ev.entity_id
+      : null;
+  return {
+    id: `${ev.entity_type}-${ev.entity_id}-${ev.id}`,
+    tone: meta.tone,
+    type: meta.label,
+    detail: renderAuditDetail(ev),
+    lead: leadId != null ? formatLeadId(leadId) : undefined,
+    time: dayjs.utc(ev.timestamp).local().format('MMM DD, HH:mm'),
+    leadId,
+  };
 };
 
 const IdLawyer = ({ params }: { params: { id: string } }) => {
@@ -219,6 +228,8 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
   const [loading, setLoading] = useState(false);
   const [auditFilter, setAuditFilter] = useState<AuditFilter>('all');
+  const [history, setHistory] = useState<LawyerHistoryResponse | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const lawyerId = useMemo(() => parseInt(params.id, 10), [params.id]);
 
@@ -244,12 +255,63 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     setAssignedLeadIds(ids);
   };
 
+  const fetchHistory = async (filter: AuditFilter) => {
+    if (!Number.isFinite(lawyerId)) return;
+    setHistoryLoading(true);
+    const actionTypes = FILTER_TO_ACTION_TYPES[filter];
+    // 'comments' filter no se sirve desde audit log → vaciamos eventos.
+    if (actionTypes && actionTypes.length === 0) {
+      setHistory((prev) =>
+        prev ? { ...prev, events: { data: [], total: 0 } } : null
+      );
+      setHistoryLoading(false);
+      return;
+    }
+    const params: Record<string, unknown> = { limit: 50 };
+    if (actionTypes && actionTypes.length === 1) {
+      params.action_type = actionTypes[0];
+    }
+    const res = await api.lawyers.history(lawyerId, params as any);
+    setHistoryLoading(false);
+    if (!res.success || !res.data) {
+      // Si el filtro es múltiple (assignments = assign+unassign) hacemos
+      // una segunda llamada y combinamos.
+      return;
+    }
+    // assignments combinado: hacer un fetch extra y mergear
+    if (actionTypes && actionTypes.length > 1) {
+      const extra = await api.lawyers.history(lawyerId, {
+        limit: 50,
+        action_type: actionTypes[1],
+      });
+      const merged = [
+        ...res.data.events.data,
+        ...(extra.data?.events.data || []),
+      ].sort(
+        (a, b) =>
+          +new Date(b.timestamp) - +new Date(a.timestamp)
+      );
+      setHistory({
+        summary: res.data.summary,
+        events: { data: merged, total: merged.length },
+      });
+      return;
+    }
+    setHistory(res.data);
+  };
+
   useEffect(() => {
     fetchLawyer();
     fetchAssignedSet();
     if (!dataLeads) fetchLeads();
+    fetchHistory('all');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
+
+  useEffect(() => {
+    fetchHistory(auditFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auditFilter]);
 
   const lawyerLeads = useMemo<LeadRow[]>(() => {
     if (!dataLeads || assignedLeadIds.size === 0) return [];
@@ -274,15 +336,31 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     return { total, lost, active };
   }, [lawyerLeads]);
 
-  const auditFull = useMemo(() => buildSyntheticAudit(lawyerLeads), [lawyerLeads]);
+  // Cuando el summary del audit log está disponible, lo preferimos por ser
+  // server-side y no depender del store de leads.
+  const kpis = useMemo(() => {
+    const s = history?.summary;
+    return {
+      total: s?.leads_assigned ?? stats.total,
+      unassigned: s?.leads_unassigned ?? stats.lost,
+      active: stats.active,
+      lastLogin: s?.last_login ?? lawyer?.last_login ?? null,
+    };
+  }, [history, stats, lawyer]);
 
-  const auditFiltered = useMemo(() => {
-    if (auditFilter === 'all') return auditFull;
-    return auditFull.filter((e) => e.filter === auditFilter);
-  }, [auditFull, auditFilter]);
+  const auditRows = useMemo<AuditRow[]>(() => {
+    const events = history?.events?.data ?? [];
+    return events.map(mapAuditEvent);
+  }, [history]);
 
-  const handleAuditClick = (raw: LeadRow) => {
-    setSelectedLead(raw);
+  const handleAuditRowClick = (leadId: number | null) => {
+    if (leadId == null || !dataLeads) return;
+    const row = (dataLeads as LeadRow[]).find((r) => r['lead id'] === leadId);
+    if (!row) {
+      toast('Lead not in current view', { icon: 'ℹ️' });
+      return;
+    }
+    setSelectedLead(row);
     setIsOpenLead(true);
   };
 
@@ -328,8 +406,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     : '—';
   const codeLabel = lawyer?.code || String(lawyerId).padStart(5, '0');
   const serviceLabel = lawyer?.service_type?.name ?? '—';
-  const lastLoginRaw = lawyer?.last_login;
-  const lastLoginAt = lastLoginRaw ? dayjs.utc(lastLoginRaw).local() : null;
+  const lastLoginAt = kpis.lastLogin ? dayjs.utc(kpis.lastLogin).local() : null;
 
   return (
     <div className='flex flex-col gap-7 min-h-0 flex-1'>
@@ -403,7 +480,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           label='Total assigned'
           tone={'sky' as KpiTone}
           icon={<MdArrowForward size={14} />}
-          value={stats.total}
+          value={kpis.total}
           caption={
             <span className='text-[11px] font-medium text-slate-400'>
               Across all statuses
@@ -414,7 +491,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           label='Unassigned'
           tone={'amber' as KpiTone}
           icon={<MdArrowBack size={14} />}
-          value={stats.lost}
+          value={kpis.unassigned}
           caption={
             <span className='text-[11px] font-medium text-slate-400'>
               Sent back · expired
@@ -436,7 +513,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           label='Active leads'
           tone={'violet' as KpiTone}
           icon={<MdSquare size={12} />}
-          value={stats.active}
+          value={kpis.active}
           caption={
             <span className='text-[11px] font-medium text-slate-400'>
               of {capacity || '—'} capacity
@@ -476,18 +553,22 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
       </div>
 
       {/* Audit list or empty */}
-      {auditFiltered.length === 0 ? (
+      {auditRows.length === 0 ? (
         <EmptyStateBox
           icon={<MdHistoryEdu size={18} />}
           title={
-            lawyerLeads.length === 0
-              ? 'No activity recorded'
+            historyLoading
+              ? 'Loading activity…'
+              : auditFilter === 'comments'
+              ? 'No comments view'
               : 'No matching events'
           }
           description={
-            lawyerLeads.length === 0
-              ? 'Once this lawyer receives lead assignments, logs in, or makes changes, every action will appear here as an audit trail.'
-              : 'Try a different filter category to see the activity.'
+            historyLoading
+              ? 'Fetching audit log from server.'
+              : auditFilter === 'comments'
+              ? 'Comments live with each lead. Open a specific lead to view its notes.'
+              : 'Try a different filter category, or wait until the lawyer performs new actions.'
           }
         />
       ) : (
@@ -499,11 +580,11 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
             <div>Lead</div>
             <div>Date</div>
           </div>
-          {auditFiltered.map((ev) => (
+          {auditRows.map((ev) => (
             <button
               key={ev.id}
               type='button'
-              onClick={() => handleAuditClick(ev.raw)}
+              onClick={() => handleAuditRowClick(ev.leadId)}
               className='block w-full bg-transparent text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:bg-slate-50'
             >
               <AuditEvent
@@ -517,12 +598,12 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           ))}
           <div className='flex items-center justify-between border-t border-slate-200 px-5 py-3 text-[11px] font-medium text-slate-500'>
             <span>
-              Showing 1 – {auditFiltered.length} of {auditFiltered.length}{' '}
+              Showing 1 – {auditRows.length} of {history?.events?.total ?? auditRows.length}{' '}
               events
             </span>
             <span className='inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-400'>
               <MdOutlineLogin aria-hidden size={12} />
-              Synthetic view · live audit endpoint pending
+              Live audit log
             </span>
           </div>
         </div>
