@@ -15,7 +15,7 @@ import {
   MdSquare,
 } from 'react-icons/md';
 import { useLeadsStore } from '@/store/useLead.store';
-import { api, database } from '@/services/database';
+import { api, database, downloadBlob } from '@/services/database';
 import type {
   ActionType,
   AuditEvent as AuditEventDTO,
@@ -353,6 +353,20 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     return events.map(mapAuditEvent);
   }, [history]);
 
+  const handleExportHistory = async (format: 'csv' | 'pdf') => {
+    if (!Number.isFinite(lawyerId)) return;
+    const res = await api.lawyers.exportHistory(lawyerId, format);
+    if (!res.success || !res.data) {
+      toast.error(res.message || 'Could not export history');
+      return;
+    }
+    downloadBlob(
+      res.data,
+      `lawyer-${lawyerId}-history-${dayjs().format('YYYY-MM-DD')}.${format}`
+    );
+    toast.success(`History ${format.toUpperCase()} downloaded`);
+  };
+
   const handleAuditRowClick = (leadId: number | null) => {
     if (leadId == null || !dataLeads) return;
     const row = (dataLeads as LeadRow[]).find((r) => r['lead id'] === leadId);
@@ -464,11 +478,13 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
               name='Export PDF'
               type='button'
               color='border border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              onClick={() => handleExportHistory('pdf')}
             />
             <Button
               name='Export CSV'
               type='button'
               color='border border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              onClick={() => handleExportHistory('csv')}
             />
           </>
         }

@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import {
   MdArchive,
   MdDeleteOutline,
+  MdFileDownload,
   MdGridView,
   MdPersonAddAlt1,
   MdSwapHoriz,
@@ -13,7 +14,7 @@ import {
 } from 'react-icons/md';
 import { useLeadsStore } from '@/store/useLead.store';
 import { useSelectStatus } from '@/store/useSelectStatus';
-import { api, database } from '@/services/database';
+import { api, database, downloadBlob } from '@/services/database';
 import type { LeadStatus } from '@/types/api.types';
 import { statusSelectAll } from '@/constants/status';
 import {
@@ -72,12 +73,17 @@ const STATUS_OPTIONS_SELECT = [
   { name: 'Send back', value: 'LOST' },
   { name: 'Retained', value: 'CLOSED' },
   { name: 'Disabled', value: 'DISABLED' },
+  { name: 'Archive', value: 'ARCHIVED' },
 ];
-const STATUS_OPTIONS_NEW = [{ name: 'New', value: 'NEW' }];
+const STATUS_OPTIONS_NEW = [
+  { name: 'New', value: 'NEW' },
+  { name: 'Archive', value: 'ARCHIVED' },
+];
 const STATUS_OPTIONS_DISABLED = [
   { name: 'New', value: 'NEW' },
   { name: 'Send Back', value: 'LOST' },
   { name: 'Disabled', value: 'DISABLED' },
+  { name: 'Archive', value: 'ARCHIVED' },
 ];
 
 const BULK_STATUS_OPTIONS: { name: string; value: string }[] = [
@@ -136,6 +142,10 @@ const LeadManagement = () => {
       list = list.filter((l) => set.has(l.status?.toLowerCase()));
     } else if (statusFilter) {
       list = list.filter((l) => l.status === statusFilter);
+    } else {
+      // Por defecto excluir leads archivados; el user puede filtrarlos
+      // explícitamente con el chip "ARCHIVED".
+      list = list.filter((l) => l.status !== 'ARCHIVED');
     }
 
     const q = searchText.trim().toLowerCase();
@@ -167,13 +177,27 @@ const LeadManagement = () => {
     comments,
   }: LeadInfoSubmitPayload): Promise<void> => {
     if (!selectedLead || Object.keys(selectedLead).length === 0) return;
+    const upper = (status ?? '').toUpperCase() as LeadStatus;
+    // ARCHIVE corre por su endpoint dedicado sin requerir comment.
+    if (upper === 'ARCHIVED') {
+      setLoading(true);
+      const archived = await api.leads.archive(selectedLead['lead id']);
+      setLoading(false);
+      if (!archived.success) {
+        toast.error(archived.message || 'Error archiving lead');
+        return;
+      }
+      toast.success('Lead archived');
+      setIsOpenLead(false);
+      fetchLeads();
+      return;
+    }
     if (selectedLead.status === 'NEW') {
       toast.error(
         "You can't modify the lead if it isn't assigned to a lawyer"
       );
       return;
     }
-    const upper = (status ?? '').toUpperCase() as LeadStatus;
     const reasonRequired = upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST';
     const reason = (comments ?? '').trim();
     if (reasonRequired && reason.length === 0) {
@@ -311,6 +335,19 @@ const LeadManagement = () => {
     clearSelection();
     setBulkDialog(null);
     fetchLeads();
+  };
+
+  const handleExportLeads = async () => {
+    const filters: Record<string, unknown> = {};
+    if (searchText.trim()) filters.search = searchText.trim();
+    if (statusFilter) filters.status = statusFilter;
+    const res = await api.leads.exportCsv(filters as any);
+    if (!res.success || !res.data) {
+      toast.error(res.message || 'Could not export leads');
+      return;
+    }
+    downloadBlob(res.data, `leads-${dayjs().format('YYYY-MM-DD')}.csv`);
+    toast.success('Leads CSV downloaded');
   };
 
   const handleConfirmAssign = async () => {
@@ -670,9 +707,19 @@ const LeadManagement = () => {
       <PageHead
         title='Leads Manage'
         action={
-          <span className='text-[13px] font-medium tabular-nums text-slate-400'>
-            {filtered.length} leads
-          </span>
+          <div className='flex items-center gap-3'>
+            <button
+              type='button'
+              onClick={handleExportLeads}
+              className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3.5 text-xs font-bold tracking-[-0.005em] text-slate-700 transition-colors hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300'
+            >
+              <MdFileDownload size={14} />
+              Export CSV
+            </button>
+            <span className='text-[13px] font-medium tabular-nums text-slate-400'>
+              {filtered.length} leads
+            </span>
+          </div>
         }
       />
 

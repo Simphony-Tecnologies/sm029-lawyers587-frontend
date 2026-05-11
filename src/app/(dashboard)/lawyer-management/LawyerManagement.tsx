@@ -1,6 +1,6 @@
 'use client';
 import Modal from '@/components/organisms/Modal';
-import { api, database } from '@/services/database';
+import { api, database, downloadBlob } from '@/services/database';
 import type { LawyerStats as LawyerStatsDTO } from '@/types/api.types';
 import { useState, useEffect, useMemo } from 'react';
 import {
@@ -930,6 +930,22 @@ const LawyerManagement = () => {
     if (res.success && res.data) setStatsServer(res.data);
   };
 
+  const handleExportLawyers = async () => {
+    const filters: Record<string, unknown> = {};
+    if (searchText.trim()) filters.search = searchText.trim();
+    // statusFilter es derivado (capacity/assignable/...) — solo mapeable a is_active.
+    if (statusFilter === 'unassignable') filters.is_active = false;
+    if (statusFilter !== 'all' && statusFilter !== 'unassignable')
+      filters.is_active = true;
+    const res = await api.lawyers.exportCsv(filters as any);
+    if (!res.success || !res.data) {
+      toast.error(res.message || 'Could not export lawyers');
+      return;
+    }
+    downloadBlob(res.data, `lawyers-${dayjs().format('YYYY-MM-DD')}.csv`);
+    toast.success('Lawyers CSV downloaded');
+  };
+
   useEffect(() => {
     getServiceType();
     getRole();
@@ -1076,7 +1092,7 @@ const LawyerManagement = () => {
             <button
               type='button'
               className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3.5 text-xs font-bold tracking-[-0.005em] text-slate-700 transition-colors hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300'
-              onClick={() => toast('Export coming soon', { icon: 'ℹ️' })}
+              onClick={handleExportLawyers}
             >
               <MdFileDownload size={14} />
               Export
