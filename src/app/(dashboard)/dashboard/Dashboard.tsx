@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import {
   MdAddCircleOutline,
   MdCheckCircleOutline,
@@ -11,11 +13,17 @@ import { useLeadsStore } from '@/store/useLead.store';
 import { useSelectStatus } from '@/store/useSelectStatus';
 import {
   ActivityPanel,
+  Avatar,
   KpiCard,
   PageHead,
   PeriodSelect,
+  StatusPill,
+  toneFromString,
+  variantFromStatus,
   type KpiTone,
 } from '@/components/ui';
+
+dayjs.extend(relativeTime);
 
 type LeadStatus =
   | 'NEW'
@@ -90,6 +98,26 @@ const Dashboard = () => {
     router.push('/lead-management');
   };
 
+  // Síntesis client-side de actividad reciente: backend aún no expone
+  // /audit/recent global. Tomamos los N leads con date_updated más reciente
+  // como proxy de "Recent activity". Cuando exista el endpoint, reemplazar.
+  const recentActivity = useMemo(() => {
+    if (!Array.isArray(dataLeads) || dataLeads.length === 0) return [];
+    return [...(dataLeads as any[])]
+      .filter((l) => l?.date_updated || l?.date)
+      .sort(
+        (a, b) =>
+          +new Date(b.date_updated ?? b.date) -
+          +new Date(a.date_updated ?? a.date)
+      )
+      .slice(0, 8);
+  }, [dataLeads]);
+
+  const handleActivityClick = () => {
+    setSelecArray([]);
+    router.push('/lead-management');
+  };
+
   useEffect(() => {
     fetchLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -120,8 +148,56 @@ const Dashboard = () => {
       <ActivityPanel
         eyebrow='Audit log'
         title='Recent activity'
-        empty
-      />
+        empty={recentActivity.length === 0}
+        emptyText='No recent leads yet'
+        onViewAll={
+          recentActivity.length > 0 ? handleActivityClick : undefined
+        }
+      >
+        <ul className='flex flex-col divide-y divide-slate-100'>
+          {recentActivity.map((lead: any) => {
+            const name = lead['lead name'] || '—';
+            const idLabel = `#${String(lead['lead id'] ?? '').padStart(5, '0')}`;
+            const ts = lead.date_updated ?? lead.date;
+            return (
+              <li key={lead['lead id']}>
+                <button
+                  type='button'
+                  onClick={handleActivityClick}
+                  className='flex w-full items-center gap-3 bg-transparent py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none'
+                >
+                  <Avatar
+                    initials={name.slice(0, 2).toUpperCase() || '·'}
+                    tone={toneFromString(name) as any}
+                    size='sm'
+                  />
+                  <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                    <div className='flex items-center gap-2'>
+                      <span className='truncate text-[13px] font-bold text-slate-900'>
+                        {name}
+                      </span>
+                      <span className='font-mono text-[10px] font-semibold text-slate-400'>
+                        {idLabel}
+                      </span>
+                    </div>
+                    <span className='truncate text-[11px] text-slate-500'>
+                      {lead.lawyer && lead.lawyer !== 'No assigned'
+                        ? `${lead.lawyer} · ${lead.service || '—'}`
+                        : `Unassigned · ${lead.service || '—'}`}
+                    </span>
+                  </div>
+                  <div className='flex flex-col items-end gap-1'>
+                    <StatusPill variant={variantFromStatus(lead.status) as any} />
+                    <span className='text-[10px] font-medium text-slate-400'>
+                      {ts ? dayjs(ts).fromNow() : '—'}
+                    </span>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </ActivityPanel>
     </div>
   );
 };
