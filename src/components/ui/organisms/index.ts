@@ -1,6 +1,7 @@
 export * from './ActivityPanel';
 export * from './ConfirmationDialog';
 export * from './DataTable';
+export * from './FaqDialog';
 export * from './LawyerFormModal';
 export * from './LawyerPasswordModal';
 export * from './LeadInfoModal';

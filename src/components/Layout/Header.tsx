@@ -10,13 +10,14 @@ import {
   PopoverButton,
   PopoverPanel,
 } from '@headlessui/react';
-import { MdLogout, MdSettings, MdChevronRight } from 'react-icons/md';
+import { MdLogout, MdHelpOutline, MdChevronRight } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/store/useAuth.store';
 import { database } from '@/services/database';
 import { formatDate } from '@/utils/formatDate';
 import { cn } from '@/lib/cn';
 import {
+  FaqDialog,
   MenuDivider,
   MenuIdentity,
   MenuItem,
@@ -43,6 +44,7 @@ const Header = () => {
   const [count, setCount] = useState(0);
   const [locasUser, setLocasUser] = useState<any>(null);
   const [isOpenSignOut, setIsOpenSignOut] = useState(false);
+  const [isOpenFaq, setIsOpenFaq] = useState(false);
 
   const getNotifications = async () => {
     if (Object.keys(user).length > 0) {
@@ -252,14 +254,12 @@ const Header = () => {
                   <HuiMenuItem>
                     {({ active }) => (
                       <MenuItem
-                        icon={<MdSettings size={14} />}
+                        icon={<MdHelpOutline size={14} />}
                         meta={<MdChevronRight size={12} />}
                         active={active}
-                        onClick={() =>
-                          toast('Settings coming soon', { icon: '⚙️' })
-                        }
+                        onClick={() => setIsOpenFaq(true)}
                       >
-                        Settings
+                        Help &amp; FAQs
                       </MenuItem>
                     )}
                   </HuiMenuItem>
@@ -282,6 +282,7 @@ const Header = () => {
           )}
         </Menu>
       </PillHeader>
+      <FaqDialog open={isOpenFaq} onClose={() => setIsOpenFaq(false)} />
     </header>
   );
 };
