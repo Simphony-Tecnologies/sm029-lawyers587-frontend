@@ -779,13 +779,30 @@ const LawyerManagement = () => {
 
   const lawyerRows = useMemo<LawyerRow[]>(() => {
     if (!Array.isArray(withOutFormat) || withOutFormat.length === 0) return [];
+    const servicesByLawyer: Record<number, any[]> = {};
+    if (Array.isArray(dataLawyerServices)) {
+      for (const s of dataLawyerServices as any[]) {
+        const lid = Number(s?.lawyer_id);
+        if (!Number.isFinite(lid)) continue;
+        (servicesByLawyer[lid] ||= []).push(s);
+      }
+    }
     return (withOutFormat as any[]).map((raw: any) => {
       const id = Number(raw.id);
       const isActive = raw.is_active === true;
-      const activeLeads = Number(raw.activeLeads ?? 0);
-      const maxLeads = Number(raw.max_leads ?? 0);
-      const pulled = Number(raw.totalLeads ?? 0);
-      const lost = Number(raw.lost ?? 0);
+      // DTO v2 incluye campos computados (active_assigned_leads / pulled_count /
+      // lost_count). Fallback a los mutados por getTotalLeads (legacy).
+      const activeLeads = Number(
+        raw.active_assigned_leads ?? raw.activeLeads ?? 0
+      );
+      const pulled = Number(raw.pulled_count ?? raw.totalLeads ?? 0);
+      const lost = Number(raw.lost_count ?? raw.lost ?? 0);
+      // max_leads NO viene en /lawyers v2; sumamos desde /lawyers-services.
+      const ownServices = servicesByLawyer[id] || [];
+      const maxLeads = ownServices.reduce(
+        (acc, s) => acc + Number(s?.max_leads ?? 0),
+        0
+      );
       const lastLoginRaw = raw.last_login ?? null;
       let status: LawyerStatus;
       if (!isActive && !lastLoginRaw && pulled === 0) status = 'pending';
@@ -824,7 +841,7 @@ const LawyerManagement = () => {
         status,
       };
     });
-  }, [withOutFormat]);
+  }, [withOutFormat, dataLawyerServices]);
 
   // ── KPIs derived from the full lawyer list ──
   // Preferimos `statsServer` (autoritativo /lawyers/stats) cuando está
@@ -1353,12 +1370,15 @@ const LawyerManagement = () => {
               label: 'Active / Capacity',
               width: '142px',
               render: (r) => {
+                if (r.status === 'pending' || r.maxLeads === 0) {
+                  return (
+                    <span className='inline-flex items-center rounded-md bg-customRed/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] text-customRed'>
+                      Pending setup
+                    </span>
+                  );
+                }
                 const overrideState =
-                  r.status === 'pending'
-                    ? 'pending'
-                    : r.status === 'unassignable'
-                    ? 'paused'
-                    : undefined;
+                  r.status === 'unassignable' ? 'paused' : undefined;
                 return (
                   <CapacityBar
                     current={r.activeLeads}

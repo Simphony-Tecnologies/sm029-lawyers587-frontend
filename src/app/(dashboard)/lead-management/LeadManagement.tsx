@@ -100,6 +100,9 @@ type BulkDialogType = 'assign' | 'status' | 'archive' | 'delete' | null;
 interface LawyerOption {
   id: number;
   name: string;
+  services: string[];
+  activeLeads: number;
+  isActive: boolean;
 }
 
 const MAX_PREVIEW_NAMES = 3;
@@ -260,28 +263,24 @@ const LeadManagement = () => {
   const ensureLawyersLoaded = async () => {
     if (lawyers.length > 0 || lawyersLoading) return;
     setLawyersLoading(true);
-    try {
-      const res = await database.getData(
-        `${process.env.NEXT_PUBLIC_URL}/lawyers`
-      );
-      if (res.success && Array.isArray(res.data)) {
-        const opts: LawyerOption[] = res.data
-          .filter((l: any) => l && (l.id ?? l.lawyer_id))
-          .map((l: any) => ({
-            id: Number(l.id ?? l.lawyer_id),
-            name:
-              l.name ??
-              `${l.first_name ?? ''} ${l.last_name ?? ''}`.trim() ??
-              `Lawyer #${l.id}`,
-          }))
-          .filter((o: LawyerOption) => Number.isFinite(o.id) && o.name);
-        setLawyers(opts);
-      }
-    } catch {
-      /* silent — picker stays empty */
-    } finally {
-      setLawyersLoading(false);
+    const res = await api.lawyers.list({ is_active: true, limit: 1000 });
+    setLawyersLoading(false);
+    if (!res.success || !res.data) {
+      toast.error(res.message || 'Could not load lawyers');
+      return;
     }
+    const opts: LawyerOption[] = res.data.data
+      .map((l) => ({
+        id: l.id,
+        name:
+          `${l.firstName ?? ''} ${l.lastName ?? ''}`.trim() ||
+          `Lawyer #${l.id}`,
+        services: l.services ?? [],
+        activeLeads: l.active_assigned_leads ?? 0,
+        isActive: l.is_active ?? true,
+      }))
+      .filter((o) => Number.isFinite(o.id));
+    setLawyers(opts);
   };
 
   // Selected leads derived from current dataset
@@ -822,32 +821,12 @@ const LeadManagement = () => {
         loading={bulkLoading}
         confirmDisabled={!assignLawyerId || bulkComment.trim().length === 0}
       >
-        <div className='mb-1 flex flex-col gap-1.5'>
-          <label
-            htmlFor='bulk-assign-lawyer'
-            className='text-[11px] font-semibold uppercase tracking-[0.04em] text-slate-500'
-          >
-            Lawyer
-          </label>
-          <select
-            id='bulk-assign-lawyer'
-            value={assignLawyerId === '' ? '' : String(assignLawyerId)}
-            onChange={(e) =>
-              setAssignLawyerId(e.target.value ? Number(e.target.value) : '')
-            }
-            disabled={lawyersLoading}
-            className='h-10 w-full rounded-[9px] border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-900 transition-colors hover:border-slate-300 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-customRed/20'
-          >
-            <option value=''>
-              {lawyersLoading ? 'Loading lawyers…' : 'Select a lawyer…'}
-            </option>
-            {lawyers.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <LawyerPicker
+          lawyers={lawyers}
+          loading={lawyersLoading}
+          value={assignLawyerId === '' ? null : Number(assignLawyerId)}
+          onChange={(id) => setAssignLawyerId(id ?? '')}
+        />
         <BulkCommentField
           value={bulkComment}
           onChange={setBulkComment}
@@ -943,6 +922,116 @@ const LeadManagement = () => {
           placeholder='Why are these leads being deleted?'
         />
       </ConfirmationDialog>
+    </div>
+  );
+};
+
+const LawyerPicker = ({
+  lawyers,
+  loading,
+  value,
+  onChange,
+}: {
+  lawyers: LawyerOption[];
+  loading: boolean;
+  value: number | null;
+  onChange: (id: number | null) => void;
+}) => {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return lawyers;
+    return lawyers.filter(
+      (l) =>
+        l.name.toLowerCase().includes(q) ||
+        l.services.some((s) => s.toLowerCase().includes(q))
+    );
+  }, [lawyers, query]);
+
+  return (
+    <div className='mb-1 flex flex-col gap-1.5'>
+      <label className='text-[11px] font-semibold uppercase tracking-[0.04em] text-slate-500'>
+        Assign to lawyer
+      </label>
+      <input
+        type='search'
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder='Search by name or service…'
+        disabled={loading}
+        className='h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-[12px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60'
+      />
+      <div className='max-h-[220px] overflow-y-auto rounded-md border border-slate-200 bg-white'>
+        {loading ? (
+          <div className='px-3 py-4 text-center text-[12px] font-medium text-slate-400'>
+            Loading lawyers…
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className='px-3 py-4 text-center text-[12px] font-medium text-slate-400'>
+            {lawyers.length === 0
+              ? 'No active lawyers available'
+              : 'No matches'}
+          </div>
+        ) : (
+          filtered.map((l) => {
+            const selected = value === l.id;
+            return (
+              <button
+                key={l.id}
+                type='button'
+                onClick={() => onChange(selected ? null : l.id)}
+                className={
+                  'flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5 text-left transition-colors last:border-b-0 ' +
+                  (selected
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-800 hover:bg-slate-50')
+                }
+              >
+                <div className='flex min-w-0 items-center gap-2.5'>
+                  <span
+                    className={
+                      'inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-bold ' +
+                      (selected
+                        ? 'bg-white/10 text-white'
+                        : 'bg-slate-100 text-slate-700')
+                    }
+                  >
+                    {l.name
+                      .split(' ')
+                      .slice(0, 2)
+                      .map((p) => p[0])
+                      .join('')
+                      .toUpperCase() || '·'}
+                  </span>
+                  <div className='flex min-w-0 flex-col'>
+                    <span className='truncate text-[12px] font-bold'>
+                      {l.name}
+                    </span>
+                    <span
+                      className={
+                        'truncate text-[10px] ' +
+                        (selected ? 'text-white/70' : 'text-slate-500')
+                      }
+                    >
+                      {l.services.length > 0 ? l.services.join(', ') : 'No services'}
+                    </span>
+                  </div>
+                </div>
+                <span
+                  className={
+                    'flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums ' +
+                    (selected
+                      ? 'bg-white/15 text-white'
+                      : 'bg-slate-100 text-slate-600')
+                  }
+                >
+                  {l.activeLeads} active
+                </span>
+              </button>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 };

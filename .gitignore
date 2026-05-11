@@ -35,3 +35,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# testing
+/coverage
+/test-results
+/playwright-report
+/playwright/.cache
+
+# misc
+.DS_Store
+*.pem
+SESSION.md
+html/
+new.md
+PROJECT_STATE.md
+PROJECT_SNAPSHOT.md
+
