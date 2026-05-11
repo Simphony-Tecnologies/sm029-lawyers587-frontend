@@ -1,26 +1,66 @@
 import { ResponseEndpoint } from '@/types/Response/response.interface';
 import { setCookie, destroyCookie } from 'nookies';
+
+const readCookie = (name: string): string | undefined => {
+  if (typeof document === 'undefined') return undefined;
+  const match = document.cookie.match(
+    new RegExp(`(?:^|;\\s*)${name}=([^;]+)`)
+  );
+  if (!match) return undefined;
+  const value = decodeURIComponent(match[1]);
+  if (!value || value === 'undefined' || value === 'null') return undefined;
+  return value;
+};
+
+const resolveToken = (override?: string): string | undefined => {
+  if (override) return override;
+  const fromCookie = readCookie('currentUser');
+  if (typeof document !== 'undefined' && !fromCookie) {
+    console.warn('[auth] no token in cookie — needs login');
+  }
+  return fromCookie;
+};
+
+const buildHeaders = (
+  token: string | undefined,
+  extra: Record<string, string> = {}
+): HeadersInit => {
+  const headers: Record<string, string> = { ...extra };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+};
+
+const jsonHeaders = (token?: string) =>
+  buildHeaders(token, { 'Content-Type': 'application/json' });
+
+const unwrapList = (body: any): any[] => {
+  if (Array.isArray(body?.data?.data)) return body.data.data;
+  if (Array.isArray(body?.data)) return body.data;
+  if (Array.isArray(body)) return body;
+  return [];
+};
+
+const unwrapEntity = (body: any): any => {
+  if (body?.data && body.data?.data !== undefined) return body.data.data;
+  if (body?.data !== undefined) return body.data;
+  return body;
+};
+
+const safeStatus = (resp: Response) => resp.status || 500;
+
 export const database = {
   auth: async (email: string, password: string) => {
     try {
-      const url:
-        | string
-        | undefined = `${process.env.NEXT_PUBLIC_URL}/auth/login`;
+      const url = `${process.env.NEXT_PUBLIC_URL}/auth/login`;
 
-      if (!url) {
-        throw new Error('Authentication URL is not defined');
-      }
-
-      const response: Response = await fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         const error: any = new Error(
           errorData.message || 'Authentication failed'
         );
@@ -28,19 +68,30 @@ export const database = {
         throw error;
       }
 
-      const data = await response.json();
+      const body = await response.json();
+      const data = unwrapEntity(body);
+
+      console.log('[auth] login keys:', Object.keys(data || {}));
+      console.log('[auth] access_token length:', data?.access_token?.length || 0);
+
+      if (!data?.access_token) {
+        return {
+          success: false,
+          code: 500,
+          data: null,
+          messages:
+            'Login response missing access_token (check backend response shape)',
+        };
+      }
+
       setCookie(null, 'currentUser', data.access_token, {
         maxAge: 30 * 24 * 60 * 60,
         path: '/',
-        secure: 'production',
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
       });
 
-      return {
-        success: true,
-        code: 200,
-        data: data,
-      };
+      return { success: true, code: 200, data };
     } catch (error: any) {
       return {
         success: false,
@@ -50,46 +101,24 @@ export const database = {
       };
     }
   },
+
   resetPassword: async (token: string, newPassword: string) => {
     try {
-      const url:
-        | string
-        | undefined = `${process.env.NEXT_PUBLIC_URL}/auth/reset-password`;
-
-      if (!url) {
-        throw new Error('Authentication URL is not defined');
-      }
-
-      const response: Response = await fetch(url, {
+      const url = `${process.env.NEXT_PUBLIC_URL}/auth/reset-password`;
+      const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token: token, newPassword: newPassword }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, newPassword }),
       });
-      //const data = await response.json();
-
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         const error: any = new Error(
           errorData.message || 'Authentication failed'
         );
         error.statusCode = response.status;
         throw error;
       }
-
-      // setCookie(null, 'currentUser', token, {
-      //   maxAge: 30 * 24 * 60 * 60,
-      //   path: '/',
-      //   secure: 'production',
-      //   sameSite: 'lax',
-      // });
-
-      return {
-        success: true,
-        code: 200,
-        data: response,
-      };
+      return { success: true, code: 200, data: response };
     } catch (error: any) {
       return {
         success: false,
@@ -99,40 +128,25 @@ export const database = {
       };
     }
   },
+
   requestPassword: async (email: string) => {
     try {
-      const url:
-        | string
-        | undefined = `${process.env.NEXT_PUBLIC_URL}/auth/request-password-reset`;
-
-      if (!url) {
-        throw new Error('Authentication URL is not defined');
-      }
-
-      const response: Response = await fetch(url, {
+      const url = `${process.env.NEXT_PUBLIC_URL}/auth/request-password-reset`;
+      const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         const error: any = new Error(
           errorData.message || 'Authentication failed'
         );
         error.statusCode = response.status;
         throw error;
       }
-
       const data = await response.json();
-
-      return {
-        success: true,
-        code: 200,
-        data: data,
-      };
+      return { success: true, code: 200, data };
     } catch (error: any) {
       return {
         success: false,
@@ -142,31 +156,27 @@ export const database = {
       };
     }
   },
-  authIdRol: async (id: any) => {
+
+  authIdRol: async (id: any, token?: string) => {
     try {
-      const url:
-        | string
-        | undefined = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
-      const response: Response = await fetch(url, {
+      const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
+      const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(resolveToken(token)),
+        cache: 'no-store',
       });
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         const error: any = new Error(
           errorData.message || 'Authentication failed'
         );
         error.statusCode = response.status;
         throw error;
       }
-      const data = await response.json();
-      return {
-        success: true,
-        code: 200,
-        data: data.data.role.name,
-      };
+      const body = await response.json();
+      const entity = unwrapEntity(body);
+      const roleName = entity?.role?.name;
+      return { success: true, code: 200, data: roleName };
     } catch (error: any) {
       return {
         success: false,
@@ -176,26 +186,22 @@ export const database = {
       };
     }
   },
+
   signout: () => {
     destroyCookie(null, 'currentUser', { path: '/' });
-    return {
-      success: true,
-      message: 'Signed out successfully',
-    };
+    return { success: true, message: 'Signed out successfully' };
   },
-  getLawyer: async (id: any) => {
+
+  getLawyer: async (id: any, token?: string) => {
     try {
-      const url:
-        | string
-        | undefined = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
-      const response: Response = await fetch(url, {
+      const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
+      const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(resolveToken(token)),
+        cache: 'no-store',
       });
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         const error: any = new Error(
           errorData.message || 'Authentication failed'
         );
@@ -203,14 +209,7 @@ export const database = {
         throw error;
       }
       const data = await response.json();
-      // const data = dataFull.data.map(
-      //   ({ password, ...rest }: LawyerData) => rest
-      // );
-      return {
-        success: true,
-        code: 200,
-        data: data,
-      };
+      return { success: true, code: 200, data };
     } catch (error: any) {
       return {
         success: false,
@@ -220,16 +219,26 @@ export const database = {
       };
     }
   },
-  fetchData: async (source: string): Promise<ResponseEndpoint> => {
+
+  fetchData: async (
+    source: string,
+    token?: string
+  ): Promise<ResponseEndpoint> => {
     try {
-      const response = await fetch(source);
+      const response = await fetch(source, {
+        headers: jsonHeaders(resolveToken(token)),
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        return {
+          success: false,
+          code: safeStatus(response),
+          data: [],
+          messages: response.statusText || 'request failed',
+        };
+      }
       const data = await response.json();
-
-      return {
-        success: true,
-        code: 200,
-        data: data,
-      };
+      return { success: true, code: 200, data };
     } catch (error) {
       return {
         success: false,
@@ -239,18 +248,27 @@ export const database = {
       };
     }
   },
-  getData: async (source: string): Promise<ResponseEndpoint> => {
+
+  getData: async (
+    source: string,
+    token?: string
+  ): Promise<ResponseEndpoint> => {
     try {
-      const response = await fetch(source);
-      const dataFull = await response.json();
-
-      const data = dataFull.data.map(({ password, ...rest }: any) => rest);
-
-      return {
-        success: true,
-        code: 200,
-        data: data,
-      };
+      const response = await fetch(source, {
+        headers: jsonHeaders(resolveToken(token)),
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        return {
+          success: false,
+          code: safeStatus(response),
+          data: [],
+          messages: response.statusText || 'request failed',
+        };
+      }
+      const body = await response.json();
+      const list = unwrapList(body).map(({ password, ...rest }: any) => rest);
+      return { success: true, code: 200, data: list };
     } catch (error) {
       return {
         success: false,
@@ -260,18 +278,24 @@ export const database = {
       };
     }
   },
-  getLeadsAssigned: async (): Promise<ResponseEndpoint> => {
-    const url = `${process.env.NEXT_PUBLIC_URL}/leads-assigned` || '';
 
+  getLeadsAssigned: async (token?: string): Promise<ResponseEndpoint> => {
+    const url = `${process.env.NEXT_PUBLIC_URL}/leads-assigned`;
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: jsonHeaders(resolveToken(token)),
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        return {
+          success: false,
+          code: safeStatus(response),
+          data: [],
+          messages: response.statusText || 'request failed',
+        };
+      }
       const data = await response.json();
-
-      return {
-        success: true,
-        code: 200,
-        data: data,
-      };
+      return { success: true, code: 200, data };
     } catch (error) {
       return {
         success: false,
@@ -281,18 +305,24 @@ export const database = {
       };
     }
   },
-  getSelectTypeLawyer: async (): Promise<ResponseEndpoint> => {
-    const url = `${process.env.NEXT_PUBLIC_URL}/lawyers-services` || '';
 
+  getSelectTypeLawyer: async (token?: string): Promise<ResponseEndpoint> => {
+    const url = `${process.env.NEXT_PUBLIC_URL}/lawyers-services`;
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: jsonHeaders(resolveToken(token)),
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        return {
+          success: false,
+          code: safeStatus(response),
+          data: [],
+          messages: response.statusText || 'request failed',
+        };
+      }
       const data = await response.json();
-
-      return {
-        success: true,
-        code: 200,
-        data: data,
-      };
+      return { success: true, code: 200, data };
     } catch (error) {
       return {
         success: false,
@@ -302,22 +332,23 @@ export const database = {
       };
     }
   },
-  CreateLawyer: async (sendData: object): Promise<ResponseEndpoint> => {
+
+  CreateLawyer: async (
+    sendData: object,
+    token?: string
+  ): Promise<ResponseEndpoint> => {
     try {
-      const url: string = `${process.env.NEXT_PUBLIC_URL}/lawyers` || '';
+      const url = `${process.env.NEXT_PUBLIC_URL}/lawyers`;
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
       });
-      const data = await response.json();
-
+      const data = await response.json().catch(() => ({}));
       return {
-        success: data.success,
-        code: 200,
-        data: data,
+        success: response.ok && data?.success !== false,
+        code: response.status,
+        data,
       };
     } catch (error) {
       return {
@@ -328,25 +359,24 @@ export const database = {
       };
     }
   },
+
   insertData: async (
     url: string,
-    sendData: object
+    sendData: object,
+    token?: string
   ): Promise<ResponseEndpoint> => {
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
       });
-      const data = await response.json();
-
+      const data = await response.json().catch(() => ({}));
       return {
-        success: data.success,
-        code: data.statusCode,
-        data: data.data,
-        messages: data.message,
+        success: response.ok && data?.success !== false,
+        code: data?.statusCode ?? response.status,
+        data: data?.data ?? data,
+        messages: data?.message,
       };
     } catch (error) {
       return {
@@ -357,25 +387,26 @@ export const database = {
       };
     }
   },
+
   postData: async (
     url: string,
-    sendData: object
+    sendData: object,
+    token?: string
   ): Promise<ResponseEndpoint> => {
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
       });
-      const data = await response.json();
-
+      const data = await response.json().catch(() => ({}));
       return {
-        success: true,
-        code: 200,
-        data: data,
-        messages: 'Successfully created',
+        success: response.ok,
+        code: response.status,
+        data,
+        messages: response.ok
+          ? 'Successfully created'
+          : data?.message || response.statusText,
       };
     } catch (error) {
       return {
@@ -386,20 +417,24 @@ export const database = {
       };
     }
   },
-  uploadProfile: async (formData: any): Promise<ResponseEndpoint> => {
+
+  uploadProfile: async (
+    formData: any,
+    token?: string
+  ): Promise<ResponseEndpoint> => {
     const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/upload-profile-image`;
     try {
       const response = await fetch(url, {
         method: 'POST',
+        headers: buildHeaders(resolveToken(token)),
         body: formData,
       });
-      const data = await response.json();
-
+      const data = await response.json().catch(() => ({}));
       return {
-        success: data.success,
-        code: data.statusCode,
-        data: data.data,
-        messages: data.message,
+        success: response.ok && data?.success !== false,
+        code: data?.statusCode ?? response.status,
+        data: data?.data ?? data,
+        messages: data?.message,
       };
     } catch (error) {
       return {
@@ -410,25 +445,24 @@ export const database = {
       };
     }
   },
+
   updateData: async (
     url: string,
-    sendData: object
+    sendData: object,
+    token?: string
   ): Promise<ResponseEndpoint> => {
     try {
       const response = await fetch(url, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
       });
-      const data = await response.json();
-
+      const data = await response.json().catch(() => ({}));
       return {
-        success: true,
-        code: data.statusCode,
-        data: data,
-        messages: data.message,
+        success: response.ok,
+        code: data?.statusCode ?? response.status,
+        data,
+        messages: data?.message,
       };
     } catch (error) {
       return {
@@ -439,25 +473,24 @@ export const database = {
       };
     }
   },
+
   patchData: async (
     url: string,
-    sendData: object
+    sendData: object,
+    token?: string
   ): Promise<ResponseEndpoint> => {
     try {
       const response = await fetch(url, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
       });
-      const data = await response.json();
-
+      const data = await response.json().catch(() => ({}));
       return {
-        success: true,
-        code: data.statusCode,
-        data: data,
-        messages: data.message,
+        success: response.ok,
+        code: data?.statusCode ?? response.status,
+        data,
+        messages: data?.message,
       };
     } catch (error) {
       return {
@@ -468,26 +501,25 @@ export const database = {
       };
     }
   },
+
   UpdateLawyer: async (
     sendData: LawyerData,
-    id?: number | undefined
+    id?: number | undefined,
+    token?: string
   ): Promise<ResponseEndpoint> => {
     try {
-      const url: string = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
+      const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
       const response = await fetch(url, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
       });
-      const data = await response.json();
-
+      const data = await response.json().catch(() => ({}));
       return {
-        success: true,
-        code: data.statusCode,
-        data: data,
-        messages: data.message,
+        success: response.ok,
+        code: data?.statusCode ?? response.status,
+        data,
+        messages: data?.message,
       };
     } catch (error) {
       return {
@@ -498,32 +530,50 @@ export const database = {
       };
     }
   },
-  deleteData: async (url: string): Promise<ResponseEndpoint> => {
-    //const url: string = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
-    await fetch(url, {
-      method: 'DELETE',
-    });
 
-    return {
-      success: true,
-      code: 200,
-      data: [],
-      messages: 'data deleted successfully',
-    };
-  },
-  DeleteLawyer: async (id?: number | undefined): Promise<ResponseEndpoint> => {
+  deleteData: async (
+    url: string,
+    token?: string
+  ): Promise<ResponseEndpoint> => {
     try {
-      const url: string = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
       const response = await fetch(url, {
         method: 'DELETE',
+        headers: jsonHeaders(resolveToken(token)),
       });
-      const data = await response.json();
-
       return {
-        success: data.success,
-        code: data.statusCode,
-        data: data,
-        messages: data.message,
+        success: response.ok,
+        code: response.status,
+        data: [],
+        messages: response.ok
+          ? 'data deleted successfully'
+          : response.statusText,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 400,
+        data: [],
+        messages: 'error connecting to database',
+      };
+    }
+  },
+
+  DeleteLawyer: async (
+    id?: number | undefined,
+    token?: string
+  ): Promise<ResponseEndpoint> => {
+    try {
+      const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: jsonHeaders(resolveToken(token)),
+      });
+      const data = await response.json().catch(() => ({}));
+      return {
+        success: data?.success ?? response.ok,
+        code: data?.statusCode ?? response.status,
+        data,
+        messages: data?.message,
       };
     } catch (error) {
       return {

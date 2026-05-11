@@ -1,335 +1,532 @@
 'use client';
-import Button from '@/components/atoms/Button';
-import Input from '@/components/atoms/Input';
-import CountdownTimer from '@/components/organisms/CountdownTimer';
-import Modal from '@/components/organisms/Modal';
-import NoData from '@/components/organisms/NoData';
-import SortableTable from '@/components/organisms/SortableTable';
-import Tilte from '@/components/organisms/Tilte';
-import { statusColors } from '@/configs/statusColor';
-import { statusSelectAll } from '@/constants/status';
-import { database } from '@/services/database';
-import { useLeadsStore } from '@/store/useLead.store';
-import { useSelectStatus } from '@/store/useSelectStatus';
+import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { useEffect, useState } from 'react';
+import utc from 'dayjs/plugin/utc';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import toast from 'react-hot-toast';
-import { MdOutlineCases } from 'react-icons/md';
+import { useRouter } from 'next/navigation';
+import {
+  MdArrowBack,
+  MdArrowForward,
+  MdCircle,
+  MdDownload,
+  MdHistoryEdu,
+  MdOutlineLogin,
+  MdSquare,
+} from 'react-icons/md';
+import { useLeadsStore } from '@/store/useLead.store';
+import { database } from '@/services/database';
+import {
+  AuditEvent,
+  EmptyStateBox,
+  FilterButton,
+  KpiCard,
+  LawyerIdentity,
+  LeadInfoModal,
+  type AuditEventTone,
+  type DataTableColumn,
+  type LeadInfoSubmitPayload,
+  type LeadStatusOption,
+  type KpiTone,
+} from '@/components/ui';
+import CountdownTimer from '@/components/organisms/CountdownTimer';
+import ReLoading from '@/components/atoms/ReLoading';
+import Button from '@/components/atoms/Button';
 
-const IdLawyer = ({ params }: { params: { id: string } }) => {
-  const [lawyerData, setLawyerData] = useState<any>(null);
+dayjs.extend(utc);
+dayjs.extend(relativeTime);
 
-  const { dataLeads, fetchLeads } = useLeadsStore();
-  const [userId, setUserId] = useState<any>(null);
-  const [columns, setColumns] = useState([]);
-  const [originalData, setOriginalData] = useState([]);
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const { selecArray, setSelecArray } = useSelectStatus();
-  const [isOpenLead, setIsOpenLead] = useState(false);
-  const [selectedLead, setSelectedLead] = useState<any>({});
-  const [selectedChange, setSelectedChange] = useState('');
-  const statusSelect = [
-    {
-      name: 'Assigned',
-      value: 'ASSIGNED',
-    },
-    {
-      name: 'In progress',
-      value: 'IN PROGRESS',
-    },
-    {
-      name: 'New',
-      value: 'NEW',
-    },
-    {
-      name: 'Problematic',
-      value: 'PROBLEMATIC',
-    },
-    {
-      name: 'Send back',
-      value: 'LOST',
-    },
-    {
-      name: 'Retained',
-      value: 'CLOSED',
-    },
-    {
-      name: 'Disabled',
-      value: 'DISABLED',
-    },
-  ];
-  const statusNew = [
-    {
-      name: 'New',
-      value: 'NEW',
-    },
-  ];
-  const statusDisable = [
-    {
-      name: 'New',
-      value: 'IN PROGRESS',
-    },
+type LeadRow = {
+  'lead id': number;
+  date: Date;
+  date_updated: Date;
+  'lead name': string;
+  email: string;
+  'phone number': string;
+  service: string;
+  'description lead': string;
+  comments: string;
+  lawyer: string;
+  status: string;
+};
 
-    {
-      name: 'Send Back',
-      value: 'LOST',
-    },
-    {
-      name: 'Expired',
-      value: 'EXPIRED',
-    },
-  ];
-  const getLawyer = async () => {
-    const dataLawyerUser = await database.getLawyer(params.id);
-    setUserId(dataLawyerUser.data.data);
-    const dataLawyer = await database.getLeadsAssigned();
+type LawyerService = {
+  id: number;
+  max_leads: number;
+  service_type_id: number;
+};
 
-    if (!dataLawyer.success) {
-      return toast.error('Error to get leads assigned');
-    }
+type LawyerDetail = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  code?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  last_login?: string | null;
+  law_firm?: string;
+  profile_image_url?: string | null;
+  pulled_count?: number;
+  lost_count?: number;
+  role?: { id: number; name: string };
+  lawyersServices?: LawyerService[];
+  service_type?: { id: number; name: string };
+};
 
-    const firstItem = dataLawyer.data;
-    const filterItems = firstItem.filter(
-      (item: any) => item.lawyer_id === parseInt(params.id)
-    );
+type AuditFilter = 'all' | 'assignments' | 'status' | 'edits' | 'comments' | 'logins';
 
-    if (!dataLeads) return [];
-    if (dataLeads.length > 0) {
-      const filterLeads = dataLeads.filter((item: any) =>
-        filterItems
-          .map((filterItem: any) => filterItem.lead)
-          .includes(item['lead id'])
-      );
+const STATUS_OPTIONS_SELECT: LeadStatusOption[] = [
+  { name: 'Assigned', value: 'ASSIGNED' },
+  { name: 'In progress', value: 'IN PROGRESS' },
+  { name: 'New', value: 'NEW' },
+  { name: 'Problematic', value: 'PROBLEMATIC' },
+  { name: 'Send back', value: 'LOST' },
+  { name: 'Retained', value: 'CLOSED' },
+  { name: 'Disabled', value: 'DISABLED' },
+];
 
-      setLawyerData(filterLeads);
-      setOriginalData(filterLeads);
-      if (selecArray.length > 0) {
-        filterArray();
-      }
-      if (filterLeads.length > 0) {
-        const titles: any = Object.keys(filterLeads[0]);
+const ACTIVE_STATUSES = new Set(['ASSIGNED', 'IN PROGRESS']);
+const LOST_STATUSES = new Set(['LOST', 'EXPIRED']);
 
-        setColumns(titles);
-      }
-    }
-  };
-  const filterSearch = (text: string | null) => {
-    if (text) {
-      if (lawyerData) {
-        const filterData = originalData.filter(
-          (item: any) =>
-            item?.['lead name'].toLowerCase().includes(text.toLowerCase()) ||
-            item?.email.toLowerCase().includes(text.toLowerCase()) ||
-            item?.['phone number'].toLowerCase().includes(text.toLowerCase()) ||
-            item?.status.toLowerCase().includes(text.toLowerCase())
-        );
-        setLawyerData(filterData);
-        return filterData;
-      }
-      return [];
-    }
-    setLawyerData(originalData);
-  };
-  const filterArray = () => {
-    let accumulatedResults: any[] = [];
+const buildSyntheticAudit = (
+  leads: LeadRow[]
+): {
+  id: string;
+  tone: AuditEventTone;
+  type: string;
+  detail: React.ReactNode;
+  lead?: string;
+  time: string;
+  raw: LeadRow;
+  filter: AuditFilter;
+}[] => {
+  return [...leads]
+    .sort((a, b) => +new Date(b.date_updated) - +new Date(a.date_updated))
+    .flatMap((row) => {
+      const id = String(row['lead id']).padStart(5, '0');
+      const baseTime = dayjs.utc(row.date_updated).local();
+      const events: ReturnType<typeof buildSyntheticAudit> = [];
 
-    if (dataLeads && selecArray.length > 0) {
-      handleStatusClick('');
-      selecArray.forEach((keyword: string) => {
-        const dataFilter = dataLeads.filter((item: any) =>
-          item?.status.toLowerCase().includes(keyword.toLowerCase())
-        );
-
-        dataFilter.forEach((lead: any) => {
-          if (
-            !accumulatedResults.some(
-              (accItem) => accItem['lead id'] === lead['lead id']
-            )
-          ) {
-            accumulatedResults.push(lead);
-          }
-        });
+      events.push({
+        id: `${row['lead id']}-assigned`,
+        tone: 'violet',
+        type: 'Assigned',
+        detail: (
+          <>
+            Lead <strong className='font-bold text-slate-900'>#{id}</strong>{' '}
+            assigned · <strong className='font-bold text-slate-900'>{row['lead name']}</strong>
+          </>
+        ),
+        lead: `#${id}`,
+        time: baseTime.format('MMM DD, HH:mm'),
+        raw: row,
+        filter: 'assignments',
       });
 
-      // Actualiza el estado con los datos acumulados
-      setLawyerData(accumulatedResults);
+      if (row.status === 'PROBLEMATIC') {
+        events.push({
+          id: `${row['lead id']}-status-problematic`,
+          tone: 'amber',
+          type: 'Status change',
+          detail: (
+            <>
+              Marked <strong className='font-bold text-slate-900'>#{id}</strong>{' '}
+              as <strong className='font-bold text-slate-900'>Problematic</strong>
+            </>
+          ),
+          lead: `#${id}`,
+          time: baseTime.format('MMM DD, HH:mm'),
+          raw: row,
+          filter: 'status',
+        });
+      }
 
-      return accumulatedResults;
-    }
+      if (LOST_STATUSES.has(row.status)) {
+        events.push({
+          id: `${row['lead id']}-unassigned`,
+          tone: 'rose',
+          type: 'Unassigned',
+          detail: (
+            <>
+              Lead <strong className='font-bold text-slate-900'>#{id}</strong>{' '}
+              sent back
+              {row.comments ? (
+                <>
+                  : <strong className='font-bold text-slate-900'>&ldquo;{row.comments.slice(0, 60)}{row.comments.length > 60 ? '…' : ''}&rdquo;</strong>
+                </>
+              ) : null}
+            </>
+          ),
+          lead: `#${id}`,
+          time: baseTime.format('MMM DD, HH:mm'),
+          raw: row,
+          filter: 'status',
+        });
+      }
 
-    // Si no hay texto o keywords, se restablecen los leads originales
-    setLawyerData(dataLeads);
-    return dataLeads;
-  };
-  const uniqueStatuses = Array.from(
-    new Set(originalData.map((item: any) => item.status))
+      if (row.status === 'CLOSED') {
+        events.push({
+          id: `${row['lead id']}-closed`,
+          tone: 'emerald',
+          type: 'Retained',
+          detail: (
+            <>
+              Lead <strong className='font-bold text-slate-900'>#{id}</strong>{' '}
+              closed as <strong className='font-bold text-slate-900'>retained</strong>
+            </>
+          ),
+          lead: `#${id}`,
+          time: baseTime.format('MMM DD, HH:mm'),
+          raw: row,
+          filter: 'status',
+        });
+      }
+
+      if (row.comments) {
+        events.push({
+          id: `${row['lead id']}-comment`,
+          tone: 'emerald',
+          type: 'Comment',
+          detail: (
+            <>
+              Note on <strong className='font-bold text-slate-900'>#{id}</strong>:{' '}
+              <strong className='font-bold text-slate-900'>&ldquo;{row.comments.slice(0, 60)}{row.comments.length > 60 ? '…' : ''}&rdquo;</strong>
+            </>
+          ),
+          lead: `#${id}`,
+          time: baseTime.format('MMM DD, HH:mm'),
+          raw: row,
+          filter: 'comments',
+        });
+      }
+
+      return events;
+    });
+};
+
+const IdLawyer = ({ params }: { params: { id: string } }) => {
+  const router = useRouter();
+  const { dataLeads, fetchLeads } = useLeadsStore();
+
+  const [lawyer, setLawyer] = useState<LawyerDetail | null>(null);
+  const [assignedLeadIds, setAssignedLeadIds] = useState<Set<number>>(
+    new Set()
   );
+  const [isOpenLead, setIsOpenLead] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [auditFilter, setAuditFilter] = useState<AuditFilter>('all');
 
-  const handleStatusClick = (status: string | null) => {
-    setSelectedStatus(status);
-    filterSearch(status);
+  const lawyerId = useMemo(() => parseInt(params.id, 10), [params.id]);
+
+  const fetchLawyer = async () => {
+    const res = await database.getLawyer(params.id);
+    const dto = res?.data?.data ?? res?.data ?? null;
+    setLawyer(dto);
   };
+
+  const fetchAssignedSet = async () => {
+    const res = await database.getLeadsAssigned();
+    const raw = Array.isArray(res?.data)
+      ? res.data
+      : Array.isArray(res?.data?.data)
+      ? res.data.data
+      : [];
+    const ids = new Set<number>(
+      raw
+        .filter((it: any) => it?.lawyer_id === lawyerId)
+        .map((it: any) => it?.lead)
+        .filter((id: any) => typeof id === 'number')
+    );
+    setAssignedLeadIds(ids);
+  };
+
   useEffect(() => {
-    getLawyer();
-  }, [dataLeads]);
-  if (lawyerData && originalData.length <= 0) {
-    return (
-      <NoData
-        text={`${userId?.firstName} ${userId?.lastName} hasn't been assigned any leads yet`}
-      >
-        <MdOutlineCases size={70} color='#00234D' />
-      </NoData>
+    fetchLawyer();
+    fetchAssignedSet();
+    if (!dataLeads) fetchLeads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id]);
+
+  const lawyerLeads = useMemo<LeadRow[]>(() => {
+    if (!dataLeads || assignedLeadIds.size === 0) return [];
+    return (dataLeads as LeadRow[]).filter((l) =>
+      assignedLeadIds.has(l['lead id'])
     );
-  }
+  }, [dataLeads, assignedLeadIds]);
 
-  const saveLeadContact = async (e: any) => {
-    e.preventDefault();
-
-    const dataUpdate = {
-      status:
-        e.target.checkbox.checked === true ? 'DISABLED' : e.target.status.value,
-      comments: e.target.comments.value,
-    };
-
-    const responseUpdate = await database.updateData(
-      `${process.env.NEXT_PUBLIC_URL}/leads/${selectedLead['lead id']}`,
-      dataUpdate
+  const capacity = useMemo(() => {
+    if (!lawyer?.lawyersServices) return 0;
+    return lawyer.lawyersServices.reduce(
+      (acc, s) => acc + (s.max_leads || 0),
+      0
     );
-    if (selectedChange === 'LOST') {
-      const deleteAssined = await database.deleteData(
+  }, [lawyer]);
+
+  const stats = useMemo(() => {
+    const total = lawyerLeads.length;
+    const lost = lawyerLeads.filter((l) => LOST_STATUSES.has(l.status)).length;
+    const active = lawyerLeads.filter((l) => ACTIVE_STATUSES.has(l.status))
+      .length;
+    return { total, lost, active };
+  }, [lawyerLeads]);
+
+  const auditFull = useMemo(() => buildSyntheticAudit(lawyerLeads), [lawyerLeads]);
+
+  const auditFiltered = useMemo(() => {
+    if (auditFilter === 'all') return auditFull;
+    return auditFull.filter((e) => e.filter === auditFilter);
+  }, [auditFull, auditFilter]);
+
+  const handleAuditClick = (raw: LeadRow) => {
+    setSelectedLead(raw);
+    setIsOpenLead(true);
+  };
+
+  const handleSave = async ({
+    status,
+    comments,
+  }: LeadInfoSubmitPayload): Promise<void> => {
+    if (!selectedLead) return;
+    if (status === 'LOST') {
+      const del = await database.deleteData(
         `${process.env.NEXT_PUBLIC_URL}/leads-assigned/lead/${selectedLead['lead id']}`
       );
-      if (!deleteAssined.success) {
-        return toast.error('Error to delete lawyer');
+      if (!del.success) {
+        toast.error('Error to delete lawyer');
+        return;
       }
     }
-    if (!responseUpdate.success) {
+    setLoading(true);
+    const payload = {
+      status,
+      comments: status === 'NEW' ? '' : comments,
+    };
+    const res = await database.updateData(
+      `${process.env.NEXT_PUBLIC_URL}/leads/${selectedLead['lead id']}`,
+      payload
+    );
+    if (!res.success) {
+      setLoading(false);
       toast.error('Error updating Lead information');
+      return;
     }
     toast.success('Lead information updated successfully');
     setIsOpenLead(false);
     fetchLeads();
-    getLawyer();
+    fetchAssignedSet();
+    setLoading(false);
   };
-  const handleContact = async (index: number) => {
-    setIsOpenLead(true);
-    if (lawyerData) {
-      setSelectedLead(lawyerData[index]);
-    }
-  };
-  return (
-    <div className='flex flex-col gap-5'>
-      <Modal title='Lead info' isOpen={isOpenLead} setIsOpen={setIsOpenLead}>
-        <div className='px-8'>
-          <p>
-            Selection date :{' '}
-            {dayjs
-              .utc(selectedLead['date'] as string)
-              .local()
-              .format('MM/DD/YYYY hh:mm a')}
-          </p>
-          <p className='text-red-500'>
-            This lead will be marked as lost and will not be reinstated.
-          </p>
-          {selectedLead.status === 'ASSIGNED' && (
-            <CountdownTimer targetDate={selectedLead['date_updated']} />
-          )}
-          <p className='text-4xl py-6 '>{selectedLead?.['lead name']}</p>
-          <form onSubmit={saveLeadContact} className='grid grid-cols-3 gap-2 '>
-            <p className=''>Status:</p>
 
-            <Input
-              type='select'
-              name='status'
-              values={statusSelect}
-              statusColors={statusColors}
-              defaultValue={selectedLead?.status}
-              setOnChange={setSelectedChange}
+  if (loading) return <ReLoading />;
+
+  const displayName = lawyer
+    ? `${lawyer.firstName ?? ''} ${lawyer.lastName ?? ''}`.trim() || '—'
+    : '—';
+  const codeLabel = lawyer?.code || String(lawyerId).padStart(5, '0');
+  const serviceLabel = lawyer?.service_type?.name ?? '—';
+  const lastLoginRaw = lawyer?.last_login;
+  const lastLoginAt = lastLoginRaw ? dayjs.utc(lastLoginRaw).local() : null;
+
+  return (
+    <div className='flex flex-col gap-7 min-h-0 flex-1'>
+      <LeadInfoModal
+        open={isOpenLead}
+        onClose={() => setIsOpenLead(false)}
+        lead={
+          selectedLead
+            ? {
+                id: selectedLead['lead id'],
+                name: selectedLead['lead name'],
+                email: selectedLead.email,
+                phone: selectedLead['phone number'],
+                service: selectedLead.service,
+                description: selectedLead['description lead'],
+                comments: selectedLead.comments,
+                status: selectedLead.status,
+              }
+            : null
+        }
+        statusOptions={STATUS_OPTIONS_SELECT}
+        onSubmit={handleSave}
+        loading={loading}
+        breadcrumb={`${displayName} · Audit`}
+        countdown={
+          selectedLead?.status === 'ASSIGNED' ? (
+            <CountdownTimer
+              targetDate={dayjs(selectedLead.date_updated).toISOString()}
             />
-            <p></p>
-            <p>Email:</p>
-            <p className='col-span-2 text-gray-500 '>{selectedLead?.email}</p>
-            <p>Phone number:</p>
-            <p className='col-span-2 text-gray-500'>
-              {selectedLead?.['phone number']}
-            </p>
-            <p>Service Type:</p>
-            <p className='col-span-2 text-gray-500'>{selectedLead?.service}</p>
-            <p>Description:</p>
-            <p className='col-span-2 text-gray-500'>
-              {selectedLead?.['description lead']}
-            </p>
-            <p>Comment:</p>
-            <textarea
-              name='comments'
-              className='col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md'
-              placeholder=' Leave your comment.....'
-              required={selectedChange === 'LOST' ? true : false}
-            >
-              {selectedLead?.comments}
-            </textarea>
-            <p></p>
-            <p className='flex gap-1 col-span-2 text-gray-500 '>
-              <input
-                name='checkbox'
-                id={`checkbox-lead`}
-                className='peer hidden'
-                type='checkbox'
-              />
-              <label
-                htmlFor={`checkbox-lead`}
-                className='flex items-center justify-center w-5 h-5 border border-green-500 rounded bg-white cursor-pointer relative  text-white peer-checked:text-green-500'
-              >
-                <i className='fi fi-rr-check absolute  text-sm  peer-checked:block '></i>
-              </label>{' '}
-              Do not contact this lead again
-            </p>
-            <div className='col-end-4 text-right'>
-              <Button name='Save' type='submit' />
-            </div>
-          </form>
-          <p className='text-red-500 text-sm py-4'>
-            The super admin will review this case, leave us a clear comment.
-          </p>
-        </div>
-      </Modal>
-      <Tilte
-        name={`${userId?.firstName} ${userId?.lastName}`}
-        search={true}
-        filterSearch={filterSearch}
+          ) : undefined
+        }
       />
-      <div className='flex flex-wrap  gap-2'>
-        <button
-          onClick={() => handleStatusClick(null)}
-          className={`px-4 p-1 rounded text-sm ${
-            selectedStatus === null
-              ? 'bg-primary bg-opacity-80 text-white'
-              : 'bg-gray-200'
-          }`}
-        >
-          All
-        </button>
-        {uniqueStatuses.map((status) => (
-          <button
-            key={status}
-            onClick={() => handleStatusClick(status)}
-            className={`px-4 p-1 rounded text-sm ${
-              selectedStatus === status
-                ? 'bg-primary bg-opacity-80 text-white'
-                : 'bg-gray-200'
-            }`}
-          >
-            {statusSelectAll.find((item) => item.value === status)?.name ||
-              status}
-          </button>
-        ))}
+
+      {/* Back link */}
+      <button
+        type='button'
+        onClick={() => router.push('/lawyer-management')}
+        className='inline-flex w-fit items-center gap-1.5 bg-transparent text-xs font-semibold text-slate-500 transition-colors hover:text-slate-900 focus:outline-none'
+      >
+        <MdArrowBack size={14} />
+        Back to Lawyer Management
+      </button>
+
+      {/* Identity header */}
+      <LawyerIdentity
+        name={displayName}
+        code={codeLabel}
+        service={serviceLabel}
+        email={lawyer?.email}
+        phone={lawyer?.phone}
+        avatarSrc={lawyer?.profile_image_url}
+        actions={
+          <>
+            <Button
+              name='Export PDF'
+              type='button'
+              color='border border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+            />
+            <Button
+              name='Export CSV'
+              type='button'
+              color='border border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+            />
+          </>
+        }
+      />
+
+      {/* KPI grid */}
+      <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>
+        <KpiCard
+          label='Total assigned'
+          tone={'sky' as KpiTone}
+          icon={<MdArrowForward size={14} />}
+          value={stats.total}
+          caption={
+            <span className='text-[11px] font-medium text-slate-400'>
+              Across all statuses
+            </span>
+          }
+        />
+        <KpiCard
+          label='Unassigned'
+          tone={'amber' as KpiTone}
+          icon={<MdArrowBack size={14} />}
+          value={stats.lost}
+          caption={
+            <span className='text-[11px] font-medium text-slate-400'>
+              Sent back · expired
+            </span>
+          }
+        />
+        <KpiCard
+          label='Last login'
+          tone={'emerald' as KpiTone}
+          icon={<MdCircle size={10} />}
+          value={lastLoginAt ? lastLoginAt.format('MMM DD, HH:mm') : 'Never'}
+          caption={
+            <span className='text-[11px] font-medium text-slate-400'>
+              {lastLoginAt ? lastLoginAt.fromNow() : 'Account pending'}
+            </span>
+          }
+        />
+        <KpiCard
+          label='Active leads'
+          tone={'violet' as KpiTone}
+          icon={<MdSquare size={12} />}
+          value={stats.active}
+          caption={
+            <span className='text-[11px] font-medium text-slate-400'>
+              of {capacity || '—'} capacity
+            </span>
+          }
+        />
       </div>
-      <SortableTable
-        columns={columns}
-        data={lawyerData}
-        statusColors={statusColors}
-        onEdit={handleContact}
-      />
+
+      {/* Filters */}
+      <div className='flex flex-wrap items-center gap-2.5'>
+        <FilterButton
+          label='All'
+          active={auditFilter === 'all'}
+          onClick={() => setAuditFilter('all')}
+        />
+        <FilterButton
+          label='Assignments'
+          active={auditFilter === 'assignments'}
+          onClick={() => setAuditFilter('assignments')}
+        />
+        <FilterButton
+          label='Status changes'
+          active={auditFilter === 'status'}
+          onClick={() => setAuditFilter('status')}
+        />
+        <FilterButton
+          label='Comments'
+          active={auditFilter === 'comments'}
+          onClick={() => setAuditFilter('comments')}
+        />
+        <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
+        <FilterButton
+          label='Logins'
+          active={auditFilter === 'logins'}
+          onClick={() => setAuditFilter('logins')}
+        />
+      </div>
+
+      {/* Audit list or empty */}
+      {auditFiltered.length === 0 ? (
+        <EmptyStateBox
+          icon={<MdHistoryEdu size={18} />}
+          title={
+            lawyerLeads.length === 0
+              ? 'No activity recorded'
+              : 'No matching events'
+          }
+          description={
+            lawyerLeads.length === 0
+              ? 'Once this lawyer receives lead assignments, logs in, or makes changes, every action will appear here as an audit trail.'
+              : 'Try a different filter category to see the activity.'
+          }
+        />
+      ) : (
+        <div className='overflow-hidden rounded-2xl border border-slate-200 bg-white'>
+          <div className='grid grid-cols-[36px_140px_1fr_130px_120px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500'>
+            <div />
+            <div>Action</div>
+            <div>Detail</div>
+            <div>Lead</div>
+            <div>Date</div>
+          </div>
+          {auditFiltered.map((ev) => (
+            <button
+              key={ev.id}
+              type='button'
+              onClick={() => handleAuditClick(ev.raw)}
+              className='block w-full bg-transparent text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:bg-slate-50'
+            >
+              <AuditEvent
+                tone={ev.tone}
+                type={ev.type}
+                detail={ev.detail}
+                lead={ev.lead}
+                time={ev.time}
+              />
+            </button>
+          ))}
+          <div className='flex items-center justify-between border-t border-slate-200 px-5 py-3 text-[11px] font-medium text-slate-500'>
+            <span>
+              Showing 1 – {auditFiltered.length} of {auditFiltered.length}{' '}
+              events
+            </span>
+            <span className='inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-400'>
+              <MdOutlineLogin aria-hidden size={12} />
+              Synthetic view · live audit endpoint pending
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

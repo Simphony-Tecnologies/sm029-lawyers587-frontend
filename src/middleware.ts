@@ -13,7 +13,7 @@ export async function middleware(req: any) {
     const decoded = jwtDecode(currentUser);
 
     try {
-      const res = await database.authIdRol(decoded.sub);
+      const res = await database.authIdRol(decoded.sub, currentUser);
 
       if (!res.success) {
         throw new Error();

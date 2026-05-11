@@ -1,27 +1,40 @@
 'use client';
-import Input from '@/components/atoms/Input';
-import Tilte from '@/components/organisms/Tilte';
 import Modal from '@/components/organisms/Modal';
-import SortableTable from '@/components/organisms/SortableTable';
-import {
-  modalLawyerInput,
-  modalLawyerStatistics,
-} from '@/configs/modalLawyer.config';
 import { database } from '@/services/database';
-import { useState, useEffect } from 'react';
-import { MdOutlineDeleteSweep, MdOutlineImage } from 'react-icons/md';
+import { useState, useEffect, useMemo } from 'react';
+import {
+  MdAdd,
+  MdDeleteOutline,
+  MdEdit,
+  MdFileDownload,
+  MdPowerSettingsNew,
+} from 'react-icons/md';
 import Button from '@/components/atoms/Button';
 import toast from 'react-hot-toast';
-import Image from 'next/image';
-import { modalUpdatePassword } from '@/configs/modalUpdatePassword.confing';
 import { useRouter } from 'next/navigation';
-import { modalNewLawyerInput } from '@/configs/modalNewLawyer.config';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { useLeadsStore } from '@/store/useLead.store';
-import SkeletonText from '@/components/atoms/SkeletonText';
 import { useSelectStatus } from '@/store/useSelectStatus';
 import axios from 'axios';
+import {
+  Avatar,
+  CapacityBar,
+  DataTable,
+  FilterButton,
+  IconActionButton,
+  LawyerFormModal,
+  LawyerPasswordModal,
+  LawyerStatusPill,
+  LiveDot,
+  PageHead,
+  SearchField,
+  StatCard,
+  toneFromString,
+  type LawyerFormInitialData,
+  type LawyerStatus,
+  type LawyerStatusKey,
+} from '@/components/ui';
 
 const LawyerManagement = () => {
   const [data, setData] = useState<any>(null);
@@ -36,8 +49,15 @@ const LawyerManagement = () => {
   const [file, setFile] = useState<any>(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isOpenPassword, setIsopenPassword] = useState(false);
-  const [lawyerStatistic, setLawyerStatistic] = useState(modalLawyerStatistics);
+  const [lawyerStats, setLawyerStats] = useState<{
+    total: number;
+    available: number;
+    active: number;
+    lost: number;
+    missed: number;
+  }>({ total: 0, available: 0, active: 0, lost: 0, missed: 0 });
   const [assignable, setAssignable] = useState<any>(null);
+  const [loadingModal, setLoadingModal] = useState(false);
   const { dataLeads } = useLeadsStore();
   const [dataLawyerLeads, setDataLawyerLeads] = useState<any>(null);
   const [dataLawyerServices, setDataLawyerServices] = useState<any>(null);
@@ -52,10 +72,9 @@ const LawyerManagement = () => {
   const [originalData, setOriginalData] = useState([]);
   const [formValues, setFormValues] = useState(() => {});
   const { setSelecArray } = useSelectStatus();
-  const [isDeleteMultiple, setIsDeleteMultiple] = useState(false);
-  const [selectedRows, setSelectedRows] = useState<{ [key: number]: boolean }>(
-    {}
-  );
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState<LawyerStatus | 'all'>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [lawyerServiceRelacion, setLawyerServiceRelacion] = useState<any>([]);
   const [isOpenSession, setisOpenSession] = useState(false);
   const [history, setHistory] = useState([]);
@@ -259,22 +278,12 @@ const LawyerManagement = () => {
     setFile(null);
     setImagePreview(null);
     setDataIndex(withOutFormat[index]);
-    modalLawyerInput[0].defaultValue = withOutFormat[index].firstName;
-    modalLawyerInput[1].defaultValue = withOutFormat[index].lastName;
-    modalLawyerInput[2].defaultValue = withOutFormat[index].phone;
-    modalLawyerInput[3].defaultValue = withOutFormat[index].email;
-    //modalLawyerInput[5].defaultValue = withOutFormat[index].max_leads;
-    modalLawyerInput[6].defaultValue = withOutFormat[index].role.id;
-    modalLawyerInput[7].defaultValue = withOutFormat[index].is_active;
-    modalLawyerInput[5].defaultValue = withOutFormat[index].law_firm;
 
-    const filterItems = dataLawyerLeads.filter(
-      (item: any) => item.lawyer_id === parseInt(withOutFormat[index].id)
-    );
-
-    // const filterService = dataLawyerServices.filter(
-    //   (item: any) => item.lawyer_id === parseInt(withOutFormat[index].id)
-    // );
+    const filterItems = Array.isArray(dataLawyerLeads)
+      ? dataLawyerLeads.filter(
+          (item: any) => item.lawyer_id === parseInt(withOutFormat[index].id)
+        )
+      : [];
 
     if (!!withOutFormat[index].lawyersServices && labelService) {
       const filtertypes = withOutFormat[index].lawyersServices.map(
@@ -288,9 +297,10 @@ const LawyerManagement = () => {
         }
       );
       setLawyerServiceRelacion(withOutFormat[index].lawyersServices);
-
-      //modalLawyerInput[2].defaultValue = filtertypes;
       setSelectedOptionsService(filtertypes);
+    } else {
+      setLawyerServiceRelacion([]);
+      setSelectedOptionsService([]);
     }
 
     if (!!dataLeads && dataLeads.length > 0) {
@@ -299,38 +309,31 @@ const LawyerManagement = () => {
           .map((filterItem: any) => filterItem.lead)
           .includes(item['lead id'])
       );
-      const updatedStatistics = [...lawyerStatistic];
-
-      updatedStatistics[0].value = filterLeads.length;
-      updatedStatistics[1].value =
-        parseInt(withOutFormat[index].max_leads) - parseInt(filterLeads.length);
-      updatedStatistics[2].value = filterLeads.filter(
+      const totalMax = parseInt(withOutFormat[index].max_leads) || 0;
+      const total = filterLeads.length;
+      const available = Math.max(totalMax - total, 0);
+      const active = filterLeads.filter(
         (item: any) =>
           item.status === 'ASSIGNED' ||
           item.status === 'PROBLEMATIC' ||
           item.status === 'IN PROGRESS' ||
           item.status === 'CLOSED'
       ).length;
-      updatedStatistics[3].value = filterLeads.filter(
+      const lost = filterLeads.filter(
         (item: any) => item.status === 'LOST'
       ).length;
-      updatedStatistics[4].value = filterLeads.filter(
+      const missed = filterLeads.filter(
         (item: any) => item.status === 'EXPIRED' || item.status === 'DISABLED'
       ).length;
 
-      setLawyerStatistic(updatedStatistics);
-      const isAssignable =
-        parseInt(withOutFormat[index].max_leads) -
-          parseInt(filterLeads.length) >
-        0
-          ? true
-          : false;
-      const toBeAssigned =
-        parseInt(withOutFormat[index].max_leads) - parseInt(filterLeads.length);
+      setLawyerStats({ total, available, active, lost, missed });
       setAssignable({
-        isAssignable: isAssignable,
-        toBeAssigned: toBeAssigned,
+        isAssignable: available > 0,
+        toBeAssigned: available,
       });
+    } else {
+      setLawyerStats({ total: 0, available: 0, active: 0, lost: 0, missed: 0 });
+      setAssignable({ isAssignable: true, toBeAssigned: 0 });
     }
   };
 
@@ -359,14 +362,13 @@ const LawyerManagement = () => {
     fetchData();
   };
   const ConfirmMultipleDelete = async () => {
-    const selectRow: any = Object.keys(selectedRows)
-      .filter((index) => selectedRows[Number(index)])
-      .map((index) => originalData[Number(index)]);
-    if (selectRow.length <= 0) {
-      setIsDeleteMultiple(false);
-      return setSelectedRows([]);
+    if (selectedIds.size <= 0) {
+      setSelectedIds(new Set());
+      return;
     }
-
+    const selectRow: any[] = (originalData as any[]).filter((item: any) =>
+      selectedIds.has(Number(item.code))
+    );
     const promises = selectRow.map(async (item: any) => {
       const leadId = item['code'];
       const dataDelete = await database.DeleteLawyer(leadId);
@@ -374,12 +376,10 @@ const LawyerManagement = () => {
         return toast.error(`Error to delete lawyer ${item['lawyer name']}`);
       }
       toast.success('Success to delete');
-
       fetchData();
     });
     await Promise.all(promises);
-    setIsDeleteMultiple(false);
-    setSelectedRows([]);
+    setSelectedIds(new Set());
   };
   const postImage = async () => {
     const formData = new FormData();
@@ -407,91 +407,149 @@ const LawyerManagement = () => {
       };
     }
   };
-  const createlawyer = async (e: any) => {
-    let resImage = {
-      data: {
-        secure_url: '',
-      },
-    };
-    e.preventDefault();
-    if (file) {
-      const resImages: any = await postImage();
-      if (resImages.status === 400) {
+  const uploadCloudinary = async (
+    selectedFile: File
+  ): Promise<{ success: boolean; url: string }> => {
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('upload_preset', 'amuthn3c');
+    try {
+      const res = await axios.post(
+        'https://api.cloudinary.com/v1_1/despbwppb/image/upload/',
+        formData
+      );
+      return { success: true, url: res.data?.secure_url ?? '' };
+    } catch {
+      return { success: false, url: '' };
+    }
+  };
+
+  const handleCreateLawyer = async (
+    payload: any /* LawyerFormPayload */
+  ): Promise<void> => {
+    setLoadingModal(true);
+    let imageUrl = '';
+    if (payload.imageFile) {
+      const up = await uploadCloudinary(payload.imageFile);
+      if (!up.success) {
         toast.error('Error uploading picture');
-        return null;
+        setLoadingModal(false);
+        return;
       }
-      resImage = resImages;
+      imageUrl = up.url;
     }
-
     const data = {
-      firstName: e.target.firstName.value,
-      lastName: e.target.lastname.value,
-      email: e.target.email.value,
-      phone: e.target.phone.value,
-      role_id: e.target.role_id.value,
-      password: e.target.password.value,
-      //max_leads: e.target.max_leads.value,
-      law_firm: e.target.name_of_law_firm.value,
-      notes: e.target.notes.value,
-      is_active: e.target.is_active.value === 'true',
-      profile_image_url: resImage.data.secure_url,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      email: payload.email,
+      phone: payload.phone,
+      role_id: 2,
+      password: payload.password ?? '',
+      law_firm: payload.name_of_law_firm,
+      notes: payload.notes,
+      is_active: true,
+      profile_image_url: imageUrl,
     };
-
-    const creatingLawyer = await database.CreateLawyer(data);
-
-    if (!creatingLawyer.success) {
-      return toast.error('Email exists or error to create lawyer');
+    const creating = await database.CreateLawyer(data);
+    if (!creating.success) {
+      toast.error('Email exists or error to create lawyer');
+      setLoadingModal(false);
+      return;
     }
-
-    const insertService = selectedOptionsService.map(async (item) => {
-      const dataAssignedServide = {
-        lawyer_id: creatingLawyer.data.data.id,
-        service_type_id: item.value,
-        max_leads: additionalValues[item.value],
-      };
+    if (payload.specialtyId) {
       await database.insertData(
         `${process.env.NEXT_PUBLIC_URL}/lawyers-services`,
-        dataAssignedServide
+        {
+          lawyer_id: creating.data?.data?.id,
+          service_type_id: payload.specialtyId,
+          max_leads: payload.max_leads,
+        }
       );
-      // if (!insertServicesLawyer.success) {
-      //   toast.error('Error assigning Area of lawyer ');
-      // }
-    });
-    await Promise.all(insertService);
-
+    }
+    toast.success('Lawyer created successfully');
     setFile(null);
     setAdditionalValues({});
     setFormValues(() => {});
     fetchData();
     getExtraData();
     setIsOpenNew(false);
+    setLoadingModal(false);
   };
-  const UpdateLawyer = async (e: any) => {
-    e.preventDefault();
-    const resImage = await postImage();
-    const data = {
-      firstName: e.target.firstName.value,
-      lastName: e.target.lastname.value,
-      email: e.target.email.value,
-      phone: e.target.phone.value,
-      role_id: parseInt(e.target.role_id.value),
-      //max_leads: e.target.max_leads.value,
-      is_active: e.target.is_active.value === 'true',
-      law_firm: e.target.name_of_law_firm.value,
-      notes: e.target.notes.value,
-      updated_at: new Date(),
-      profile_image_url: resImage.success
-        ? resImage.data.secure_url
-        : dataIndex.profile_image_url,
-    };
 
+  const handleUpdateLawyer = async (
+    payload: any /* LawyerFormPayload */
+  ): Promise<void> => {
+    if (!dataIndex) return;
+    setLoadingModal(true);
+    let imageUrl: string | null | undefined = dataIndex.profile_image_url;
+    if (payload.imageFile) {
+      const up = await uploadCloudinary(payload.imageFile);
+      if (!up.success) {
+        toast.error('Error uploading picture');
+        setLoadingModal(false);
+        return;
+      }
+      imageUrl = up.url;
+    }
+    const data = {
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      email: payload.email,
+      phone: payload.phone,
+      role_id: dataIndex.role?.id ?? 2,
+      is_active: dataIndex.is_active,
+      law_firm: payload.name_of_law_firm,
+      notes: payload.notes,
+      updated_at: new Date(),
+      profile_image_url: imageUrl,
+    };
     const updateData = await database.UpdateLawyer(data as any, dataIndex.id);
     if (updateData.code === 401) {
-      return toast.error(updateData.messages);
+      toast.error(updateData.messages);
+      setLoadingModal(false);
+      return;
+    }
+    // ── Specialty / max_leads sync (single specialty model) ──
+    const services: any[] = Array.isArray(lawyerServiceRelacion)
+      ? lawyerServiceRelacion
+      : [];
+    const first = services[0];
+    if (payload.specialtyId !== null && payload.specialtyId !== undefined) {
+      const targetId = Number(payload.specialtyId);
+      const currentId = first ? Number(first.service_type_id) : null;
+      if (!first) {
+        await database.postData(
+          `${process.env.NEXT_PUBLIC_URL}/lawyers-services`,
+          {
+            lawyer_id: dataIndex.id,
+            service_type_id: targetId,
+            max_leads: payload.max_leads,
+          }
+        );
+      } else if (currentId !== targetId) {
+        await database.deleteData(
+          `${process.env.NEXT_PUBLIC_URL}/lawyers-services/${first.id}`
+        );
+        await database.postData(
+          `${process.env.NEXT_PUBLIC_URL}/lawyers-services`,
+          {
+            lawyer_id: dataIndex.id,
+            service_type_id: targetId,
+            max_leads: payload.max_leads,
+          }
+        );
+      } else if (Number(first.max_leads) !== Number(payload.max_leads)) {
+        await database.patchData(
+          `${process.env.NEXT_PUBLIC_URL}/lawyers-services/${first.id}`,
+          { max_leads: payload.max_leads }
+        );
+      }
     }
     fetchData();
+    getExtraData();
     toast.success('Lawyer updated successfully');
     setIsOpen(false);
+    setLoadingModal(false);
   };
   const getServiceType = async () => {
     const resType = await database.getData(
@@ -510,12 +568,11 @@ const LawyerManagement = () => {
     const roles = await database.getData(
       `${process.env.NEXT_PUBLIC_URL}/roles` || ''
     );
-
     if (!roles.success) {
       return toast.error('Error to get role');
     }
-    modalLawyerInput[6].values = formaterSelect(roles.data);
-    modalNewLawyerInput[6].values = formaterSelect(roles.data);
+    // Roles fetched but not currently surfaced in the new modal UI.
+    // Kept around in case the modal needs to expose role selection later.
   };
   const getLastLogin = async (id: any) => {
     const login = await database.fetchData(
@@ -547,23 +604,26 @@ const LawyerManagement = () => {
       input.value = '';
     }
   };
-  const updatePassword = async (e: any) => {
-    e.preventDefault();
-    const newPassword = e.target.new.value;
-    const confirmPassword = e.target.confirm.value;
-    if (newPassword !== confirmPassword) {
-      return toast.error('Passwords do not match');
-    }
-    const data = {
-      password: newPassword,
-    };
-    const updateData = await database.UpdateLawyer(data as any, dataIndex.id);
+  const handleUpdatePassword = async ({
+    password,
+  }: {
+    password: string;
+  }): Promise<void> => {
+    if (!dataIndex) return;
+    setLoadingModal(true);
+    const updateData = await database.UpdateLawyer(
+      { password } as any,
+      dataIndex.id
+    );
     if (updateData.code === 401) {
-      return toast.error(updateData.messages);
+      toast.error(updateData.messages);
+      setLoadingModal(false);
+      return;
     }
     fetchData();
-    toast.success("Lawyers' password updated successfully");
+    toast.success("Lawyer's password updated successfully");
     setIsopenPassword(false);
+    setLoadingModal(false);
   };
   const handleRoute = async (index: number) => {
     const dataId = await database.getLawyer(withOutFormat[index].id);
@@ -573,19 +633,6 @@ const LawyerManagement = () => {
   const newLawyer = () => {
     setIsOpenNew(true);
     setImagePreview(null);
-  };
-  const filterSearch = (text: string) => {
-    if (text) {
-      const filterData = originalData.filter(
-        (item: any) =>
-          item?.['lawyer name'].toLowerCase().includes(text.toLowerCase()) ||
-          item?.email.toLowerCase().includes(text.toLowerCase()) ||
-          item?.['phone number'].toLowerCase().includes(text.toLowerCase())
-      );
-      setData(filterData);
-      return filterData;
-    }
-    setData(originalData);
   };
   const handleFormNewLawyerPersist = (e: any) => {
     const { name, value } = e.target;
@@ -613,13 +660,6 @@ const LawyerManagement = () => {
     setSelecArray(valuesCards.map((res: any) => res.value));
     router.push(`/lawyer-management/${dataIndex.id}`);
   };
-  const handleSelectRow = (index: number) => {
-    setSelectedRows((prevSelectedRows) => ({
-      ...prevSelectedRows,
-      [index]: !prevSelectedRows[index],
-    }));
-  };
-
   const handleAdditionalValueChange = (
     selectedOption: any,
     event: React.ChangeEvent<HTMLInputElement>
@@ -653,6 +693,195 @@ const LawyerManagement = () => {
   const removeLawyer = (title: string) => {
     return title.replace('Lawyer', '').trim();
   };
+
+  // ── helpers to bridge legacy index-based handlers with the new ID-based table ──
+  const findIndexById = (id: number) =>
+    (withOutFormat as any[]).findIndex((l: any) => Number(l.id) === id);
+
+  const handleEditById = (id: number) => {
+    const idx = findIndexById(id);
+    if (idx >= 0) handleEdit(idx);
+  };
+
+  const handleDeleteById = (id: number) => {
+    const idx = findIndexById(id);
+    if (idx >= 0) handleDelete(idx);
+  };
+
+  const handleRouteById = (id: number) => {
+    const idx = findIndexById(id);
+    if (idx >= 0) handleRoute(idx);
+  };
+
+  // ── derived row type + status mapping ──
+  type LawyerRow = {
+    id: number;
+    code: string;
+    name: string;
+    email: string;
+    phone: string;
+    specialty: string;
+    activeLeads: number;
+    maxLeads: number;
+    pulled: number;
+    lost: number;
+    isActive: boolean;
+    lastLoginRaw: string | null;
+    status: LawyerStatus;
+  };
+
+  const initialsOf = (name: string) =>
+    name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase() || '·';
+
+  const formatCode = (id: number | string) =>
+    String(id ?? '').padStart(5, '0');
+
+  const lawyerRows = useMemo<LawyerRow[]>(() => {
+    if (!Array.isArray(withOutFormat) || withOutFormat.length === 0) return [];
+    return (withOutFormat as any[]).map((raw: any) => {
+      const id = Number(raw.id);
+      const isActive = raw.is_active === true;
+      const activeLeads = Number(raw.activeLeads ?? 0);
+      const maxLeads = Number(raw.max_leads ?? 0);
+      const pulled = Number(raw.totalLeads ?? 0);
+      const lost = Number(raw.lost ?? 0);
+      const lastLoginRaw = raw.last_login ?? null;
+      let status: LawyerStatus;
+      if (!isActive && !lastLoginRaw && pulled === 0) status = 'pending';
+      else if (!isActive) status = 'unassignable';
+      else if (maxLeads <= 0 || activeLeads >= maxLeads) status = 'capacity';
+      else status = 'assignable';
+
+      const specialtyArr: any[] = Array.isArray(raw.service_type)
+        ? raw.service_type
+        : [];
+      const specialty =
+        specialtyArr.length === 0
+          ? '—'
+          : specialtyArr.length === 1
+          ? removeLawyer(String(specialtyArr[0]?.label ?? specialtyArr[0]?.name ?? '—'))
+          : `${removeLawyer(String(specialtyArr[0]?.label ?? specialtyArr[0]?.name ?? '—'))} +${
+              specialtyArr.length - 1
+            }`;
+
+      return {
+        id,
+        code: formatCode(id),
+        name:
+          [raw.firstName, raw.lastName].filter(Boolean).join(' ').trim() ||
+          raw.name ||
+          'Unknown',
+        email: raw.email ?? '—',
+        phone: raw.phone ?? '—',
+        specialty,
+        activeLeads,
+        maxLeads,
+        pulled,
+        lost,
+        isActive,
+        lastLoginRaw,
+        status,
+      };
+    });
+  }, [withOutFormat]);
+
+  // ── KPIs derived from the full lawyer list ──
+  const kpis = useMemo(() => {
+    const total = lawyerRows.length;
+    const assignable = lawyerRows.filter((r) => r.status === 'assignable').length;
+    const capacity = lawyerRows.filter((r) => r.status === 'capacity').length;
+    const pending = lawyerRows.filter((r) => r.status === 'pending').length;
+    const unassignable = lawyerRows.filter((r) => r.status === 'unassignable').length;
+    const specialtyCount = new Set(
+      lawyerRows
+        .map((r) => r.specialty)
+        .filter((s) => s && s !== '—')
+        .map((s) => s.split(' +')[0])
+    ).size;
+    return { total, assignable, capacity, pending, unassignable, specialtyCount };
+  }, [lawyerRows]);
+
+  // ── filtered & search ──
+  const filteredRows = useMemo<LawyerRow[]>(() => {
+    let list = lawyerRows;
+    if (statusFilter !== 'all') {
+      list = list.filter((r) => r.status === statusFilter);
+    }
+    const q = searchText.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          r.email.toLowerCase().includes(q) ||
+          r.phone.toLowerCase().includes(q) ||
+          r.specialty.toLowerCase().includes(q) ||
+          r.code.includes(q)
+      );
+    }
+    return list;
+  }, [lawyerRows, statusFilter, searchText]);
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  // ── Specialty options for the modal selects ──
+  const specialtyOptions = useMemo<{ value: number; label: string }[]>(() => {
+    if (!Array.isArray(labelService)) return [];
+    return labelService.map((s: any) => ({
+      value: Number(s.value),
+      label: removeLawyer(String(s.label ?? s.name ?? '')),
+    }));
+  }, [labelService]);
+
+  // ── Edit modal initial data (derived from dataIndex + lawyerStats + assignable) ──
+  const editInitial = useMemo<LawyerFormInitialData | null>(() => {
+    if (!dataIndex) return null;
+    const services: any[] = Array.isArray(lawyerServiceRelacion)
+      ? lawyerServiceRelacion
+      : [];
+    const first = services[0];
+    let derivedStatus: LawyerStatusKey = 'assignable';
+    if (!dataIndex.is_active) derivedStatus = 'unassignable';
+    else if (assignable && !assignable.isAssignable) derivedStatus = 'capacity';
+    let hint: string | undefined;
+    if (assignable) {
+      hint = assignable.isAssignable
+        ? `${assignable.toBeAssigned} ${
+            assignable.toBeAssigned === 1 ? 'lead' : 'leads'
+          } available to be assigned`
+        : 'This lawyer is at the limit of assigned leads';
+    }
+    const since = dataIndex.created_at
+      ? `Since ${dayjs
+          .utc(dataIndex.created_at)
+          .local()
+          .format('MMM D')} · ${dataIndex.is_active ? 'Active' : 'Inactive'}`
+      : undefined;
+    return {
+      id: dataIndex.id,
+      code: String(dataIndex.id ?? '').padStart(5, '0'),
+      firstName: dataIndex.firstName ?? '',
+      lastName: dataIndex.lastName ?? '',
+      email: dataIndex.email ?? '',
+      phone: dataIndex.phone ?? '',
+      name_of_law_firm: dataIndex.law_firm ?? '',
+      notes: dataIndex.notes ?? '',
+      profile_image_url: dataIndex.profile_image_url ?? null,
+      specialtyId: first ? Number(first.service_type_id) : null,
+      extraSpecialtiesCount: Math.max(0, services.length - 1),
+      max_leads: first ? Number(first.max_leads) : 0,
+      stats: lawyerStats,
+      status: derivedStatus,
+      statusHint: hint,
+      sinceLabel: since,
+    };
+  }, [dataIndex, lawyerServiceRelacion, lawyerStats, assignable]);
+
   useEffect(() => {
     getServiceType();
     getRole();
@@ -663,291 +892,26 @@ const LawyerManagement = () => {
   }, [dataLeads, dataProject === null, dataLawyerLeads === null]);
 
   return (
-    <div className='mx-auto flex flex-col gap-5'>
-      <Modal title='Lawyer Details' isOpen={isOpen} setIsOpen={setIsOpen}>
-        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200'>
-          <div className='flex flex-col gap-5'>
-            <div className='text-gray-500 text-sm'>Code: {dataIndex?.id}</div>
-            <div className='flex items-center gap-2'>
-              {imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt='Preview'
-                  width={300}
-                  height={300}
-                  className='object-cover rounded-full w-20 h-20  '
-                />
-              ) : dataIndex?.profile_image_url ? (
-                <img
-                  src={dataIndex.profile_image_url}
-                  alt='Preview'
-                  width={300}
-                  height={300}
-                  className='object-cover rounded-full w-20 h-20  '
-                />
-              ) : (
-                <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
-                  <MdOutlineImage size={32} />
-                </div>
-              )}
-              <div className='relative'>
-                <input
-                  type='file'
-                  accept='image/*'
-                  className='absolute inset-0  cursor-pointer opacity-0'
-                  name='Change image'
-                  onChange={updateImage}
-                />
-                <p className='underline cursor-pointer '>Change image</p>
-              </div>
-
-              <MdOutlineImage size={24} />
-            </div>
-            <form onSubmit={UpdateLawyer} className='grid grid-cols-2 gap-5'>
-              {modalLawyerInput.map(
-                (res: any, index: number) =>
-                  res.mode !== 'edit' && (
-                    <Input
-                      key={index}
-                      name={res.name}
-                      label={res.label}
-                      required={res.required}
-                      type={res.type}
-                      values={res.values}
-                      defaultValue={res.defaultValue}
-                      handleChangeService={handleChangeService}
-                      //onChange={handleChangeService}
-                    />
-                  )
-              )}
-              <div className='col-span-2'>
-                <Input
-                  name='service_type_id'
-                  label='area of law'
-                  required={true}
-                  type='multiselect'
-                  values={labelService}
-                  defaultValue={selectedOptionsService}
-                  handleChangeService={handleChangeService}
-                />
-              </div>
-              {selectedOptionsService.map((option) => (
-                <div key={option.value} className='mt-2'>
-                  <label htmlFor={`additional-${option.value}`}>
-                    Maximun Leads for {removeLawyer(option.label)}:
-                  </label>
-                  <input
-                    type='text'
-                    required
-                    id={`additional-${option.value}`}
-                    className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500'
-                    onChange={(event) =>
-                      handleAdditionalValueUpdate(option, event)
-                    }
-                    defaultValue={option.max_leads}
-                  />
-                </div>
-              ))}
-              <div className='col-span-2'>
-                <label className='font-bold' htmlFor='Notes'>
-                  Notes
-                </label>
-                <textarea
-                  defaultValue={dataIndex?.notes}
-                  name='notes'
-                  className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
-                />
-              </div>
-              <div className=''>
-                <p className='text-primary font-bold'>Password</p>
-                <p
-                  onClick={() => setIsopenPassword(true)}
-                  className='hover:underline cursor-pointer '
-                >
-                  Update password
-                </p>
-              </div>
-
-              <button className='relative'>
-                <p className='rounded-md bg-primary text-white inline-block bottom-0 absolute right-0 px-4'>
-                  save
-                </p>
-              </button>
-            </form>
-          </div>
-        </div>
-        <footer className='flex flex-col gap-6 mt-6'>
-          <p>
-            Info about the leads assigned to this lawyer{' '}
-            <span className='text-gray-500'>
-              Since{' '}
-              {dayjs
-                .utc(dataIndex?.created_at)
-                .local()
-                .format('MM/DD/YYYY hh:mm:ss a')}{' '}
-              to present Last active{' '}
-              {dayjs
-                .utc(dataIndex?.last_login)
-                .local()
-                .format('MM/DD/YYYY hh:mm:ss a')}
-            </span>
-          </p>
-          <div className='flex  gap-2 flex-wrap'>
-            {lawyerStatistic.map((res: any, index) => (
-              <div
-                onClick={
-                  parseInt(res?.value) <= 0
-                    ? () => toast.error('That value is 0')
-                    : res.name === 'Leads Available for request'
-                    ? () => []
-                    : () => handleClickCard(index)
-                }
-                key={index}
-                className={`${
-                  res.name === 'Leads Available for request'
-                    ? ''
-                    : 'hover:scale-105 cursor-pointer'
-                } flex gap-4 px-4 py-1.5 rounded-lg  `}
-                style={{
-                  background: `${res.color}20`,
-                  color: res.color,
-                }}
-              >
-                <p className=' '>{res.name}</p>
-                <p>: {res.value}</p>
-              </div>
-            ))}
-          </div>
-          <div className='flex gap-4 items-center'>
-            <p>Status:</p>
-            {assignable === null ? (
-              <div className='w-full'>
-                <SkeletonText />
-              </div>
-            ) : (
-              <>
-                <p
-                  className='px-4 py-1 rounded-lg '
-                  style={{
-                    backgroundColor: `${
-                      !!assignable.isAssignable
-                        ? statusColors.Assignable + 20
-                        : statusColors.Unassignable + 20
-                    }`,
-                    color: `${
-                      !!assignable.isAssignable
-                        ? statusColors.Assignable
-                        : statusColors.Unassignable
-                    }`,
-                  }}
-                >
-                  {!!assignable.isAssignable ? 'Assignable' : 'Unassignable'}
-                </p>
-                <p
-                  style={
-                    !!assignable.isAssignable
-                      ? { color: '#4AD991' }
-                      : { color: statusColors.Unassignable }
-                  }
-                >
-                  {!!assignable.isAssignable
-                    ? `${assignable.toBeAssigned} leads to be assigned`
-                    : 'This lawyer is at the limit of assigned leads'}
-                </p>
-              </>
-            )}
-          </div>
-        </footer>
-      </Modal>
-      <Modal title='New Lawyer ' isOpen={isOpenNew} setIsOpen={setIsOpenNew}>
-        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200'>
-          <div className='flex flex-col gap-5'>
-            <div className='text-gray-500 text-sm'>Code: {dataIndex?.code}</div>
-            <div className='flex items-center gap-2'>
-              {imagePreview ? (
-                <Image
-                  src={imagePreview}
-                  alt='Preview'
-                  width={300}
-                  height={300}
-                  className='object-cover rounded-full w-20 h-20  '
-                />
-              ) : (
-                <div className='w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 cursor-pointer'>
-                  <MdOutlineImage size={32} />
-                </div>
-              )}
-              <div className='relative'>
-                <input
-                  type='file'
-                  accept='image/*'
-                  className='absolute inset-0  cursor-pointer opacity-0'
-                  name='Change image'
-                  onChange={updateImage}
-                />
-                <p className='underline cursor-pointer '>Change image</p>
-              </div>
-
-              <MdOutlineImage size={24} />
-            </div>
-            <form onSubmit={createlawyer} className='grid grid-cols-2 gap-5'>
-              {modalNewLawyerInput.map((res: any, index: number) => (
-                <Input
-                  key={index}
-                  name={res.name}
-                  label={res.label}
-                  required={res.required}
-                  type={res.type}
-                  values={res.values}
-                  defaultValue={formValues?.[res.name]}
-                  onChange={handleFormNewLawyerPersist}
-                />
-              ))}
-              <div className='col-span-2'>
-                <Input
-                  name='service_type_id'
-                  label='area of law'
-                  required={true}
-                  type='multiselect'
-                  values={labelService}
-                  handleChangeService={handleChangenewLawyer}
-                />
-              </div>
-              {selectedOptionsService.map((option) => (
-                <div key={option.value} className='mt-2'>
-                  <label htmlFor={`additional-${option.value}`}>
-                    Maximun Leads for {removeLawyer(option.label)}:
-                  </label>
-                  <input
-                    type='text'
-                    required
-                    id={`additional-${option.value}`}
-                    className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500'
-                    onChange={(event) =>
-                      handleAdditionalValueChange(option, event)
-                    }
-                  />
-                </div>
-              ))}
-              <div className='col-span-2'>
-                <label className='font-bold' htmlFor='notes'>
-                  Notes
-                </label>
-                <textarea
-                  defaultValue={formValues?.['notes']}
-                  onChange={handleFormNewLawyerPersist}
-                  name='notes'
-                  id='notes'
-                  className='border border-gray-300 rounded-md w-full p-1 text-sm text-gray-500 '
-                />
-              </div>
-              <div className='col-span-2 flex justify-end'>
-                <Button name='Save' type='submit' />
-              </div>
-            </form>
-          </div>
-        </div>
-      </Modal>
+    <div className='flex min-h-0 flex-1 flex-col gap-4'>
+      <LawyerFormModal
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        mode='edit'
+        initial={editInitial}
+        specialties={specialtyOptions}
+        onSubmit={handleUpdateLawyer}
+        onOpenPasswordUpdate={() => setIsopenPassword(true)}
+        loading={loadingModal}
+      />
+      <LawyerFormModal
+        open={isOpenNew}
+        onClose={() => setIsOpenNew(false)}
+        mode='new'
+        initial={null}
+        specialties={specialtyOptions}
+        onSubmit={handleCreateLawyer}
+        loading={loadingModal}
+      />
       <Modal
         title='Delete'
         isOpen={isOpenDelete}
@@ -977,29 +941,17 @@ const LawyerManagement = () => {
           </div>
         </div>
       </Modal>
-      <Modal
-        title='Update password'
-        isOpen={isOpenPassword}
-        setIsOpen={setIsopenPassword}
-        className='max-w-sm'
-      >
-        <div className='p-5 border-2 border-t-none border-solid rounded-lg border-gray-200 '>
-          <form className='flex flex-col gap-5' onSubmit={updatePassword}>
-            {modalUpdatePassword.map((res: any, index: number) => (
-              <Input
-                key={index}
-                name={res.name}
-                label={res.label}
-                type={res.type}
-                required={res.required}
-              />
-            ))}
-            <div className='flex justify-end'>
-              <Button name='Save' type='submit' />
-            </div>
-          </form>
-        </div>
-      </Modal>
+      <LawyerPasswordModal
+        open={isOpenPassword}
+        onClose={() => setIsopenPassword(false)}
+        lawyerCode={
+          dataIndex?.id
+            ? String(dataIndex.id).padStart(5, '0')
+            : undefined
+        }
+        onSubmit={handleUpdatePassword}
+        loading={loadingModal}
+      />
       <Modal
         title='Session History'
         setIsOpen={setisOpenSession}
@@ -1022,55 +974,392 @@ const LawyerManagement = () => {
           </ul>
         </div>
       </Modal>
-      <Tilte
-        name='Lawyer Management'
-        search={true}
-        filterSearch={filterSearch}
+      {/* ── Page header ── */}
+      <PageHead
+        title='Lawyer Management'
+        count={`${kpis.total} ${kpis.total === 1 ? 'lawyer' : 'lawyers'}`}
+        subtitle="Manage your firm's lawyers, monitor capacity, and track activity across specializations."
+        action={
+          <div className='flex items-center gap-2'>
+            <button
+              type='button'
+              className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3.5 text-xs font-bold tracking-[-0.005em] text-slate-700 transition-colors hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300'
+              onClick={() => toast('Export coming soon', { icon: 'ℹ️' })}
+            >
+              <MdFileDownload size={14} />
+              Export
+            </button>
+            <button
+              type='button'
+              onClick={newLawyer}
+              className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-900 bg-slate-900 px-3.5 text-xs font-bold tracking-[-0.005em] text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-700/40'
+            >
+              <MdAdd size={14} />
+              New Lawyer
+            </button>
+          </div>
+        }
       />
-      <div className='flex justify-end gap-2 '>
-        <Button name='+ New Lawyer' type='button' onClick={newLawyer} />
-        <div className='flex justify-end '>
-          <div onClick={() => setIsDeleteMultiple(!isDeleteMultiple)}>
-            <MdOutlineDeleteSweep
-              className='text-secondary text-opacity-80 hover:text-opacity-100 cursor-pointer'
-              size={30}
-            />
+
+      {/* ── KPI strip ── */}
+      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+        <StatCard
+          label='Total lawyers'
+          value={kpis.total}
+          tone='slate'
+          sub={`across ${kpis.specialtyCount} ${
+            kpis.specialtyCount === 1 ? 'specialization' : 'specializations'
+          }`}
+          icon={
+            <svg
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2.2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              className='h-4 w-4'
+            >
+              <path d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2' />
+              <circle cx='9' cy='7' r='4' />
+              <path d='M23 21v-2a4 4 0 0 0-3-3.87' />
+              <path d='M16 3.13a4 4 0 0 1 0 7.75' />
+            </svg>
+          }
+        />
+        <StatCard
+          label='Assignable'
+          value={kpis.assignable}
+          tone='emerald'
+          sub='with available capacity'
+          icon={
+            <svg
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2.4'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              className='h-4 w-4'
+            >
+              <polyline points='20 6 9 17 4 12' />
+            </svg>
+          }
+        />
+        <StatCard
+          label='At capacity'
+          value={kpis.capacity}
+          tone='slate'
+          sub='need monitoring'
+          icon={
+            <svg
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2.2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              className='h-4 w-4'
+            >
+              <path d='M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' />
+              <line x1='12' y1='9' x2='12' y2='13' />
+              <line x1='12' y1='17' x2='12.01' y2='17' />
+            </svg>
+          }
+        />
+        <StatCard
+          label='Pending onboarding'
+          value={kpis.pending}
+          tone='coral'
+          sub={
+            kpis.unassignable > 0
+              ? `unassignable: ${kpis.unassignable}`
+              : 'all onboarded'
+          }
+          icon={
+            <svg
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2.2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              className='h-4 w-4'
+            >
+              <path d='M12 20h9' />
+              <path d='M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z' />
+            </svg>
+          }
+        />
+      </div>
+
+      {/* ── Toolbar ── */}
+      <div className='flex flex-wrap items-center gap-2.5'>
+        <SearchField
+          placeholder='Search by name, email, code or specialty...'
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          className='w-[300px]'
+        />
+        <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
+        <FilterButton
+          label='All'
+          count={kpis.total}
+          active={statusFilter === 'all'}
+          onClick={() => setStatusFilter('all')}
+        />
+        <FilterButton
+          label='Assignable'
+          count={kpis.assignable}
+          active={statusFilter === 'assignable'}
+          onClick={() => setStatusFilter('assignable')}
+        />
+        <FilterButton
+          label='At capacity'
+          count={kpis.capacity}
+          active={statusFilter === 'capacity'}
+          onClick={() => setStatusFilter('capacity')}
+        />
+        <FilterButton
+          label='Unassignable'
+          count={kpis.unassignable}
+          active={statusFilter === 'unassignable'}
+          onClick={() => setStatusFilter('unassignable')}
+        />
+        <FilterButton
+          label='Pending'
+          count={kpis.pending}
+          active={statusFilter === 'pending'}
+          onClick={() => setStatusFilter('pending')}
+        />
+      </div>
+
+      {/* ── Bulk action strip (visible when rows selected) ── */}
+      {selectedIds.size > 0 ? (
+        <div className='flex items-center justify-between gap-3 rounded-[10px] border border-slate-200 bg-slate-50 px-4 py-2.5'>
+          <span className='text-xs font-semibold text-slate-700'>
+            <span className='font-extrabold tabular-nums text-slate-900'>
+              {selectedIds.size}
+            </span>{' '}
+            {selectedIds.size === 1 ? 'lawyer' : 'lawyers'} selected
+          </span>
+          <div className='flex items-center gap-2'>
+            <button
+              type='button'
+              onClick={clearSelection}
+              className='inline-flex h-[34px] items-center rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-600 transition-colors hover:bg-slate-100'
+            >
+              Clear
+            </button>
+            <button
+              type='button'
+              onClick={() => ConfirmMultipleDelete()}
+              className='inline-flex h-[34px] items-center gap-1.5 rounded-lg border border-customRed bg-customRed px-3 text-[11px] font-semibold text-white transition-colors hover:bg-red-600'
+            >
+              <MdDeleteOutline size={13} />
+              Delete selected
+            </button>
           </div>
         </div>
-      </div>
-      {Object.keys(selectedRows).length > 0 && (
-        <div className='flex justify-end gap-2 '>
-          <Button
-            color='bg-red-500'
-            name='Confirm Multiple Delete '
-            type='button'
-            onClick={() => ConfirmMultipleDelete()}
-          />
-          <Button
-            color='bg-gray-500'
-            name='Cancel '
-            type='button'
-            onClick={() => {
-              setIsDeleteMultiple(false);
-              setSelectedRows({});
-            }}
-          />
+      ) : null}
+
+      {/* ── Table ── */}
+      {error ? (
+        <div className='flex items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-5 py-10 text-center'>
+          <div className='flex flex-col gap-1'>
+            <span className='text-[13px] font-semibold text-rose-700'>
+              Failed to load lawyers
+            </span>
+            <span className='text-[11px] text-rose-500'>
+              Try refreshing the page or check your connection
+            </span>
+          </div>
         </div>
+      ) : (
+        <DataTable<LawyerRow>
+          data={filteredRows}
+          rowKey={(row) => row.id}
+          onRowClick={(row) => handleRouteById(row.id)}
+          pagination={{ enabled: true, initialPageSize: 10 }}
+          totalLabel='lawyers'
+          initialSort={{ key: 'name', direction: 'asc' }}
+          selection={{
+            getRowKey: (row) => row.id,
+            selectedKeys: selectedIds,
+            onChange: (next) => setSelectedIds(next as Set<number>),
+            ariaLabel: 'Select all lawyers on this page',
+          }}
+          emptyState={
+            <div className='flex flex-col items-center gap-1'>
+              <span className='text-[13px] font-semibold text-slate-700'>
+                No lawyers match your filters
+              </span>
+              <span className='text-[11px] text-slate-400'>
+                Adjust the search or status filters above
+              </span>
+            </div>
+          }
+          columns={[
+            {
+              key: 'name',
+              label: 'Lawyer',
+              width: 'minmax(240px, 280px)',
+              sortable: true,
+              accessor: (r) => r.name,
+              render: (r) => (
+                <div className='flex min-w-0 items-center gap-3'>
+                  <Avatar
+                    size='md'
+                    shape='rounded'
+                    tone={toneFromString(r.name)}
+                    initials={initialsOf(r.name)}
+                  />
+                  <div className='flex min-w-0 flex-col gap-0.5 leading-[1.25]'>
+                    <div className='flex min-w-0 items-center gap-2'>
+                      <span className='truncate text-[13px] font-bold tracking-[-0.005em] text-slate-900'>
+                        {r.name}
+                      </span>
+                      <span className='flex-shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold tracking-[0.04em] tabular-nums text-slate-400'>
+                        {r.code}
+                      </span>
+                    </div>
+                    <span className='truncate text-[11px] font-medium text-slate-400'>
+                      {r.email}
+                    </span>
+                  </div>
+                </div>
+              ),
+            },
+            {
+              key: 'specialty',
+              label: 'Specialty',
+              width: '100px',
+              render: (r) => (
+                <span className='text-xs font-semibold tracking-[-0.005em] text-slate-700'>
+                  {r.specialty}
+                </span>
+              ),
+            },
+            {
+              key: 'capacity',
+              label: 'Active / Capacity',
+              width: '142px',
+              render: (r) => {
+                const overrideState =
+                  r.status === 'pending'
+                    ? 'pending'
+                    : r.status === 'unassignable'
+                    ? 'paused'
+                    : undefined;
+                return (
+                  <CapacityBar
+                    current={r.activeLeads}
+                    max={r.maxLeads}
+                    state={overrideState}
+                  />
+                );
+              },
+            },
+            {
+              key: 'pulled',
+              label: 'Pulled',
+              width: '78px',
+              sortable: true,
+              accessor: (r) => r.pulled,
+              render: (r) => (
+                <span
+                  className={cnIfMuted(
+                    r.pulled === 0,
+                    'text-sm font-bold tabular-nums tracking-[-0.005em] text-slate-900'
+                  )}
+                >
+                  {r.pulled}
+                </span>
+              ),
+            },
+            {
+              key: 'lost',
+              label: 'Lost',
+              width: '78px',
+              sortable: true,
+              accessor: (r) => r.lost,
+              render: (r) => (
+                <span
+                  className={cnIfMuted(
+                    r.lost === 0,
+                    'text-sm font-bold tabular-nums tracking-[-0.005em] text-slate-900'
+                  )}
+                >
+                  {r.lost}
+                </span>
+              ),
+            },
+            {
+              key: 'lastActive',
+              label: 'Last active',
+              width: '112px',
+              render: (r) => (
+                <LiveDot
+                  state={r.isActive ? 'active' : 'inactive'}
+                  label={r.isActive ? 'Active' : 'Inactive'}
+                />
+              ),
+            },
+            {
+              key: 'status',
+              label: 'Status',
+              width: '110px',
+              sortable: true,
+              accessor: (r) => r.status,
+              render: (r) => <LawyerStatusPill status={r.status} />,
+            },
+            {
+              key: 'actions',
+              label: 'Actions',
+              width: '116px',
+              align: 'right',
+              cellClassName: 'pr-0',
+              render: (r) => (
+                <div
+                  className='flex items-center justify-end gap-1.5'
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <IconActionButton
+                    label='Edit lawyer'
+                    icon={<MdEdit size={12} />}
+                    tone='primary'
+                    onClick={() => handleEditById(r.id)}
+                  />
+                  <IconActionButton
+                    label={r.isActive ? 'Deactivate lawyer' : 'Activate lawyer'}
+                    icon={<MdPowerSettingsNew size={12} />}
+                    tone='warning'
+                    onClick={() =>
+                      toast(
+                        r.isActive
+                          ? 'Deactivate flow pending endpoint'
+                          : 'Activate flow pending endpoint',
+                        { icon: 'ℹ️' }
+                      )
+                    }
+                  />
+                  <IconActionButton
+                    label='Delete lawyer'
+                    icon={<MdDeleteOutline size={12} />}
+                    tone='danger'
+                    onClick={() => handleDeleteById(r.id)}
+                  />
+                </div>
+              ),
+            },
+          ]}
+        />
       )}
-      <SortableTable
-        columns={columns}
-        data={data as any}
-        statusColors={statusColors}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onRoute={handleRoute}
-        isDeleteMultiple={isDeleteMultiple}
-        onDeleteMultiple={handleSelectRow}
-        selectedRows={selectedRows}
-        onLastActive={handleLastsession}
-      />
     </div>
   );
 };
+
+const cnIfMuted = (muted: boolean, base: string) =>
+  muted ? `${base} text-slate-300` : base;
 
 export default LawyerManagement;
