@@ -33,12 +33,6 @@ const Page = () => {
     }
 
     const login = await database.auth(email, password);
-    console.log('[LOGIN] result →', {
-      success: login.success,
-      code: login.code,
-      messages: login.messages,
-      hasLawyer: !!login?.data?.lawyer,
-    });
 
     if (login.code === 401) {
       setLoading(false);

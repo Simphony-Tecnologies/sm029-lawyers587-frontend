@@ -101,9 +101,6 @@ export const database = {
       const body = await response.json();
       const data = unwrapEntity(body);
 
-      console.log('[auth] login keys:', Object.keys(data || {}));
-      console.log('[auth] access_token length:', data?.access_token?.length || 0);
-
       if (!data?.access_token) {
         return {
           success: false,

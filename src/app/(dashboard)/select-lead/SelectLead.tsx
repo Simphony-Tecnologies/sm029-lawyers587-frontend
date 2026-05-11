@@ -1,456 +1,269 @@
 'use client';
-import Button from '@/components/atoms/Button';
-import NoData from '@/components/organisms/NoData';
-import SortableTable from '@/components/organisms/SortableTable';
-import Tilte from '@/components/organisms/Tilte';
-import { statusColors } from '@/configs/statusColor';
-import { database } from '@/services/database';
+import { useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import { MdInfoOutline } from 'react-icons/md';
+import { api, database } from '@/services/database';
+import type { LeadDTO } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
+import useLoadingStore from '@/store/useLoadingStore';
 import { useLeadsStore } from '@/store/useLead.store';
 import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
-import { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
-import { MdInfoOutline } from 'react-icons/md';
+import {
+  Avatar,
+  DataTable,
+  EmptyStateBox,
+  PageHead,
+  StatusPill,
+  toneFromString,
+  variantFromStatus,
+  type DataTableColumn,
+  type DataTableSelection,
+  type SelectionKey,
+} from '@/components/ui';
 import Loading from '../loading';
-import useLoadingStore from '@/store/useLoadingStore';
-import SkeletonText from '@/components/atoms/SkeletonText';
+
+dayjs.extend(utc);
+
+type PoolRow = {
+  id: number;
+  fullName: string;
+  service: string;
+  status: LeadDTO['status'];
+  entry_date: Date;
+};
+
+const toRow = (lead: LeadDTO): PoolRow => ({
+  id: lead.id,
+  fullName: lead.fullName ?? '',
+  service: lead.service ?? '',
+  status: lead.status,
+  entry_date: new Date(lead.entry_date ?? lead.created_at),
+});
+
 const SelectLead = () => {
   const { user } = useAuth();
-  const [userId, setUserId] = useState<any>(null);
+  const { fetchLeads } = useLeadsStore();
+  const { setLoading, isLoading } = useLoadingStore();
 
-  const { dataLeads, fetchLeads } = useLeadsStore();
+  const [pool, setPool] = useState<PoolRow[]>([]);
+  const [assignedCount, setAssignedCount] = useState(0);
+  const [userDetail, setUserDetail] = useState<any>(null);
+  const [services, setServices] = useState<any[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<Set<SelectionKey>>(
+    new Set()
+  );
+  const [pulling, setPulling] = useState(false);
 
-  const [selectedRows, setSelectedRows] = useState<{ [key: number]: boolean }>(
-    {}
+  const lawyerServices = useMemo(
+    () => getNameServiceLawyer(userDetail?.lawyersServices, services),
+    [userDetail, services]
   );
 
-  const [newData, setNewData] = useState<any>(null);
-  const [leadsAssigned, setLeadsAssigned] = useState([]);
-
-  const [selectRowLeads, setSelectRowLeads] = useState([]);
-  const [columns, setColumns] = useState([]);
-  const [dataServiceType, setDataServiceType] = useState([]);
-  const [maxLeadsAssigned, setMaxLeadsAssigned] = useState<any>(null);
-
-  const [selectedValue, setSelectedValue] = useState<any>({});
-  const [leadsAssignedWithData, setLeadsAssignedWithData] = useState([]);
-  const [differenceLeads, setDifferenceLeads] = useState<any>([]);
-
-  const [resultLeads, setResultLeads] = useState<any>(0);
-
-  const { setLoading, isLoading } = useLoadingStore();
-  const availableLeads =
-    leadsAssigned.length >= 0 && maxLeadsAssigned
-      ? maxLeadsAssigned.reduce(
-          (acc: number, curr: any) => acc + curr.max_leads,
-          0
-        ) - leadsAssigned.length
-      : 0;
-
-  const handleSelectRow = (index: any) => {
-    setSelectedRows((prevSelectedRows) => ({
-      ...prevSelectedRows,
-      [index.originalIndex]: !prevSelectedRows[index.originalIndex],
-    }));
-    setSelectedValue(index);
-  };
-  const getServiceType = async () => {
-    const resType = await database.getData(
-      `${process.env.NEXT_PUBLIC_URL}/service_types` || ''
-    );
-    if (!resType.success) {
-      return toast.error('Error to get service type');
-    }
-
-    setDataServiceType(resType.data);
-  };
-  function validateLeads(leads: any[], services: any[]) {
-    // Contar los leads por servicio solo si hay leads
-    const leadCounts = leads.reduce((acc: Record<string, number>, lead) => {
-      const serviceName = lead.service;
-      acc[serviceName] = (acc[serviceName] || 0) + 1;
-      return acc;
-    }, {});
-
-    // Generar el resultado con serviceName, diferencia, y isValid
-    const result = services.map((service) => {
-      const leadCount = leadCounts[service.name] || 0;
-      const difference = service.max_leads - leadCount;
-
-      return {
-        serviceName: service.name,
-        difference,
-        isValid: difference >= 0,
-      };
-    });
-
-    return result;
-  }
-
-  function checkLeadDifference(selectRow: any, differenceLeads: any) {
-    // Crear un objeto para almacenar el conteo de servicios en selectRow
-    const serviceCount: any = {};
-
-    // Contar cuántos leads hay por cada servicio en selectRow
-    selectRow.forEach((row: any) => {
-      if (serviceCount[row.service]) {
-        serviceCount[row.service]++;
-      } else {
-        serviceCount[row.service] = 1;
-      }
-    });
-
-    // Revisar cada servicio en serviceCount contra differenceLeads
-    const results = Object.keys(serviceCount).map((serviceName) => {
-      const matchedService = differenceLeads.find(
-        (lead: any) => lead.serviceName === serviceName
-      );
-
-      if (matchedService) {
-        // Actualizar la diferencia para reflejar la selección actual
-        const updatedDifference =
-          matchedService.difference - serviceCount[serviceName];
-        const isValid = updatedDifference >= 0;
-
-        // Actualizar la diferencia en differenceLeads para las siguientes comparaciones
-        //matchedService.difference = updatedDifference;
-
-        return {
-          serviceName: serviceName,
-          difference: updatedDifference,
-          isValid: isValid,
-        };
-      } else {
-        // Si no se encuentra el servicio, lo marcamos como no válido
-        return {
-          serviceName: serviceName,
-          difference: -serviceCount[serviceName],
-          isValid: false,
-        };
-      }
-    });
-
-    return results;
-  }
-  const getSelectedRowsData = () => {
-    const selectRow: any = Object.keys(selectedRows)
-      .filter((index) => selectedRows[Number(index)])
-      .map((index) => newData[Number(index)]);
-
-    setSelectRowLeads(selectRow);
-
-    const reviewLeads: any = checkLeadDifference(selectRow, differenceLeads);
-    const maxResult =
-      maxLeadsAssigned.reduce(
-        (acc: number, curr: any) => acc + curr.max_leads,
+  const capacityTotal = useMemo(
+    () =>
+      lawyerServices.reduce(
+        (acc: number, curr: any) => acc + (curr.max_leads ?? 0),
         0
-      ) - leadsAssignedWithData.length;
+      ),
+    [lawyerServices]
+  );
 
-    const resut = maxResult - selectRow.length;
+  const available = Math.max(
+    capacityTotal - assignedCount - selectedKeys.size,
+    0
+  );
 
-    setResultLeads(resut);
-    const resValidate = reviewLeads.filter(
-      (item: any) => item.serviceName === selectedValue.service
-    );
-    //const resValidate = checkLeadDifference(selectRow, differenceLeads);
-
-    if (resValidate.length > 0) {
-      if (!resValidate[0].isValid) {
-        toast.error(
-          `You have exceeded the available leads for ${selectedValue.service}`
-        );
-
-        const updatedSelectedRows: any = { ...selectedRows };
-        const indexToRemove = newData.findIndex(
-          (item: any) => item['lead id'] === selectedValue['lead id']
-        );
-
-        if (indexToRemove >= 0) {
-          updatedSelectedRows[Object.keys(selectedRows)[indexToRemove]] = false;
-          setSelectedRows(updatedSelectedRows);
-
-          setSelectRowLeads(
-            selectRow.filter((_: any, i: number) => i !== indexToRemove)
-          );
-        }
-
-        return;
-      }
-    }
-  };
-  const filterByServiceGetLeads = (data: any[], serviceType: any[]) => {
-    if (!data || !serviceType) return [];
-
-    const filterLeads = serviceType
-      .map((res) =>
-        data.filter(
-          (item) =>
-            item.service === res.name &&
-            (item.status == 'NEW' || item.status == 'EXPIRED')
-        )
-      )
-      .flat();
-
-    return filterLeads;
+  const fetchUserAndServices = async () => {
+    if (!user?.id) return;
+    const [lawyerRes, servicesRes] = await Promise.all([
+      database.getLawyer(user.id),
+      database.getData(`${process.env.NEXT_PUBLIC_URL}/service_types`),
+    ]);
+    const dto = lawyerRes?.data?.data ?? lawyerRes?.data ?? null;
+    setUserDetail(dto);
+    if (servicesRes.success) setServices(servicesRes.data);
   };
 
-  const getLawyer = async () => {
-    if (Object.keys(user).length > 0) {
-      const dataLawyer = await database.getLawyer(user.id);
-      setUserId(dataLawyer.data.data);
-    }
-
-    const dataLeadsLawyer: any = await database.getLeadsAssigned();
-
-    if (!dataLeadsLawyer.data) {
-      return toast.error('error getting Leads Assigned');
-    }
-
-    const filterLedas = dataLeadsLawyer.data.filter(
-      (item: any) => item.lawyer_id === parseInt(user.id)
-    );
-
-    const filterItems = filterLedas.filter((item: any) => {
-      return item.lawyer_id === user.id;
+  const fetchAssignedCount = async () => {
+    if (!user?.id) return;
+    const res = await api.leads.list({
+      assigned_to: Number(user.id),
+      limit: 1,
     });
+    if (res.success && res.data) setAssignedCount(res.data.total);
+  };
 
-    if (!dataLeads) return [];
-    if (dataLeads.length <= 0) {
-      setLeadsAssignedWithData([]);
+  const fetchPool = async () => {
+    setLoading(true);
+    const res = await api.leads.pool({ limit: 100 });
+    setLoading(false);
+    if (!res.success || !res.data) {
+      toast.error(res.message || 'Could not load lead pool');
+      setPool([]);
       return;
     }
-
-    const filterLeads = dataLeads.filter((item: any) =>
-      filterItems
-        .map((filterItem: any) => filterItem.lead)
-        .includes(item['lead id'])
-    );
-
-    const totalMaxleads = maxLeadsAssigned
-      ? maxLeadsAssigned.reduce(
-          (acc: number, curr: any) => acc + curr.max_leads,
-          0
-        )
-      : 0;
-    setResultLeads(totalMaxleads - filterLeads.length);
-
-    setLeadsAssignedWithData(filterLeads);
-
-    setLoading(false);
+    setPool(res.data.data.map(toRow));
   };
 
-  const postAssignLeads = async () => {
-    setLoading(true);
-    if (selectRowLeads.length <= 0) {
-      setLoading(false);
-      return toast.error('You need to select a lead');
+  useEffect(() => {
+    void fetchUserAndServices();
+    void fetchAssignedCount();
+    void fetchPool();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const handlePull = async () => {
+    if (selectedKeys.size === 0) {
+      toast.error('You need to select at least one lead');
+      return;
     }
-    if (resultLeads < 0) {
-      setLoading(false);
-      return toast.error(
+    if (capacityTotal - assignedCount < selectedKeys.size) {
+      toast.error(
         'You have exceeded the available leads. Please remove some leads to continue'
       );
+      return;
     }
-
-    const promises = selectRowLeads.map(async (lead) => {
-      const leadId = lead['lead id'];
-
-      if (!leadId) {
-        setLoading(false);
-        toast.error('Lead id is missing for lead:', lead);
-        return null;
-      }
-
-      const response = await database.insertData(
-        `${process.env.NEXT_PUBLIC_URL}/leads-assigned` || '',
-        {
-          lead: leadId,
-          lawyer_id: user.id,
-        }
-      );
-
-      return response;
-    });
-
-    const respond: any = await Promise.all(promises);
-
-    if (respond.some((item: any) => item.code === 404 || item.code === 500)) {
-      setLoading(false);
-      return toast.error(`Error ${respond[0].code}: ${respond[0].messages}`);
+    setPulling(true);
+    const ids = Array.from(selectedKeys).map((k) => Number(k));
+    const results = await Promise.all(
+      ids.map((leadId) =>
+        api.leads.pull({ lead_id: leadId, comment: 'Pulled from pool' })
+      )
+    );
+    setPulling(false);
+    const failed = results.filter((r) => !r.success);
+    const succeeded = results.length - failed.length;
+    if (failed.length > 0) {
+      toast(`Pulled ${succeeded}/${results.length} · ${failed.length} failed`, {
+        icon: '⚠️',
+      });
+    } else {
+      toast.success(`Pulled ${succeeded} lead${succeeded === 1 ? '' : 's'}`);
     }
-    fetchLeads();
-
-    const DataFilter = filterByServiceGetLeads(
-      dataLeads,
-      getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
-    );
-
-    const filteredDataLeads = DataFilter.map(
-      ({
-        email,
-        'phone number': phoneNumber,
-        'description lead': descriptionLead,
-        'lead name': leadName,
-        comments,
-        status,
-        lawyer,
-        ...rest
-      }) => {
-        const modifiedStatus = status === 'EXPIRED' ? 'REASSIGNED' : status;
-
-        return {
-          ...rest,
-          status: modifiedStatus,
-        };
-      }
-    );
-
-    setNewData(filteredDataLeads);
-
-    setSelectRowLeads([]);
-    setSelectedRows([]);
-    toast.success('Leads successfully added');
-    setLoading(false);
+    setSelectedKeys(new Set());
+    void fetchLeads();
+    void fetchAssignedCount();
+    void fetchPool();
   };
 
-  useEffect(() => {
-    getLawyer();
-    getServiceType();
-  }, [user, dataLeads]);
-  useEffect(() => {
-    fetchLeads();
-  }, [user]);
+  const columns: DataTableColumn<PoolRow>[] = [
+    {
+      key: 'id',
+      label: 'ID',
+      width: '80px',
+      sortable: true,
+      accessor: (r) => r.id,
+      render: (r) => (
+        <span className='font-mono text-xs text-slate-400'>
+          #{String(r.id).padStart(5, '0')}
+        </span>
+      ),
+    },
+    {
+      key: 'fullName',
+      label: 'Lead',
+      sortable: true,
+      accessor: (r) => r.fullName,
+      render: (r) => (
+        <div className='flex items-center gap-2.5'>
+          <Avatar
+            initials={r.fullName.slice(0, 2).toUpperCase() || '·'}
+            tone={toneFromString(r.fullName) as any}
+            size='sm'
+          />
+          <span className='truncate text-[13px] font-bold text-slate-900'>
+            {r.fullName || '—'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'service',
+      label: 'Service',
+      width: '200px',
+      sortable: true,
+      accessor: (r) => r.service,
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      width: '140px',
+      sortable: true,
+      accessor: (r) => r.status,
+      render: (r) => <StatusPill variant={variantFromStatus(r.status) as any} />,
+    },
+    {
+      key: 'entry_date',
+      label: 'Entry',
+      width: '130px',
+      sortable: true,
+      accessor: (r) => r.entry_date,
+      render: (r) => (
+        <span className='text-[12px] text-slate-500'>
+          {dayjs.utc(r.entry_date).local().format('MMM DD, HH:mm')}
+        </span>
+      ),
+    },
+  ];
 
-  useEffect(() => {
-    setMaxLeadsAssigned(
-      getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
-    );
+  const selection: DataTableSelection<PoolRow> = {
+    getRowKey: (r) => r.id,
+    selectedKeys,
+    onChange: (next) => setSelectedKeys(new Set(next)),
+  };
 
-    const DataFilter = filterByServiceGetLeads(
-      dataLeads,
-      getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
-    );
+  if (isLoading && pool.length === 0) return <Loading />;
 
-    const filteredDataLeads = DataFilter.map(
-      ({
-        email,
-        'phone number': phoneNumber,
-        'description lead': descriptionLead,
-        'lead name': leadName,
-        comments,
-        status,
-        lawyer,
-        ...rest
-      }) => {
-        const modifiedStatus = status === 'EXPIRED' ? 'REASSIGNED' : status;
-
-        return {
-          ...rest,
-          status: modifiedStatus,
-        };
-      }
-    );
-
-    setNewData(filteredDataLeads);
-
-    if (filteredDataLeads.length > 0) {
-      const titles: any = Object.keys(filteredDataLeads[0]);
-      setColumns(titles);
-    }
-  }, [dataLeads, availableLeads, !userId]);
-  useEffect(() => {
-    if (Object.keys(selectedRows).length > 0) {
-      getSelectedRowsData();
-    }
-  }, [selectedRows]);
-
-  useEffect(() => {
-    const callValidateLeads = validateLeads(
-      leadsAssignedWithData,
-      getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
-    );
-
-    setDifferenceLeads(callValidateLeads);
-  }, [leadsAssignedWithData, maxLeadsAssigned]);
-
-  if (isLoading) {
-    return <Loading />;
-  }
-  if (!newData) {
-    return (
-      <NoData
-        text={`There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.`}
-      ></NoData>
-    );
-  }
-  if (newData.length <= 0) {
-    return (
-      <NoData
-        text={`There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.`}
-      >
-        <MdInfoOutline size={70} color='#00234D' />
-      </NoData>
-    );
-  }
   return (
     <div className='flex flex-col gap-5'>
-      <Tilte
-        name={`${userId?.firstName} ${userId?.lastName}`}
-        des={getNameServiceLawyer(userId?.lawyersServices, dataServiceType).map(
-          (res: any) => (
-            <p key={res?.id}>
-              {res?.name.replace(' Lawyer', '')}:
-              {res?.max_leads -
-                differenceLeads
-                  .map((service: any) => {
-                    if (service.serviceName === res.name) {
-                      return service.difference;
-                    }
-                    return null; // Si no coincide, devuelve null
-                  })
-                  .filter((difference: any) => difference !== null)}
-              /{res?.max_leads}
-            </p>
-          )
-        )}
-      >
-        <div className='flex justify-center items-center gap-5'>
-          {maxLeadsAssigned ? (
-            <div className='bg-gray-200 px-4 py-1 rounded-md'>
-              Available leads{' '}
-              <span className='text-red-500'>{resultLeads}</span> out of{' '}
-              {maxLeadsAssigned &&
-                maxLeadsAssigned.reduce(
-                  (acc: number, curr: any) => acc + curr.max_leads,
-                  0
-                )}
+      <PageHead
+        title={
+          userDetail
+            ? `${userDetail.firstName ?? ''} ${userDetail.lastName ?? ''}`.trim() ||
+              'Select Lead'
+            : 'Select Lead'
+        }
+        subtitle={lawyerServices
+          .map((s: any) => s?.name?.replace(' Lawyer', ''))
+          .filter(Boolean)
+          .join(' · ')}
+        action={
+          <div className='flex items-center gap-2'>
+            <div className='rounded-md bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700'>
+              Available{' '}
+              <span className='text-customRed tabular-nums'>{available}</span>{' '}
+              / {capacityTotal}
             </div>
-          ) : (
-            <SkeletonText />
-          )}
-          {/* <Button
-            disabled={isLoading}
-            type='button'
-            name='Pull leads'
-            onClick={postAssignLeads}
-            color={`${isLoading ? 'animate-pulse bg-gray-400' : 'bg-primary'} `}
-          /> */}
-        </div>
-      </Tilte>
+            <button
+              type='button'
+              disabled={pulling || selectedKeys.size === 0}
+              onClick={handlePull}
+              className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-900 bg-slate-900 px-3.5 text-xs font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50'
+            >
+              {pulling
+                ? 'Pulling…'
+                : `Pull${
+                    selectedKeys.size > 0 ? ` ${selectedKeys.size}` : ''
+                  } leads`}
+            </button>
+          </div>
+        }
+      />
 
-      <SortableTable
+      <DataTable
         columns={columns}
-        data={newData}
-        onSelectRow={handleSelectRow}
-        selectedRows={selectedRows}
-        statusColors={statusColors}
-        pullButton={
-          <Button
-            disabled={isLoading}
-            type='button'
-            name='Pull leads'
-            onClick={postAssignLeads}
-            color={`${isLoading ? 'animate-pulse bg-gray-400' : 'bg-primary'} `}
+        data={pool}
+        rowKey={(r) => r.id}
+        selection={selection}
+        pagination={{ enabled: true, initialPageSize: 20 }}
+        totalLabel='leads in pool'
+        emptyState={
+          <EmptyStateBox
+            icon={<MdInfoOutline size={18} />}
+            title='No leads available'
+            description='There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.'
           />
         }
       />
