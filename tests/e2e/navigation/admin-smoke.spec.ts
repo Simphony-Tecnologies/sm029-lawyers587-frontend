@@ -1,11 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { loginAs } from '../helpers/auth.helper';
 import { ADMIN_ROUTES } from '../fixtures/test-data';
 
+// Admin storageState ya provisto por el global-setup → cero login aquí.
 test.describe('Admin — smoke navigation', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAs(page, 'admin');
-  });
 
   for (const route of ADMIN_ROUTES) {
     test(`admin abre ${route} sin errores ni respuestas 5xx`, async ({

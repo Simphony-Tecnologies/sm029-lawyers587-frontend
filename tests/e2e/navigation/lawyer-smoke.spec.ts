@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 import { loginAs } from '../helpers/auth.helper';
 import { LAWYER_ROUTES } from '../fixtures/test-data';
 
+// Lawyer specs anulan el storage admin pre-cargado y hacen login propio.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.describe('Lawyer — smoke navigation', () => {
   test.beforeEach(async ({ page }) => {
     await loginAs(page, 'lawyer');
@@ -31,6 +34,7 @@ test.describe('Lawyer — smoke navigation', () => {
 });
 
 test.describe('Lawyer — RBAC bloquea rutas admin', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
   test.beforeEach(async ({ page }) => {
     await loginAs(page, 'lawyer');
   });

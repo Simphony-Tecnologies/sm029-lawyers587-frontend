@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { TEST_USERS } from '../fixtures/test-data';
 
+// Login spec siempre desde estado anónimo.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.describe('Login', () => {
   test.beforeEach(async ({ context }) => {
     // Asegurar estado limpio en cada test.
