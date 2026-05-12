@@ -154,6 +154,30 @@ const Dashboard = () => {
     );
   }, [leadsInPeriod]);
 
+  // Sparkline por KPI: cuenta de leads agrupados por día dentro de la
+  // ventana del PeriodSelect. Backend NO expone series temporales, lo
+  // derivamos desde dataLeads.date_updated. Reemplazable cuando exista
+  // /leads/stats?bucket=day o similar.
+  const sparks = useMemo(() => {
+    const days = period.days ?? 14;
+    const buckets = Math.min(Math.max(days, 5), 30);
+    const now = Date.now();
+    const bucketSize = Math.max(1, Math.round((days * 86_400_000) / buckets));
+    return KPI_DEFS.map(({ statuses }) => {
+      const filtered = leadsInPeriod.filter((lead: any) =>
+        statuses.includes(lead.status)
+      );
+      const arr = new Array(buckets).fill(0);
+      for (const lead of filtered) {
+        const ts = new Date(lead.date_updated ?? lead.date).getTime();
+        const offset = now - ts;
+        const idx = buckets - 1 - Math.floor(offset / bucketSize);
+        if (idx >= 0 && idx < buckets) arr[idx] += 1;
+      }
+      return arr;
+    });
+  }, [leadsInPeriod, period.days]);
+
   const handleClickKpi = (statuses: LeadStatus[]) => {
     // useSelectStatus tiene un union legacy más estrecho; cast hasta migrar.
     setSelecArray(statuses as any);
@@ -248,6 +272,7 @@ const Dashboard = () => {
             value={counts[idx]}
             tone={kpi.tone}
             icon={kpi.icon}
+            spark={sparks[idx]}
             onClick={() => handleClickKpi(kpi.statuses)}
           />
         ))}
