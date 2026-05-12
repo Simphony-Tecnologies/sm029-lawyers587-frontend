@@ -8,9 +8,12 @@ import {
   MdCheckCircleOutline,
   MdChatBubbleOutline,
   MdHighlightOff,
+  MdHourglassEmpty,
   MdInfoOutline,
+  MdOutbox,
   MdPersonAddAlt1,
   MdPersonRemove,
+  MdReplay,
   MdSwapHoriz,
   MdLogin as MdLoginIcon,
   MdEdit,
@@ -38,6 +41,8 @@ type LeadStatus =
   | 'IN PROGRESS'
   | 'PROBLEMATIC'
   | 'LOST'
+  | 'SEND_BACK'
+  | 'CLOSED'
   | 'EXPIRED'
   | 'DISABLED';
 
@@ -50,6 +55,9 @@ type KpiDef = {
   statuses: LeadStatus[];
 };
 
+// 8 KPIs alineados con el dashboard legacy (cliente lo pidió explícitamente).
+// Cada uno mapea a un status concreto del backend → click filtra esa cohorte
+// en /lead-management.
 const KPI_DEFS: KpiDef[] = [
   {
     key: 'new',
@@ -60,28 +68,60 @@ const KPI_DEFS: KpiDef[] = [
     statuses: ['NEW'],
   },
   {
-    key: 'assigned',
-    label: 'Assigned Leads',
+    key: 'pulled',
+    label: 'Pulled Leads',
+    period: 'Active',
+    tone: 'violet',
+    icon: <MdOutbox size={16} />,
+    statuses: ['ASSIGNED'],
+  },
+  {
+    key: 'in_progress',
+    label: 'In Progress',
     period: 'Active',
     tone: 'emerald',
     icon: <MdCheckCircleOutline size={16} />,
-    statuses: ['ASSIGNED', 'IN PROGRESS'],
+    statuses: ['IN PROGRESS'],
   },
   {
-    key: 'review',
-    label: 'Leads for Review',
-    period: 'Pending',
+    key: 'problematic',
+    label: 'Problematic',
+    period: 'Pending review',
     tone: 'amber',
     icon: <MdInfoOutline size={16} />,
     statuses: ['PROBLEMATIC'],
   },
   {
-    key: 'dead',
-    label: 'Dead Leads',
+    key: 'sent_back',
+    label: 'Sent Back Leads (REVIEW)',
+    period: 'Pending review',
+    tone: 'coral',
+    icon: <MdReplay size={16} />,
+    statuses: ['LOST', 'SEND_BACK'],
+  },
+  {
+    key: 'retained',
+    label: 'Retained',
+    period: 'Total',
+    tone: 'emerald',
+    icon: <MdCheckCircleOutline size={16} />,
+    statuses: ['CLOSED'],
+  },
+  {
+    key: 'expired',
+    label: 'Expired',
     period: 'Total',
     tone: 'coral',
-    icon: <MdHighlightOff size={16} />,
-    statuses: ['LOST', 'EXPIRED', 'DISABLED'],
+    icon: <MdHourglassEmpty size={16} />,
+    statuses: ['EXPIRED'],
+  },
+  {
+    key: 'disabled',
+    label: 'Disabled',
+    period: 'Total',
+    tone: 'slate',
+    icon: <MdBlock size={16} />,
+    statuses: ['DISABLED'],
   },
 ];
 
@@ -115,7 +155,8 @@ const Dashboard = () => {
   }, [leadsInPeriod]);
 
   const handleClickKpi = (statuses: LeadStatus[]) => {
-    setSelecArray(statuses);
+    // useSelectStatus tiene un union legacy más estrecho; cast hasta migrar.
+    setSelecArray(statuses as any);
     router.push('/lead-management');
   };
 
@@ -198,7 +239,7 @@ const Dashboard = () => {
         }
       />
 
-      <div className='grid gap-3.5 md:grid-cols-2'>
+      <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>
         {KPI_DEFS.map((kpi, idx) => (
           <KpiCard
             key={kpi.key}

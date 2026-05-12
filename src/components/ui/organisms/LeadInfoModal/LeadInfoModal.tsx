@@ -116,11 +116,19 @@ export const LeadInfoModal = ({
       limit: 25,
     });
     setTimelineLoading(false);
-    if (res.success && res.data) {
-      setTimeline(res.data.data);
-    } else {
+    if (!res.success || !res.data) {
       setTimeline([]);
+      return;
     }
+    // Defensivo: backend a veces retorna { data: { data: [], total } },
+    // a veces { data: [] } directo según filtro. Cubrimos ambos shapes.
+    const payload: any = res.data;
+    const list: TimelineEntry[] = Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload)
+      ? payload
+      : [];
+    setTimeline(list);
   };
 
   useEffect(() => {
@@ -520,35 +528,35 @@ export const LeadInfoModal = ({
                   </div>
                 </section>
 
-                {/* Activity & Notes (timeline + add comment) */}
+                {/* Activity & Comments (timeline + add comment)
+                    NOTA: el cliente pidió simplificar — sólo "Comments",
+                    sin distinción Internal/Client-facing/Urgent ni filtros
+                    Audit/Comments separados. El código de tipos (NoteType,
+                    chips selectables, FilterChip) queda comentado más abajo
+                    en caso de que se reactive más adelante. */}
                 <section className='flex flex-col gap-2'>
                   <div className='flex items-center justify-between'>
                     <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
-                      Activity &amp; Notes
+                      Activity &amp; Comments
                     </span>
-                    <div className='flex items-center gap-1.5'>
-                      <FilterChip
-                        label='All'
-                        active={timelineFilter === 'all'}
-                        onClick={() => setTimelineFilter('all')}
-                      />
-                      <FilterChip
-                        label='Audit'
-                        active={timelineFilter === 'audit'}
-                        onClick={() => setTimelineFilter('audit')}
-                      />
-                      <FilterChip
-                        label='Comments'
-                        active={timelineFilter === 'comment'}
-                        onClick={() => setTimelineFilter('comment')}
-                      />
-                      {timelineLoading ? (
-                        <span className='text-[10px] font-semibold text-slate-400'>
-                          Loading…
-                        </span>
-                      ) : null}
-                    </div>
+                    {timelineLoading ? (
+                      <span className='text-[10px] font-semibold text-slate-400'>
+                        Loading…
+                      </span>
+                    ) : null}
                   </div>
+                  {/*
+                  --- Legacy filter chips (parked; cliente pidió quitar
+                      hasta validar que el backend devuelva data para
+                      cada filtro consistentemente):
+
+                  <FilterChip label='All' active={timelineFilter === 'all'}
+                    onClick={() => setTimelineFilter('all')} />
+                  <FilterChip label='Audit' active={timelineFilter === 'audit'}
+                    onClick={() => setTimelineFilter('audit')} />
+                  <FilterChip label='Comments' active={timelineFilter === 'comment'}
+                    onClick={() => setTimelineFilter('comment')} />
+                  */}
                   <div className='flex max-h-[260px] flex-col divide-y divide-slate-100 overflow-y-auto rounded-[10px] border border-slate-200 bg-white'>
                     {timeline.length === 0 && !timelineLoading ? (
                       <div className='px-3.5 py-4 text-center text-[12px] font-medium text-slate-400'>
@@ -565,10 +573,8 @@ export const LeadInfoModal = ({
                   </div>
                   <CommentComposer
                     value={newComment}
-                    type={newCommentType}
                     submitting={commentSubmitting}
                     onChangeValue={setNewComment}
-                    onChangeType={setNewCommentType}
                     onSubmit={handleAddComment}
                   />
                 </section>
@@ -716,6 +722,11 @@ const DetailRow = ({
   );
 };
 
+// ─── Parked: legacy comment type system ──────────────────────────────
+// El cliente pidió simplificar — todos los comments van como 'internal'.
+// Estas constantes y el sub-componente FilterChip quedan referenciables
+// si reactivamos los tipos. NO BORRAR.
+
 const NOTE_TYPE_LABEL: Record<NoteType, string> = {
   internal: 'Internal',
   client_facing: 'Client-facing',
@@ -769,6 +780,9 @@ const initialsFromActor = (
   return (f + l || '·').toUpperCase();
 };
 
+// Parked: usado por los chips All/Audit/Comments del timeline.
+// Re-importar en el render cuando se reactiven los filtros del timeline.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const FilterChip = ({
   label,
   active,
@@ -792,79 +806,46 @@ const FilterChip = ({
   </button>
 );
 
+// Tipos de comentario disponibles en backend (internal/client_facing/urgent).
+// Parked: el cliente pidió simplificar — toda comment ahora va como 'internal'.
+// Reactivar exportando NOTE_TYPES + ampliando CommentComposer cuando se valide
+// el flujo completo de tipos.
 const NOTE_TYPES: NoteType[] = ['internal', 'client_facing', 'urgent'];
+void NOTE_TYPES; // keep-alive para que TS no marque como unused
 
 const CommentComposer = ({
   value,
-  type,
   submitting,
   onChangeValue,
-  onChangeType,
   onSubmit,
 }: {
   value: string;
-  type: NoteType;
   submitting: boolean;
   onChangeValue: (next: string) => void;
-  onChangeType: (next: NoteType) => void;
   onSubmit: () => void;
 }) => {
-  const urgent = type === 'urgent';
   return (
-    <div
-      className={cn(
-        'flex flex-col gap-2 rounded-[10px] border bg-slate-50 px-3.5 py-3 transition-colors',
-        urgent ? 'border-rose-200 bg-red-50/40' : 'border-slate-200'
-      )}
-    >
+    <div className='flex flex-col gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3.5 py-3 transition-colors'>
       <div className='flex items-center justify-between gap-2'>
         <span className='text-[10px] font-bold uppercase tracking-[0.04em] text-slate-600'>
-          Add a note
+          Add a comment
         </span>
-        <div className='flex items-center gap-1'>
-          {NOTE_TYPES.map((nt) => {
-            const selected = nt === type;
-            return (
-              <button
-                key={nt}
-                type='button'
-                onClick={() => onChangeType(nt)}
-                disabled={submitting}
-                className={cn(
-                  'inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] font-bold transition-colors',
-                  selected
-                    ? nt === 'urgent'
-                      ? 'border-customRed bg-customRed text-white'
-                      : nt === 'client_facing'
-                      ? 'border-sky-500 bg-sky-500 text-white'
-                      : 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
-                  submitting && 'cursor-not-allowed opacity-60'
-                )}
-              >
-                <span
-                  className={cn(
-                    'inline-block h-1.5 w-1.5 rounded-full',
-                    selected ? 'bg-white/80' : NOTE_TYPE_DOT[nt]
-                  )}
-                />
-                {NOTE_TYPE_LABEL[nt]}
-              </button>
-            );
-          })}
-        </div>
+        {/*
+          --- Legacy: chips Internal / Client-facing / Urgent ---
+          Parked por pedido del cliente. Restaurar pasando `type` +
+          `onChangeType` props y renderizando los 3 chips con
+          NOTE_TYPE_DOT / NOTE_TYPE_LABEL definidos arriba.
+        */}
       </div>
       <textarea
         value={value}
         onChange={(e) => onChangeValue(e.target.value)}
-        placeholder={NOTE_TYPE_PLACEHOLDER[type]}
+        placeholder='Write a comment about this case. Visible to admins and the assigned lawyer.'
         rows={2}
         disabled={submitting}
         className={cn(
           'w-full resize-none rounded-md border bg-white px-2.5 py-1.5 text-[12px] text-slate-800 placeholder:text-slate-400 focus:outline-none disabled:opacity-60 transition-colors',
-          urgent
-            ? 'border-rose-200 focus:border-customRed'
-            : 'border-slate-200 focus:border-slate-400'
+          'border-slate-200 focus:border-slate-400'
         )}
       />
       <div className='flex items-center justify-between'>
@@ -875,14 +856,9 @@ const CommentComposer = ({
           type='button'
           onClick={onSubmit}
           disabled={submitting || value.trim().length === 0}
-          className={cn(
-            'inline-flex h-7 items-center gap-1 rounded-md px-3 text-[11px] font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-            urgent
-              ? 'bg-customRed hover:bg-red-600'
-              : 'bg-slate-900 hover:bg-slate-800'
-          )}
+          className='inline-flex h-7 items-center gap-1 rounded-md bg-slate-900 px-3 text-[11px] font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50'
         >
-          {submitting ? 'Adding…' : urgent ? 'Send urgent' : 'Add note'}
+          {submitting ? 'Adding…' : 'Add comment'}
         </button>
       </div>
     </div>
@@ -896,19 +872,11 @@ const TimelineRow = ({ entry }: { entry: TimelineEntry }) => {
   const initials = initialsFromActor(entry.actor);
 
   if (entry.type === 'comment') {
+    // Cliente pidió no diferenciar tipos visualmente — todas las comments
+    // se renderizan con la misma estética neutral.
     return (
-      <div
-        className={cn(
-          'flex gap-2.5 px-3.5 py-3',
-          entry.note_type === 'urgent' && 'bg-red-50/40'
-        )}
-      >
-        <span
-          className={cn(
-            'mt-0.5 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white',
-            NOTE_TYPE_DOT[entry.note_type]
-          )}
-        >
+      <div className='flex gap-2.5 px-3.5 py-3'>
+        <span className='mt-0.5 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-slate-700 text-[10px] font-bold text-white'>
           {initials}
         </span>
         <div className='flex min-w-0 flex-1 flex-col gap-1'>
@@ -916,20 +884,8 @@ const TimelineRow = ({ entry }: { entry: TimelineEntry }) => {
             <span className='truncate text-[11px] font-bold text-slate-900'>
               {actorName}
             </span>
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em]',
-                NOTE_TYPE_BADGE[entry.note_type]
-              )}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  'inline-block h-1.5 w-1.5 rounded-full',
-                  NOTE_TYPE_DOT[entry.note_type]
-                )}
-              />
-              {NOTE_TYPE_LABEL[entry.note_type]}
+            <span className='text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500'>
+              Comment
             </span>
           </div>
           <span className='whitespace-pre-wrap text-[12px] leading-[1.5] text-slate-700'>

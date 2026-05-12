@@ -1103,7 +1103,7 @@ const LawyerManagement = () => {
       <PageHead
         title='Lawyer Management'
         count={`${kpis.total} ${kpis.total === 1 ? 'lawyer' : 'lawyers'}`}
-        subtitle="Manage your firm's lawyers, monitor capacity, and track activity across specializations."
+        subtitle="Manage your firm's lawyers, monitor capacity, and track activity across areas of law."
         action={
           <div className='flex items-center gap-2'>
             <button
@@ -1133,7 +1133,7 @@ const LawyerManagement = () => {
           value={kpis.total}
           tone='slate'
           sub={`across ${kpis.specialtyCount} ${
-            kpis.specialtyCount === 1 ? 'specialization' : 'specializations'
+            kpis.specialtyCount === 1 ? 'area of law' : 'areas of law'
           }`}
           icon={
             <svg
@@ -1357,8 +1357,8 @@ const LawyerManagement = () => {
             },
             {
               key: 'specialty',
-              label: 'Specialty',
-              width: '100px',
+              label: 'Area of Law',
+              width: '120px',
               render: (r) => (
                 <span className='text-xs font-semibold tracking-[-0.005em] text-slate-700'>
                   {r.specialty}
