@@ -95,11 +95,14 @@ export const LeadInfoModal = ({
   const [newCommentType, setNewCommentType] = useState<NoteType>('internal');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
 
-  // Reset internal state when the modal opens with a new lead
+  // Reset internal state when the modal opens with a new lead.
+  // `comment` (razón de auditoría) siempre arranca vacío — sólo se llena
+  // cuando el user cambia a un status crítico y escribe la razón. No tomamos
+  // lead.comments (campo distinto, persiste en la entidad lead).
   useEffect(() => {
     if (!open || !lead) return;
     setSelectedStatus(lead.status ?? '');
-    setComment(lead.comments ?? '');
+    setComment('');
     setDoNotContact(true);
     setNewComment('');
     setNewCommentType('internal');
@@ -478,55 +481,52 @@ export const LeadInfoModal = ({
                   </div>
                 </section>
 
-                {/* Comment / reason */}
-                <section className='flex flex-col gap-1.5'>
-                  <label
-                    htmlFor='lead-comment'
-                    className='inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'
-                  >
-                    {isDestructive
-                      ? `Reason for ${(selectedStatus ?? '').toLowerCase().replace('_', ' ')}`
-                      : 'Comment'}
-                    {isDestructive ? (
+                {/* Reason for status change — sólo visible cuando el status
+                    seleccionado es crítico (PROBLEMATIC / SEND_BACK / LOST).
+                    Backend obliga `comment` en esos casos y va al
+                    audit_log.comment. Para statuses no críticos la razón
+                    NO es necesaria — el cliente lo veía como redundancia con
+                    el composer "Add a comment" de abajo. */}
+                {isDestructive ? (
+                  <section className='flex flex-col gap-1.5'>
+                    <label
+                      htmlFor='lead-comment'
+                      className='inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'
+                    >
+                      Reason for {(selectedStatus ?? '').toLowerCase().replace('_', ' ')}
                       <span className='rounded bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-customRed'>
                         Required
                       </span>
-                    ) : null}
-                  </label>
-                  <textarea
-                    id='lead-comment'
-                    value={comment}
-                    onChange={(e) =>
-                      setComment(e.target.value.slice(0, REASON_MAX))
-                    }
-                    placeholder={
-                      isDestructive
-                        ? 'Explain the reason for this status change. Super admin will review this comment.'
-                        : 'Add a note about this case. Include any relevant context for review…'
-                    }
-                    disabled={loading}
-                    className={cn(
-                      'min-h-[96px] w-full resize-y rounded-[10px] border-[1.5px] bg-white px-3.5 py-3 text-[13px] font-medium leading-[1.5] text-slate-900 outline-none transition-colors',
-                      'placeholder:font-normal placeholder:text-slate-400',
-                      isDestructive
-                        ? 'border-rose-200 focus:border-customRed focus:shadow-[0_0_0_3px_rgba(240,68,56,0.10)]'
-                        : 'border-slate-200 focus:border-slate-900 focus:shadow-[0_0_0_3px_rgba(11,15,25,0.06)]',
-                      'disabled:cursor-not-allowed disabled:opacity-60'
-                    )}
-                  />
-                  <div className='flex items-center justify-between'>
-                    {reasonRequiredMissing ? (
-                      <span className='text-[10px] font-semibold text-customRed'>
-                        A reason is required for this status change.
+                    </label>
+                    <textarea
+                      id='lead-comment'
+                      value={comment}
+                      onChange={(e) =>
+                        setComment(e.target.value.slice(0, REASON_MAX))
+                      }
+                      placeholder='Explain the reason for this status change. The super admin will see this in the lead history.'
+                      disabled={loading}
+                      className={cn(
+                        'min-h-[96px] w-full resize-y rounded-[10px] border-[1.5px] bg-white px-3.5 py-3 text-[13px] font-medium leading-[1.5] text-slate-900 outline-none transition-colors',
+                        'placeholder:font-normal placeholder:text-slate-400',
+                        'border-rose-200 focus:border-customRed focus:shadow-[0_0_0_3px_rgba(240,68,56,0.10)]',
+                        'disabled:cursor-not-allowed disabled:opacity-60'
+                      )}
+                    />
+                    <div className='flex items-center justify-between'>
+                      {reasonRequiredMissing ? (
+                        <span className='text-[10px] font-semibold text-customRed'>
+                          A reason is required for this status change.
+                        </span>
+                      ) : (
+                        <span />
+                      )}
+                      <span className='text-[10px] font-semibold tabular-nums text-slate-400'>
+                        {reasonLength} / {REASON_MAX}
                       </span>
-                    ) : (
-                      <span />
-                    )}
-                    <span className='text-[10px] font-semibold tabular-nums text-slate-400'>
-                      {reasonLength} / {REASON_MAX}
-                    </span>
-                  </div>
-                </section>
+                    </div>
+                  </section>
+                ) : null}
 
                 {/* Activity & Comments (timeline + add comment)
                     NOTA: el cliente pidió simplificar — sólo "Comments",
