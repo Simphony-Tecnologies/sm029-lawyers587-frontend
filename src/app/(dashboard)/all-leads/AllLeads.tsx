@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import toast from 'react-hot-toast';
-import { MdOutlineCases } from 'react-icons/md';
+import { MdOutlineCases, MdReplay } from 'react-icons/md';
 import { api } from '@/services/database';
 import type { LeadDTO, LeadStatus } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
@@ -12,9 +12,11 @@ import { useSelectStatus } from '@/store/useSelectStatus';
 import { statusSelectAll } from '@/constants/status';
 import {
   Avatar,
+  ConfirmationDialog,
   DataTable,
   EmptyStateBox,
   FilterButton,
+  IconActionButton,
   LeadInfoModal,
   PageHead,
   SearchField,
@@ -86,6 +88,11 @@ const AllLeads = () => {
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // UX-L12: quick send-back action — confirm dialog inline sin abrir el
+  // modal completo del lead.
+  const [sendBackTarget, setSendBackTarget] = useState<LeadRow | null>(null);
+  const [sendBackReason, setSendBackReason] = useState('');
+  const [sendBackLoading, setSendBackLoading] = useState(false);
 
   const fetchAssigned = async () => {
     if (!user?.id) return;
@@ -189,6 +196,29 @@ const AllLeads = () => {
     void fetchAssigned();
   };
 
+  const handleSendBackConfirm = async () => {
+    if (!sendBackTarget) return;
+    const reason = sendBackReason.trim();
+    if (reason.length === 0) {
+      toast.error('A reason is required to send a lead back');
+      return;
+    }
+    setSendBackLoading(true);
+    const res = await api.leads.unassign(sendBackTarget.id, {
+      status: 'SEND_BACK',
+      comment: reason,
+    });
+    setSendBackLoading(false);
+    if (!res.success) {
+      toast.error(res.message || 'Could not send lead back');
+      return;
+    }
+    toast.success(`Lead #${sendBackTarget.id} sent back`);
+    setSendBackTarget(null);
+    setSendBackReason('');
+    void fetchAssigned();
+  };
+
   const columns: DataTableColumn<LeadRow>[] = [
     {
       key: 'id',
@@ -250,16 +280,70 @@ const AllLeads = () => {
       ),
     },
     {
-      key: 'date_updated',
-      label: 'Updated',
-      width: '130px',
+      // UX-L05: para leads ASSIGNED muestra countdown 48h con urgency
+      // visual (rojo cuando < 6h). Para otros statuses → updated_at normal.
+      key: 'expires',
+      label: 'Expires / Updated',
+      width: '140px',
       sortable: true,
       accessor: (r) => r.date_updated,
-      render: (r) => (
-        <span className='text-[12px] text-slate-500'>
-          {dayjs.utc(r.date_updated).local().format('MMM DD, HH:mm')}
-        </span>
-      ),
+      render: (r) => {
+        if (r.status === 'ASSIGNED') {
+          const deadline = r.date_updated.getTime() + ASSIGNED_FRESHNESS_HOURS * 36e5;
+          const remainingMs = deadline - Date.now();
+          const expired = remainingMs <= 0;
+          const hours = Math.max(0, Math.floor(remainingMs / 36e5));
+          const minutes = Math.max(0, Math.floor((remainingMs % 36e5) / 6e4));
+          const urgent = !expired && hours < 6;
+          const colorClass = expired
+            ? 'text-customRed'
+            : urgent
+            ? 'text-customRed'
+            : 'text-slate-700';
+          const label = expired
+            ? 'Expired'
+            : hours >= 24
+            ? `in ${Math.floor(hours / 24)}d ${hours % 24}h`
+            : hours > 0
+            ? `in ${hours}h ${minutes}m`
+            : `in ${minutes}m`;
+          return (
+            <span className={`text-[12px] font-bold tabular-nums ${colorClass}`}>
+              {label}
+            </span>
+          );
+        }
+        return (
+          <span className='text-[12px] text-slate-500'>
+            {dayjs.utc(r.date_updated).local().format('MMM DD, HH:mm')}
+          </span>
+        );
+      },
+    },
+    {
+      // UX-L12: quick action "Send back" para leads ASSIGNED / IN PROGRESS.
+      key: 'actions',
+      label: '',
+      width: '60px',
+      align: 'right',
+      render: (r) => {
+        if (r.status !== 'ASSIGNED' && r.status !== 'IN PROGRESS') {
+          return <span />;
+        }
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <IconActionButton
+              label='Send back'
+              icon={<MdReplay size={12} />}
+              tone='warning'
+              onClick={() => {
+                setSendBackTarget(r);
+                setSendBackReason('');
+              }}
+            />
+          </div>
+        );
+      },
     },
   ];
 
@@ -355,6 +439,45 @@ const AllLeads = () => {
           />
         }
       />
+
+      {/* UX-L12: quick send-back dialog. Activado desde la columna actions. */}
+      <ConfirmationDialog
+        open={sendBackTarget !== null}
+        onClose={() => {
+          if (sendBackLoading) return;
+          setSendBackTarget(null);
+          setSendBackReason('');
+        }}
+        variant='danger'
+        title='Send lead back'
+        subtitle={
+          sendBackTarget
+            ? `${sendBackTarget.fullName} · #${String(sendBackTarget.id).padStart(5, '0')}`
+            : undefined
+        }
+        confirmLabel='Send back'
+        loading={sendBackLoading}
+        onConfirm={handleSendBackConfirm}
+        confirmDisabled={sendBackReason.trim().length === 0}
+      >
+        <div className='flex flex-col gap-1.5'>
+          <label
+            htmlFor='send-back-reason'
+            className='text-[11px] font-semibold uppercase tracking-[0.04em] text-slate-600'
+          >
+            Reason (required)
+          </label>
+          <textarea
+            id='send-back-reason'
+            value={sendBackReason}
+            onChange={(e) => setSendBackReason(e.target.value)}
+            rows={3}
+            placeholder='Why are you sending this lead back? Super admin will see this comment.'
+            disabled={sendBackLoading}
+            className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60'
+          />
+        </div>
+      </ConfirmationDialog>
     </div>
   );
 };
