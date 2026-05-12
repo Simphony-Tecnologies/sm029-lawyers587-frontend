@@ -1,0 +1,25 @@
+{
+  "cookies": [
+    {
+      "name": "currentUser",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQDU4N2xhd3llcnMuY29tIiwic3ViIjoyLCJpYXQiOjE3Nzg1MzQzNTEsImV4cCI6MTc3ODUzNzk1MX0.wrOpPZ9wUK7Yfnc8AccLgk5QOU843NNfWidbBOrkDcA",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1781126351.657072,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:3002",
+      "localStorage": [
+        {
+          "name": "auth",
+          "value": "{\"state\":{\"user\":{\"id\":2,\"firstName\":\"admin\",\"lastName\":\"587lawyers\",\"email\":\"admin@587lawyers.com\",\"phone\":\"1234567890\",\"code\":\"ABCD1234\",\"is_active\":true,\"created_at\":\"2024-09-12T06:53:53.000Z\",\"updated_at\":\"2024-09-28T04:00:45.000Z\",\"last_login\":\"2026-05-01T02:38:16.000Z\",\"role_id\":1,\"deleted_at\":null,\"law_firm\":\"ABC Law Firm\",\"notes\":\"Notes about the lawyer\",\"profile_image_url\":\"https://res.cloudinary.com/despbwppb/image/upload/v1726106325/xfiha6s9q5jvuutekcav.png\",\"pulled_count\":0,\"lost_count\":0,\"role\":{\"id\":1,\"name\":\"admin\"},\"lawyersServices\":[{\"id\":1,\"max_leads\":30,\"lawyer_id\":2,\"service_type_id\":2,\"deleted_at\":null},{\"id\":22,\"max_leads\":15,\"lawyer_id\":2,\"service_type_id\":4,\"deleted_at\":null}]}},\"version\":0}"
+        }
+      ]
+    }
+  ]
+}
