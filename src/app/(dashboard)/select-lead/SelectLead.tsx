@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
-import { MdArrowForward, MdInfoOutline } from 'react-icons/md';
+import { MdArrowForward, MdInfoOutline, MdOutbox } from 'react-icons/md';
 import { api, database } from '@/services/database';
 import type { LeadDTO } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
@@ -13,12 +13,15 @@ import { useLeadsStore } from '@/store/useLead.store';
 import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
 import {
   Avatar,
+  ConfirmationDialog,
   DataTable,
   EmptyStateBox,
+  KpiCard,
   PageHead,
   StatusPill,
   toneFromString,
   variantFromStatus,
+  type ConfirmationField,
   type DataTableColumn,
   type DataTableSelection,
   type SelectionKey,
@@ -57,6 +60,7 @@ const SelectLead = () => {
     new Set()
   );
   const [pulling, setPulling] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const lawyerServices = useMemo(
     () => getNameServiceLawyer(userDetail?.lawyersServices, services),
@@ -116,17 +120,22 @@ const SelectLead = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const handlePull = async () => {
+  // UX-L03: abrir dialog de pre-confirmación con resumen.
+  const openPullConfirm = () => {
     if (selectedKeys.size === 0) {
       toast.error('You need to select at least one lead');
       return;
     }
     if (capacityTotal - assignedCount < selectedKeys.size) {
       toast.error(
-        'You have exceeded the available leads. Please remove some leads to continue'
+        'You have exceeded the available leads. Please remove some to continue.'
       );
       return;
     }
+    setConfirmOpen(true);
+  };
+
+  const handlePull = async () => {
     setPulling(true);
     const ids = Array.from(selectedKeys).map((k) => Number(k));
     const results = await Promise.all(
@@ -166,10 +175,47 @@ const SelectLead = () => {
       );
     }
     setSelectedKeys(new Set());
+    setConfirmOpen(false);
     void fetchLeads();
     void fetchAssignedCount();
     void fetchPool();
   };
+
+  // Resumen para el dialog de pre-confirmación.
+  const pullPreview = useMemo(() => {
+    const selected = pool.filter((p) => selectedKeys.has(p.id));
+    const byService: Record<string, number> = {};
+    for (const lead of selected) {
+      const s = lead.service || '—';
+      byService[s] = (byService[s] || 0) + 1;
+    }
+    return {
+      count: selected.length,
+      byService,
+      after: capacityTotal - assignedCount - selected.length,
+    };
+  }, [pool, selectedKeys, capacityTotal, assignedCount]);
+
+  const pullFields: ConfirmationField[] = [
+    {
+      label: 'Action',
+      value: `Pull ${pullPreview.count} lead${
+        pullPreview.count === 1 ? '' : 's'
+      }`,
+    },
+    {
+      label: 'By area of law',
+      value:
+        Object.entries(pullPreview.byService)
+          .map(([s, n]) => `${s} (${n})`)
+          .join(' · ') || '—',
+    },
+    {
+      label: 'After pull',
+      value: `${pullPreview.after} of ${capacityTotal} slots free`,
+      highlight: true,
+    },
+  ];
 
   const columns: DataTableColumn<PoolRow>[] = [
     {
@@ -242,6 +288,7 @@ const SelectLead = () => {
   return (
     <div className='flex flex-col gap-5'>
       <PageHead
+        eyebrow='Available pool'
         title={
           userDetail
             ? `${userDetail.firstName ?? ''} ${userDetail.lastName ?? ''}`.trim() ||
@@ -253,27 +300,63 @@ const SelectLead = () => {
           .filter(Boolean)
           .join(' · ')}
         action={
-          <div className='flex items-center gap-2'>
-            <div className='rounded-md bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700'>
-              Available{' '}
-              <span className='text-customRed tabular-nums'>{available}</span>{' '}
-              / {capacityTotal}
-            </div>
-            <button
-              type='button'
-              disabled={pulling || selectedKeys.size === 0}
-              onClick={handlePull}
-              className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-900 bg-slate-900 px-3.5 text-xs font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50'
-            >
-              {pulling
-                ? 'Pulling…'
-                : `Pull${
-                    selectedKeys.size > 0 ? ` ${selectedKeys.size}` : ''
-                  } leads`}
-            </button>
-          </div>
+          <button
+            type='button'
+            disabled={pulling || selectedKeys.size === 0}
+            onClick={openPullConfirm}
+            className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-900 bg-slate-900 px-3.5 text-xs font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            {pulling
+              ? 'Pulling…'
+              : `Pull${
+                  selectedKeys.size > 0 ? ` ${selectedKeys.size}` : ''
+                } leads`}
+          </button>
         }
       />
+
+      {/* UX-L04: capacity hero — el dato más relevante del lawyer.
+          KpiCard reutilizado para visibilidad consistente. */}
+      <div className='grid gap-3.5 sm:grid-cols-3'>
+        <KpiCard
+          label='Available capacity'
+          period='Free slots right now'
+          tone='violet'
+          icon={<MdOutbox size={14} />}
+          value={available}
+          caption={
+            <span className='text-[11px] font-medium text-slate-400'>
+              of {capacityTotal || '—'} total
+            </span>
+          }
+        />
+        <KpiCard
+          label='Already assigned'
+          period='Active right now'
+          tone='emerald'
+          icon={<MdInfoOutline size={14} />}
+          value={assignedCount}
+          caption={
+            <span className='text-[11px] font-medium text-slate-400'>
+              of {capacityTotal || '—'} total
+            </span>
+          }
+        />
+        <KpiCard
+          label='In the pool'
+          period='Available to pull'
+          tone='amber'
+          icon={<MdOutbox size={14} />}
+          value={pool.length}
+          caption={
+            <span className='text-[11px] font-medium text-slate-400'>
+              {selectedKeys.size > 0
+                ? `${selectedKeys.size} selected`
+                : 'Tap a row to select'}
+            </span>
+          }
+        />
+      </div>
 
       <DataTable
         columns={columns}
@@ -293,6 +376,26 @@ const SelectLead = () => {
             description='There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.'
           />
         }
+      />
+
+      {/* UX-L03: pre-confirmación con resumen claro. Evita pulls accidentales. */}
+      <ConfirmationDialog
+        open={confirmOpen}
+        onClose={() => !pulling && setConfirmOpen(false)}
+        title='Confirm pull'
+        subtitle='These leads will move to your "My Leads" section once pulled.'
+        fields={pullFields}
+        notice='You will have 48 hours to act on each lead before it expires back to the pool.'
+        confirmLabel={
+          pulling
+            ? 'Pulling…'
+            : `Pull ${pullPreview.count} lead${
+                pullPreview.count === 1 ? '' : 's'
+              }`
+        }
+        loading={pulling}
+        onConfirm={handlePull}
+        confirmDisabled={pullPreview.count === 0}
       />
     </div>
   );
