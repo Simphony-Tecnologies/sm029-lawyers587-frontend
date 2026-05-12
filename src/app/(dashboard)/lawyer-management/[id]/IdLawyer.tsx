@@ -20,14 +20,22 @@ import type {
   ActionType,
   AuditEvent as AuditEventDTO,
   LawyerHistoryResponse,
+  LeadDTO,
+  LeadStatus,
 } from '@/types/api.types';
 import {
+  Avatar,
   AuditEvent,
+  DataTable,
   EmptyStateBox,
   FilterButton,
   KpiCard,
   LawyerIdentity,
   LeadInfoModal,
+  SearchField,
+  StatusPill,
+  toneFromString,
+  variantFromStatus,
   type AuditEventTone,
   type DataTableColumn,
   type LeadInfoSubmitPayload,
@@ -95,6 +103,95 @@ const STATUS_OPTIONS_SELECT: LeadStatusOption[] = [
 
 const ACTIVE_STATUSES = new Set(['ASSIGNED', 'IN PROGRESS']);
 const LOST_STATUSES = new Set(['LOST', 'EXPIRED']);
+
+// Etiquetas legibles para los chips de status del lawyer detail.
+const LEAD_STATUS_LABEL: Partial<Record<LeadStatus, string>> = {
+  NEW: 'New',
+  ASSIGNED: 'Assigned',
+  'IN PROGRESS': 'In progress',
+  PROBLEMATIC: 'Problematic',
+  CLOSED: 'Retained',
+  LOST: 'Sent back',
+  SEND_BACK: 'Sent back',
+  EXPIRED: 'Expired',
+  DISABLED: 'Disabled',
+  ARCHIVED: 'Archived',
+};
+
+const formatLeadCode = (id: number | string) =>
+  `#${String(id ?? '').padStart(5, '0')}`;
+
+const LEAD_TABLE_COLUMNS: DataTableColumn<LeadRow>[] = [
+  {
+    key: 'id',
+    label: 'ID',
+    width: '80px',
+    sortable: true,
+    accessor: (r) => r['lead id'],
+    render: (r) => (
+      <span className='font-mono text-xs text-slate-400'>
+        {formatLeadCode(r['lead id'])}
+      </span>
+    ),
+  },
+  {
+    key: 'lead name',
+    label: 'Lead',
+    sortable: true,
+    accessor: (r) => r['lead name'],
+    render: (r) => (
+      <div className='flex items-center gap-2.5'>
+        <Avatar
+          initials={(r['lead name'] || '·').slice(0, 2).toUpperCase()}
+          tone={toneFromString(r['lead name'] || 'X') as any}
+          size='sm'
+        />
+        <div className='flex min-w-0 flex-col'>
+          <span className='truncate text-[13px] font-bold text-slate-900'>
+            {r['lead name'] || '—'}
+          </span>
+          <span className='truncate text-[11px] text-slate-400'>
+            {r.email}
+          </span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: 'phone number',
+    label: 'Phone',
+    width: '150px',
+    sortable: true,
+    accessor: (r) => r['phone number'],
+  },
+  {
+    key: 'service',
+    label: 'Service',
+    width: '160px',
+    sortable: true,
+    accessor: (r) => r.service,
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    width: '130px',
+    sortable: true,
+    accessor: (r) => r.status,
+    render: (r) => <StatusPill variant={variantFromStatus(r.status) as any} />,
+  },
+  {
+    key: 'date_updated',
+    label: 'Updated',
+    width: '130px',
+    sortable: true,
+    accessor: (r) => r.date_updated,
+    render: (r) => (
+      <span className='text-[12px] text-slate-500'>
+        {dayjs.utc(r.date_updated).local().format('MMM DD, HH:mm')}
+      </span>
+    ),
+  },
+];
 
 const FILTER_TO_ACTION_TYPES: Record<AuditFilter, ActionType[] | null> = {
   all: null,
@@ -221,9 +318,10 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   const { dataLeads, fetchLeads } = useLeadsStore();
 
   const [lawyer, setLawyer] = useState<LawyerDetail | null>(null);
-  const [assignedLeadIds, setAssignedLeadIds] = useState<Set<number>>(
-    new Set()
-  );
+  const [lawyerLeadsRaw, setLawyerLeadsRaw] = useState<LeadDTO[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
+  const [searchText, setSearchText] = useState('');
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
   const [loading, setLoading] = useState(false);
@@ -239,20 +337,25 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     setLawyer(dto);
   };
 
-  const fetchAssignedSet = async () => {
-    const res = await database.getLeadsAssigned();
-    const raw = Array.isArray(res?.data)
-      ? res.data
-      : Array.isArray(res?.data?.data)
-      ? res.data.data
-      : [];
-    const ids = new Set<number>(
-      raw
-        .filter((it: any) => it?.lawyer_id === lawyerId)
-        .map((it: any) => it?.lead)
-        .filter((id: any) => typeof id === 'number')
-    );
-    setAssignedLeadIds(ids);
+  // v2: traemos directamente los leads asignados al lawyer desde
+  // GET /leads?assigned_to=<id>. Antes cruzábamos manualmente con el
+  // endpoint legacy /leads-assigned. Esta vista es la "fuente de verdad"
+  // de los casos del lawyer, así que la mantenemos independiente del
+  // store global (que filtra solo activos del admin general).
+  const fetchLawyerLeads = async () => {
+    if (!Number.isFinite(lawyerId)) return;
+    setLeadsLoading(true);
+    const res = await api.leads.list({
+      assigned_to: lawyerId,
+      limit: 1000,
+    });
+    setLeadsLoading(false);
+    if (!res.success || !res.data) {
+      toast.error(res.message || 'Could not load lawyer leads');
+      setLawyerLeadsRaw([]);
+      return;
+    }
+    setLawyerLeadsRaw(res.data.data);
   };
 
   const fetchHistory = async (filter: AuditFilter) => {
@@ -302,7 +405,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
 
   useEffect(() => {
     fetchLawyer();
-    fetchAssignedSet();
+    fetchLawyerLeads();
     if (!dataLeads) fetchLeads();
     fetchHistory('all');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -313,12 +416,55 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auditFilter]);
 
+  // Conversión DTO v2 → LeadRow (shape esperado por LeadInfoModal y otros
+  // consumidores legacy con keys de espacio).
   const lawyerLeads = useMemo<LeadRow[]>(() => {
-    if (!dataLeads || assignedLeadIds.size === 0) return [];
-    return (dataLeads as LeadRow[]).filter((l) =>
-      assignedLeadIds.has(l['lead id'])
-    );
-  }, [dataLeads, assignedLeadIds]);
+    return lawyerLeadsRaw.map((lead) => ({
+      'lead id': lead.id,
+      date: new Date(lead.created_at ?? lead.entry_date),
+      date_updated: new Date(
+        lead.updated_at ?? lead.created_at ?? lead.entry_date
+      ),
+      'lead name': lead.fullName ?? '',
+      email: lead.email ?? '',
+      'phone number': lead.phone ?? '',
+      service: lead.service ?? '',
+      'description lead': lead.description ?? '',
+      comments: lead.comments ?? '',
+      lawyer:
+        `${lead.assigned_lawyer?.firstName ?? ''} ${
+          lead.assigned_lawyer?.lastName ?? ''
+        }`.trim() || '—',
+      status: lead.status,
+    }));
+  }, [lawyerLeadsRaw]);
+
+  // Statuses únicos presentes para los chips dinámicos (admin no quiere
+  // ver chips vacíos para statuses sin leads).
+  const uniqueStatuses = useMemo<LeadStatus[]>(() => {
+    const set = new Set<LeadStatus>();
+    lawyerLeads.forEach((l) => set.add(l.status as LeadStatus));
+    return Array.from(set);
+  }, [lawyerLeads]);
+
+  // Lista filtrada por status chip + search.
+  const filteredLeads = useMemo<LeadRow[]>(() => {
+    let list = lawyerLeads;
+    if (statusFilter !== 'all') {
+      list = list.filter((l) => l.status === statusFilter);
+    }
+    const q = searchText.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (l) =>
+          l['lead name'].toLowerCase().includes(q) ||
+          l.email.toLowerCase().includes(q) ||
+          l['phone number'].toLowerCase().includes(q) ||
+          String(l['lead id']).includes(q)
+      );
+    }
+    return list;
+  }, [lawyerLeads, statusFilter, searchText]);
 
   const capacity = useMemo(() => {
     if (!lawyer?.lawyersServices) return 0;
@@ -367,15 +513,22 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     toast.success(`History ${format.toUpperCase()} downloaded`);
   };
 
+  const openLeadModal = (row: LeadRow) => {
+    setSelectedLead(row);
+    setIsOpenLead(true);
+  };
+
   const handleAuditRowClick = (leadId: number | null) => {
-    if (leadId == null || !dataLeads) return;
-    const row = (dataLeads as LeadRow[]).find((r) => r['lead id'] === leadId);
+    if (leadId == null) return;
+    // Buscamos primero en los leads del lawyer, luego en el store global.
+    const own = lawyerLeads.find((r) => r['lead id'] === leadId);
+    const row =
+      own ?? (dataLeads as LeadRow[] | null)?.find((r) => r['lead id'] === leadId);
     if (!row) {
       toast('Lead not in current view', { icon: 'ℹ️' });
       return;
     }
-    setSelectedLead(row);
-    setIsOpenLead(true);
+    openLeadModal(row);
   };
 
   const handleSave = async ({
@@ -383,34 +536,47 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     comments,
   }: LeadInfoSubmitPayload): Promise<void> => {
     if (!selectedLead) return;
-    if (status === 'LOST') {
-      const del = await database.deleteData(
-        `${process.env.NEXT_PUBLIC_URL}/leads-assigned/lead/${selectedLead['lead id']}`
-      );
-      if (!del.success) {
-        toast.error('Error to delete lawyer');
+    const upper = (status ?? '').toUpperCase() as LeadStatus;
+    const reasonRequired =
+      upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST';
+    const reason = (comments ?? '').trim();
+    if (reasonRequired && reason.length === 0) {
+      toast.error('A reason is required for this status change');
+      return;
+    }
+    if (upper === 'ARCHIVED') {
+      setLoading(true);
+      const archived = await api.leads.archive(selectedLead['lead id']);
+      setLoading(false);
+      if (!archived.success) {
+        toast.error(archived.message || 'Error archiving lead');
         return;
       }
+      toast.success('Lead archived');
+      setIsOpenLead(false);
+      fetchLawyerLeads();
+      fetchLeads();
+      return;
     }
     setLoading(true);
-    const payload = {
-      status,
-      comments: status === 'NEW' ? '' : comments,
-    };
-    const res = await database.updateData(
-      `${process.env.NEXT_PUBLIC_URL}/leads/${selectedLead['lead id']}`,
-      payload
-    );
+    const unassignStatuses: LeadStatus[] = ['LOST', 'SEND_BACK'];
+    const leadId = selectedLead['lead id'];
+    const res = unassignStatuses.includes(upper)
+      ? await api.leads.unassign(leadId, { status: upper, comment: reason })
+      : await api.leads.update(leadId, {
+          status: upper,
+          comment: reason || undefined,
+          description: selectedLead['description lead'] ?? '',
+        });
+    setLoading(false);
     if (!res.success) {
-      setLoading(false);
-      toast.error('Error updating Lead information');
+      toast.error(res.message || 'Error updating Lead information');
       return;
     }
     toast.success('Lead information updated successfully');
     setIsOpenLead(false);
+    fetchLawyerLeads();
     fetchLeads();
-    fetchAssignedSet();
-    setLoading(false);
   };
 
   if (loading) return <ReLoading />;
@@ -538,35 +704,103 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
         />
       </div>
 
-      {/* Filters */}
-      <div className='flex flex-wrap items-center gap-2.5'>
-        <FilterButton
-          label='All'
-          active={auditFilter === 'all'}
-          onClick={() => setAuditFilter('all')}
+      {/* ─── Tabla de leads del lawyer ──────────────────────────────
+          Fuente principal: GET /leads?assigned_to=<lawyerId>.
+          Filtros por status (chips) + búsqueda. Click row abre el
+          LeadInfoModal con timeline/comments del lead. */}
+      <section className='flex flex-col gap-3'>
+        <div className='flex items-center justify-between'>
+          <h2 className='text-[15px] font-extrabold tracking-[-0.015em] text-slate-900'>
+            Assigned leads
+          </h2>
+          <span className='text-[12px] font-medium tabular-nums text-slate-400'>
+            {filteredLeads.length} of {lawyerLeads.length} leads
+          </span>
+        </div>
+
+        <div className='flex flex-wrap items-center gap-2.5'>
+          <SearchField
+            placeholder='Search by name, email, phone or ID…'
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
+          <FilterButton
+            label='All'
+            active={statusFilter === 'all'}
+            onClick={() => setStatusFilter('all')}
+          />
+          {uniqueStatuses.map((s) => (
+            <FilterButton
+              key={s}
+              label={LEAD_STATUS_LABEL[s] ?? s}
+              active={statusFilter === s}
+              onClick={() => setStatusFilter(s)}
+            />
+          ))}
+        </div>
+
+        <DataTable
+          columns={LEAD_TABLE_COLUMNS}
+          data={filteredLeads}
+          rowKey={(r) => r['lead id']}
+          onRowClick={openLeadModal}
+          pagination={{ enabled: true, initialPageSize: 10 }}
+          totalLabel='leads'
+          initialSort={{ key: 'date_updated', direction: 'desc' }}
+          emptyState={
+            <EmptyStateBox
+              icon={<MdHistoryEdu size={18} />}
+              title={
+                leadsLoading
+                  ? 'Loading leads…'
+                  : lawyerLeads.length === 0
+                  ? 'No leads assigned yet'
+                  : 'No leads match the filters'
+              }
+              description={
+                leadsLoading
+                  ? 'Fetching from server.'
+                  : lawyerLeads.length === 0
+                  ? 'When this lawyer is assigned a lead, it will appear here.'
+                  : 'Try a different status or clear the search.'
+              }
+            />
+          }
         />
-        <FilterButton
-          label='Assignments'
-          active={auditFilter === 'assignments'}
-          onClick={() => setAuditFilter('assignments')}
-        />
-        <FilterButton
-          label='Status changes'
-          active={auditFilter === 'status'}
-          onClick={() => setAuditFilter('status')}
-        />
-        <FilterButton
-          label='Comments'
-          active={auditFilter === 'comments'}
-          onClick={() => setAuditFilter('comments')}
-        />
-        <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
-        <FilterButton
-          label='Logins'
-          active={auditFilter === 'logins'}
-          onClick={() => setAuditFilter('logins')}
-        />
-      </div>
+      </section>
+
+      {/* ─── Activity log (audit log) ───────────────────────────────
+          Sección secundaria — eventos del lawyer como actor.
+          Filtros por action_type del audit. */}
+      <section className='flex flex-col gap-3'>
+        <h2 className='text-[15px] font-extrabold tracking-[-0.015em] text-slate-900'>
+          Activity log
+        </h2>
+        <div className='flex flex-wrap items-center gap-2.5'>
+          <FilterButton
+            label='All'
+            active={auditFilter === 'all'}
+            onClick={() => setAuditFilter('all')}
+          />
+          <FilterButton
+            label='Assignments'
+            active={auditFilter === 'assignments'}
+            onClick={() => setAuditFilter('assignments')}
+          />
+          <FilterButton
+            label='Status changes'
+            active={auditFilter === 'status'}
+            onClick={() => setAuditFilter('status')}
+          />
+          <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
+          <FilterButton
+            label='Logins'
+            active={auditFilter === 'logins'}
+            onClick={() => setAuditFilter('logins')}
+          />
+        </div>
+      </section>
 
       {/* Audit list or empty */}
       {auditRows.length === 0 ? (
