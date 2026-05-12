@@ -106,6 +106,7 @@ const Header = () => {
 
   useEffect(() => {
     getNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const displayName = locasUser?.firstName

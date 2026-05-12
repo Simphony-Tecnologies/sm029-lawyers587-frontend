@@ -11,6 +11,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchLeads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [review]);
 
   return (

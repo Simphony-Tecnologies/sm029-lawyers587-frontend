@@ -227,6 +227,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     void fetchRecentActivity();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filtrar por período seleccionado.
