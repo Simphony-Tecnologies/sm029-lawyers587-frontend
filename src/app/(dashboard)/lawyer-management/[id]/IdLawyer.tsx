@@ -20,6 +20,7 @@ import type {
   ActionType,
   AuditEvent as AuditEventDTO,
   LawyerHistoryResponse,
+  LeadComment,
   LeadDTO,
   LeadStatus,
 } from '@/types/api.types';
@@ -313,6 +314,40 @@ const mapAuditEvent = (ev: AuditEventDTO): AuditRow => {
   };
 };
 
+// Mapper para comments → AuditRow (vienen de tabla `comments`, no
+// `audit_log`). Lo presentamos con icono `comment` y leadId para que
+// click abra el lead correspondiente.
+const mapCommentToAuditRow = (
+  c: LeadComment & { leadId: number }
+): AuditRow => {
+  const truncated =
+    (c.content ?? '').length > 80
+      ? `${c.content.slice(0, 80)}…`
+      : c.content ?? '';
+  const authorName =
+    `${c.author?.firstName ?? ''} ${c.author?.lastName ?? ''}`.trim() ||
+    'System';
+  return {
+    id: `comment-${c.id}`,
+    tone: 'emerald' as AuditEventTone,
+    type: 'Comment',
+    detail: (
+      <>
+        <strong className='font-bold text-slate-900'>
+          {formatLeadId(c.leadId)}
+        </strong>{' '}
+        — <em className='text-slate-600'>&ldquo;{truncated}&rdquo;</em>
+        {authorName !== 'System' ? (
+          <span className='text-slate-400'> · {authorName}</span>
+        ) : null}
+      </>
+    ),
+    lead: formatLeadId(c.leadId),
+    time: dayjs.utc(c.created_at).local().format('MMM DD, HH:mm'),
+    leadId: c.leadId,
+  };
+};
+
 const IdLawyer = ({ params }: { params: { id: string } }) => {
   const router = useRouter();
   const { dataLeads, fetchLeads } = useLeadsStore();
@@ -328,6 +363,14 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   const [auditFilter, setAuditFilter] = useState<AuditFilter>('all');
   const [history, setHistory] = useState<LawyerHistoryResponse | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  // Comments enriched: por cada lead asignado al lawyer, recolectamos sus
+  // comments (con leadId asociado) para mostrarlos en el Activity log.
+  // Backend NO los mezcla con /lawyers/:id/history porque viven en
+  // tabla separada `comments`. Workaround N+1 client-side.
+  const [lawyerComments, setLawyerComments] = useState<
+    Array<LeadComment & { leadId: number }>
+  >([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   const lawyerId = useMemo(() => parseInt(params.id, 10), [params.id]);
 
@@ -353,16 +396,54 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     if (!res.success || !res.data) {
       toast.error(res.message || 'Could not load lawyer leads');
       setLawyerLeadsRaw([]);
+      setLawyerComments([]);
       return;
     }
-    setLawyerLeadsRaw(res.data.data);
+    const leads = res.data.data;
+    setLawyerLeadsRaw(leads);
+    void fetchAllLawyerComments(leads.map((l) => l.id));
+  };
+
+  // Mezcla client-side: fetch los comments de TODOS los leads asignados
+  // al lawyer para que aparezcan en el Activity log. Costo: N+1 (1 fetch
+  // leads + N fetches comments). Aceptable para la vista de un lawyer
+  // específico. Reemplazable cuando backend exponga un endpoint que
+  // mezcle audit_log + comments en una sola feed.
+  const fetchAllLawyerComments = async (leadIds: number[]) => {
+    if (leadIds.length === 0) {
+      setLawyerComments([]);
+      return;
+    }
+    setCommentsLoading(true);
+    const responses = await Promise.all(
+      leadIds.map((id) => api.leads.comments.list(id, { limit: 50 }))
+    );
+    setCommentsLoading(false);
+    const merged = responses.flatMap((res, i) => {
+      if (!res.success || !res.data) return [];
+      const list = Array.isArray((res.data as any).data)
+        ? (res.data as any).data
+        : Array.isArray(res.data)
+        ? (res.data as any)
+        : [];
+      return (list as LeadComment[]).map((c) => ({
+        ...c,
+        leadId: leadIds[i],
+      }));
+    });
+    setLawyerComments(merged);
   };
 
   const fetchHistory = async (filter: AuditFilter) => {
     if (!Number.isFinite(lawyerId)) return;
     setHistoryLoading(true);
     const actionTypes = FILTER_TO_ACTION_TYPES[filter];
-    // 'comments' filter no se sirve desde audit log → vaciamos eventos.
+    // 'comments' no consulta audit_log — viene de /leads/:id/comments
+    // mergeado client-side en `auditRows`.
+    if (filter === 'comments') {
+      setHistoryLoading(false);
+      return;
+    }
     if (actionTypes && actionTypes.length === 0) {
       setHistory((prev) =>
         prev ? { ...prev, events: { data: [], total: 0 } } : null
@@ -494,10 +575,34 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     };
   }, [history, stats, lawyer]);
 
+  // Activity log final: combina audit_log + comments según el filtro
+  // activo. Para 'comments' mostramos sólo comentarios; para 'all'
+  // mostramos ambos mezclados por timestamp DESC; para los otros
+  // (assignments/status/logins) sólo eventos del audit del filtro.
   const auditRows = useMemo<AuditRow[]>(() => {
-    const events = history?.events?.data ?? [];
-    return events.map(mapAuditEvent);
-  }, [history]);
+    const auditEvents = history?.events?.data ?? [];
+    const auditMapped = auditEvents.map(mapAuditEvent);
+
+    if (auditFilter === 'comments') {
+      return lawyerComments
+        .slice()
+        .sort(
+          (a, b) =>
+            +new Date(b.created_at) - +new Date(a.created_at)
+        )
+        .map(mapCommentToAuditRow);
+    }
+    if (auditFilter === 'all') {
+      const commentMapped = lawyerComments.map(mapCommentToAuditRow);
+      return [...auditMapped, ...commentMapped].sort((a, b) => {
+        // Comparamos por timestamp parseando de vuelta.
+        const tsA = new Date(a.time).getTime();
+        const tsB = new Date(b.time).getTime();
+        return tsB - tsA;
+      });
+    }
+    return auditMapped;
+  }, [history, lawyerComments, auditFilter]);
 
   const handleExportHistory = async (format: 'csv' | 'pdf') => {
     if (!Number.isFinite(lawyerId)) return;
@@ -770,9 +875,11 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
         />
       </section>
 
-      {/* ─── Activity log (audit log) ───────────────────────────────
-          Sección secundaria — eventos del lawyer como actor.
-          Filtros por action_type del audit. */}
+      {/* ─── Activity log (audit log + comments) ────────────────────
+          Mezcla audit_log del backend con comments de cada lead del
+          lawyer (fetch client-side por lead, ver fetchAllLawyerComments).
+          Filtros: All (audit + comments) / Assignments / Status /
+          Comments / Logins. */}
       <section className='flex flex-col gap-3'>
         <h2 className='text-[15px] font-extrabold tracking-[-0.015em] text-slate-900'>
           Activity log
@@ -793,6 +900,11 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
             active={auditFilter === 'status'}
             onClick={() => setAuditFilter('status')}
           />
+          <FilterButton
+            label='Comments'
+            active={auditFilter === 'comments'}
+            onClick={() => setAuditFilter('comments')}
+          />
           <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
           <FilterButton
             label='Logins'
@@ -807,17 +919,17 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
         <EmptyStateBox
           icon={<MdHistoryEdu size={18} />}
           title={
-            historyLoading
+            historyLoading || commentsLoading
               ? 'Loading activity…'
               : auditFilter === 'comments'
-              ? 'No comments view'
+              ? 'No comments yet'
               : 'No matching events'
           }
           description={
-            historyLoading
-              ? 'Fetching audit log from server.'
+            historyLoading || commentsLoading
+              ? 'Fetching audit log and comments from server.'
               : auditFilter === 'comments'
-              ? 'Comments live with each lead. Open a specific lead to view its notes.'
+              ? 'When admin or this lawyer adds notes to any of the assigned leads, they will appear here.'
               : 'Try a different filter category, or wait until the lawyer performs new actions.'
           }
         />
