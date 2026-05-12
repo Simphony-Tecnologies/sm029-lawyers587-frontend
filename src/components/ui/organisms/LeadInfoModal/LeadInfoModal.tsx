@@ -782,7 +782,7 @@ const initialsFromActor = (
 
 // Parked: usado por los chips All/Audit/Comments del timeline.
 // Re-importar en el render cuando se reactiven los filtros del timeline.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// (Referenciado vía `void` al final del archivo para evitar el unused.)
 const FilterChip = ({
   label,
   active,
@@ -935,3 +935,11 @@ const TimelineRow = ({ entry }: { entry: TimelineEntry }) => {
     </div>
   );
 };
+
+// keep-alive de constantes parked (NOTE_TYPE_*, FilterChip). Evita unused
+// warnings sin borrar código que el cliente puede pedir reactivar.
+void NOTE_TYPE_LABEL;
+void NOTE_TYPE_BADGE;
+void NOTE_TYPE_DOT;
+void NOTE_TYPE_PLACEHOLDER;
+void FilterChip;

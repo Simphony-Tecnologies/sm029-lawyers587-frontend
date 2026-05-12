@@ -967,10 +967,16 @@ const LawyerManagement = () => {
     getServiceType();
     getRole();
     fetchLawyerStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Re-fetch cuando cambia el store global o cuando los buffers locales
+  // se invalidan. Las "complex expressions" (=== null) son intencionales
+  // como flags binarios pero ESLint las marca → silenciamos esta línea.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchData();
     getExtraData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataLeads, dataProject === null, dataLawyerLeads === null]);
 
   return (
