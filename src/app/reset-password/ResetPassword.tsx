@@ -61,17 +61,7 @@ const ResetPassword = () => {
     //   return toast.error('error with reset password');
     // }
 
-    // const resLawyer = await database.getLawyer(decoded.userId);
-    // if (!resLawyer.success) {
-    //   return toast.error('error with login lawyer');
-    // }
     router.push('/');
-    //setUser(resLawyer.data.data);
-    //console.log(resLawyer);
-
-    //const lastLogin: any = { last_login: new Date() };
-
-    //await database.UpdateLawyer(lastLogin, user.id);
     setLoading(false);
   };
 

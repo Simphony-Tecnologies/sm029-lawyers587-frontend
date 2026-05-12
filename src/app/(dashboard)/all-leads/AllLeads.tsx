@@ -1,438 +1,483 @@
 'use client';
-import Button from '@/components/atoms/Button';
-import Input from '@/components/atoms/Input';
-import Modal from '@/components/organisms/Modal';
-import NoData from '@/components/organisms/NoData';
-import SortableTable from '@/components/organisms/SortableTable';
-import Tilte from '@/components/organisms/Tilte';
-import { statusColors } from '@/configs/statusColor';
-import { database } from '@/services/database';
-import { useAuth } from '@/store/useAuth.store';
-import { useLeadsStore } from '@/store/useLead.store';
-import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
+import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
-import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { MdOutlineCases } from 'react-icons/md';
+import { MdOutlineCases, MdReplay } from 'react-icons/md';
+import { api } from '@/services/database';
+import type { LeadDTO, LeadStatus } from '@/types/api.types';
+import { useAuth } from '@/store/useAuth.store';
 import useLoadingStore from '@/store/useLoadingStore';
-import SkeletonText from '@/components/atoms/SkeletonText';
-import Loading from '../loading';
-import CountdownTimer from '@/components/organisms/CountdownTimer';
 import { useSelectStatus } from '@/store/useSelectStatus';
 import { statusSelectAll } from '@/constants/status';
+import {
+  Avatar,
+  ConfirmationDialog,
+  DataTable,
+  EmptyStateBox,
+  FilterButton,
+  IconActionButton,
+  LeadInfoModal,
+  PageHead,
+  SearchField,
+  StatusPill,
+  toneFromString,
+  variantFromStatus,
+  type DataTableColumn,
+  type LeadInfoSubmitPayload,
+  type LeadStatusOption,
+} from '@/components/ui';
+import CountdownTimer from '@/components/organisms/CountdownTimer';
+import Loading from '../loading';
+
+dayjs.extend(utc);
+
+type LeadRow = {
+  id: number;
+  fullName: string;
+  email: string;
+  phone: string;
+  service: string;
+  description: string;
+  comments: string;
+  status: LeadStatus;
+  date_updated: Date;
+  date: Date;
+};
+
+const STATUS_OPTIONS: LeadStatusOption[] = [
+  { name: 'In progress', value: 'IN PROGRESS' },
+  { name: 'Problematic', value: 'PROBLEMATIC' },
+  { name: 'Send back', value: 'LOST' },
+  { name: 'Retained', value: 'CLOSED' },
+];
+
+const STATUS_OPTIONS_CLOSED: LeadStatusOption[] = [
+  { name: 'Retained', value: 'CLOSED' },
+];
+
+const ASSIGNED_FRESHNESS_HOURS = 48;
+
+const isLeadExpired = (lead: LeadRow) => {
+  if (lead.status !== 'ASSIGNED') return false;
+  const hours = (Date.now() - lead.date_updated.getTime()) / 36e5;
+  return hours > ASSIGNED_FRESHNESS_HOURS;
+};
+
+const toRow = (lead: LeadDTO): LeadRow => ({
+  id: lead.id,
+  fullName: lead.fullName ?? '',
+  email: lead.email ?? '',
+  phone: lead.phone ?? '',
+  service: lead.service ?? '',
+  description: lead.description ?? '',
+  comments: lead.comments ?? '',
+  status: lead.status,
+  date_updated: new Date(lead.updated_at ?? lead.created_at ?? lead.entry_date),
+  date: new Date(lead.created_at ?? lead.entry_date),
+});
 
 const AllLeads = () => {
-  dayjs.extend(utc);
   const { user } = useAuth();
-  const [userId, setUserId] = useState<any>(null);
-  const { dataLeads, fetchLeads } = useLeadsStore();
-  const [isOpenLead, setIsOpenLead] = useState(false);
-  const [lawyerData, setLawyerData] = useState<any>(null);
-  const [columns, setColumns] = useState([]);
-  const [selectedLead, setSelectedLead] = useState<any>({});
-  const [dataServiceType, setDataServiceType] = useState([]);
-  const [originalData, setOriginalData] = useState([]);
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [selectStatus, setSelectStatus] = useState();
-  const { selecArray, setSelecArray } = useSelectStatus();
   const { setLoading, isLoading } = useLoadingStore();
+  const { selecArray, setSelecArray } = useSelectStatus();
 
-  const statusSelect = [
-    {
-      name: 'In progress',
-      value: 'IN PROGRESS',
-    },
-    {
-      name: 'Problematic',
-      value: 'PROBLEMATIC',
-    },
-    {
-      name: 'Send back',
-      value: 'LOST',
-    },
-    {
-      name: 'Retained',
-      value: 'CLOSED',
-    },
-  ];
-  const statusClosed = [
-    {
-      name: 'Retained',
-      value: 'CLOSED',
-    },
-  ];
-  const getLawyer = async () => {
-    setLoading(true); // Inicia la carga
-    try {
-      // Verifica si el usuario tiene datos
-      if (Object.keys(user).length > 0) {
-        const dataLawyerUser = await database.getLawyer(user.id);
-        setUserId(dataLawyerUser.data.data);
-      }
+  const [rows, setRows] = useState<LeadRow[]>([]);
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [isOpenLead, setIsOpenLead] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  // UX-L12: quick send-back action — confirm dialog inline sin abrir el
+  // modal completo del lead.
+  const [sendBackTarget, setSendBackTarget] = useState<LeadRow | null>(null);
+  const [sendBackReason, setSendBackReason] = useState('');
+  const [sendBackLoading, setSendBackLoading] = useState(false);
 
-      // Obtén los leads asignados
-      const dataLawyer = await database.getLeadsAssigned();
-
-      // Lanza un error si la petición falla
-      if (!dataLawyer.success) {
-        throw new Error('Error to get leads assigned');
-      }
-
-      const firstItem = dataLawyer.data;
-      const filterItems = firstItem.filter(
-        (item: any) => item.lawyer_id === parseInt(user.id)
-      );
-
-      // Verifica si dataLeads es undefined o vacío y lanza un error
-      if (!dataLeads || dataLeads.length === 0) {
-        throw new Error('No leads data found');
-      }
-      const datafilter = dataLeads.map(({ lawyer, ...rest }: any) => rest);
-      const filterLeads = datafilter.filter((item: any) =>
-        filterItems
-          .map((filterItem: any) => filterItem.lead)
-          .includes(item['lead id'])
-      );
-
-      // Establece los datos filtrados en los estados correspondientes
-      setOriginalData(filterLeads);
-      setLawyerData(filterLeads);
-      filterArray(filterLeads);
-      if (filterLeads.length > 0) {
-        const titles: any = Object.keys(filterLeads[0]);
-        setColumns(titles);
-      }
-    } catch (error: any) {
-      // Manejo centralizado de errores
-      //toast.error(error.message || 'An error occurred while fetching data.');
-      console.error('Error fetching lawyer data:', error);
-    } finally {
-      setLoading(false); // Finaliza la carga
+  const fetchAssigned = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    const res = await api.leads.list({
+      assigned_to: Number(user.id),
+      limit: 1000,
+    });
+    setLoading(false);
+    if (!res.success || !res.data) {
+      toast.error(res.message || 'Could not load assigned leads');
+      setRows([]);
+      return;
+    }
+    const next = res.data.data.map(toRow);
+    setRows(next);
+    // UX-L06: si hay leads ASSIGNED y aún no se fijó filtro, default a ASSIGNED
+    // — son los más relevantes para el lawyer al entrar.
+    if (statusFilter === null && next.some((r) => r.status === 'ASSIGNED')) {
+      setStatusFilter('ASSIGNED');
     }
   };
-  const esMenorA48Horas = (fecha: any) => {
-    const fechaIngresada: any = new Date(fecha);
-    const fechaActual: any = new Date();
-    const diferenciaEnHoras = (fechaActual - fechaIngresada) / (1000 * 60 * 60);
-    return diferenciaEnHoras < 48;
-  };
-  const handleContact = async (index: number) => {
-    const res = esMenorA48Horas(lawyerData[index].date_updated);
 
-    if (!res && lawyerData[index].status === 'ASSIGNED') {
+  useEffect(() => {
+    void fetchAssigned();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const uniqueStatuses = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.status))),
+    [rows]
+  );
+
+  const filtered = useMemo<LeadRow[]>(() => {
+    let list = rows;
+    if (selecArray.length > 0) {
+      const set = new Set(selecArray.map((s) => s.toLowerCase()));
+      list = list.filter((l) => set.has(l.status?.toLowerCase()));
+    } else if (statusFilter) {
+      list = list.filter((l) => l.status === statusFilter);
+    }
+    const q = searchText.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (l) =>
+          l.fullName.toLowerCase().includes(q) ||
+          l.email.toLowerCase().includes(q) ||
+          l.phone.toLowerCase().includes(q) ||
+          String(l.id).includes(q)
+      );
+    }
+    return list;
+  }, [rows, statusFilter, searchText, selecArray]);
+
+  const handleOpenLead = (row: LeadRow) => {
+    if (isLeadExpired(row)) {
       toast.error('This lead has expired');
       return;
     }
+    setSelectedLead(row);
     setIsOpenLead(true);
-    if (lawyerData) {
-      setSelectedLead(lawyerData[index]);
-    }
   };
-
-  const filterArray = (lawyerData: any) => {
-    let accumulatedResults: any[] = [];
-    if (lawyerData && selecArray.length > 0) {
-      handleStatusClick('');
-      selecArray.forEach((keyword: string) => {
-        const dataFilter = lawyerData.filter((item: any) =>
-          item?.status.toLowerCase().includes(keyword.toLowerCase())
-        );
-
-        dataFilter.forEach((lead: any) => {
-          if (
-            !accumulatedResults.some(
-              (accItem) => accItem['lead id'] === lead['lead id']
-            )
-          ) {
-            accumulatedResults.push(lead);
-          }
-        });
-      });
-
-      // Actualiza el estado con los datos acumulados
-
-      setLawyerData(accumulatedResults);
-      return accumulatedResults;
-    }
-
-    // Si no hay texto o keywords, se restablecen los leads originales
-    setSelecArray([]);
-    setLawyerData(lawyerData);
-    return lawyerData;
-  };
-  const getServiceType = async () => {
-    const resType = await database.getData(
-      `${process.env.NEXT_PUBLIC_URL}/service_types` || ''
-    );
-    if (!resType.success) {
-      return toast.error('Error to get service type');
-    }
-
-    setDataServiceType(resType.data);
-  };
-  const saveLeadContact = async (e: any) => {
-    e.preventDefault();
-    const verifyLead = await database.fetchData(
-      `${process.env.NEXT_PUBLIC_URL}/leads-assigned/find-by-lawyer/${user.id}`
-    );
-
-    const findLead = verifyLead.data.find(
-      (res: any) => res.lead_id === selectedLead['lead id']
-    );
-
-    if (!findLead) {
-      setIsOpenLead(false);
-      fetchLeads();
-      return toast.error('This lead is no longer assigned to you.');
-    }
-    if (selectStatus === 'LOST') {
-      const deleteAssined = await database.deleteData(
-        `${process.env.NEXT_PUBLIC_URL}/leads-assigned/lead/${selectedLead['lead id']}`
-      );
-
-      if (!deleteAssined.success) {
-        return toast.error('Error to delete lead');
-      }
-
-      // const removeComment = await database.updateData(
-      //   `${process.env.NEXT_PUBLIC_URL}/leads/${selectedLead['lead id']}`,
-      //   { comments: '' }
-      // );
-      // console.log(removeComment);
-
-      // if (!removeComment.success) {
-      //   return toast.error('Error to delete lead');
-      // }
-    }
-    const dataUpdate = {
-      // status:
-      //   e.target.checkbox.checked === true ? 'DISABLED' : e.target.status.value,
-      status: e.target.status.value,
-      comments: e.target.comments.value,
-    };
-
-    const responseUpdate = await database.updateData(
-      `${process.env.NEXT_PUBLIC_URL}/leads/${selectedLead['lead id']}`,
-      dataUpdate
-    );
-    if (!responseUpdate.success) {
-      toast.error('Error updating Lead information');
-    }
-    toast.success('Lead information updated successfully');
-    setIsOpenLead(false);
-    fetchLeads();
-    getLawyer();
-  };
-  const filterSearch = (text: string | null) => {
-    if (text) {
-      if (lawyerData) {
-        const filterData = originalData.filter((item) =>
-          Object.values(item)
-            .toString()
-            .replaceAll(',', '')
-            .toLowerCase()
-            .includes(text.toLowerCase())
-        );
-
-        setLawyerData(filterData);
-        return filterData;
-      }
-      return [];
-    }
-    setSelectedStatus(null);
-    setLawyerData(originalData);
-  };
-  const uniqueStatuses = Array.from(
-    new Set(originalData.map((item: any) => item.status))
-  );
 
   const handleStatusClick = (status: string | null) => {
     setSelecArray([]);
-    setSelectedStatus(status);
-    filterSearch(status);
+    setStatusFilter(status);
   };
-  useEffect(() => {
-    getLawyer();
-    getServiceType();
-  }, [user, dataLeads]);
 
-  if (isLoading) {
-    return <Loading />;
-  }
-  if (lawyerData && originalData.length <= 0) {
-    return (
-      <NoData
-        text={`Here you will see your selected leads. Go to the 'Select Lead' section to get started.`}
-      >
-        <MdOutlineCases size={70} color='#00234D' />
-      </NoData>
-    );
-  }
-  if (!lawyerData) {
-    return (
-      <NoData
-        text={`Here you will see your selected leads. Go to the 'Select Lead' section to get started.`}
-      >
-        <MdOutlineCases size={70} color='#00234D' />
-      </NoData>
-    );
-  }
+  const handleSaveLead = async ({
+    status,
+    comments,
+  }: LeadInfoSubmitPayload): Promise<void> => {
+    if (!selectedLead) return;
+    const upper = (status ?? '').toUpperCase() as LeadStatus;
+    const reasonRequired =
+      upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST';
+    const reason = (comments ?? '').trim();
+    if (reasonRequired && reason.length === 0) {
+      toast.error('A reason is required for this status change');
+      return;
+    }
+    setSubmitting(true);
+    const unassignStatuses: LeadStatus[] = ['LOST', 'SEND_BACK'];
+    const res = unassignStatuses.includes(upper)
+      ? await api.leads.unassign(selectedLead.id, {
+          status: upper,
+          comment: reason,
+        })
+      : await api.leads.update(selectedLead.id, {
+          status: upper,
+          comment: reason || undefined,
+          description: selectedLead.description,
+        });
+    setSubmitting(false);
+    if (!res.success) {
+      toast.error(res.message || 'Error updating Lead information');
+      return;
+    }
+    toast.success('Lead information updated successfully');
+    setIsOpenLead(false);
+    void fetchAssigned();
+  };
+
+  const handleSendBackConfirm = async () => {
+    if (!sendBackTarget) return;
+    const reason = sendBackReason.trim();
+    if (reason.length === 0) {
+      toast.error('A reason is required to send a lead back');
+      return;
+    }
+    setSendBackLoading(true);
+    const res = await api.leads.unassign(sendBackTarget.id, {
+      status: 'SEND_BACK',
+      comment: reason,
+    });
+    setSendBackLoading(false);
+    if (!res.success) {
+      toast.error(res.message || 'Could not send lead back');
+      return;
+    }
+    toast.success(`Lead #${sendBackTarget.id} sent back`);
+    setSendBackTarget(null);
+    setSendBackReason('');
+    void fetchAssigned();
+  };
+
+  const columns: DataTableColumn<LeadRow>[] = [
+    {
+      key: 'id',
+      label: 'ID',
+      width: '80px',
+      sortable: true,
+      accessor: (r) => r.id,
+      render: (r) => (
+        <span className='font-mono text-xs text-slate-400'>
+          #{String(r.id).padStart(5, '0')}
+        </span>
+      ),
+    },
+    {
+      key: 'fullName',
+      label: 'Lead',
+      sortable: true,
+      accessor: (r) => r.fullName,
+      render: (r) => (
+        <div className='flex items-center gap-2.5'>
+          <Avatar
+            initials={r.fullName.slice(0, 2).toUpperCase() || '·'}
+            tone={toneFromString(r.fullName) as any}
+            size='sm'
+          />
+          <div className='flex min-w-0 flex-col'>
+            <span className='truncate text-[13px] font-bold text-slate-900'>
+              {r.fullName || '—'}
+            </span>
+            <span className='truncate text-[11px] text-slate-400'>
+              {r.email}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'phone',
+      label: 'Phone',
+      width: '160px',
+      sortable: true,
+      accessor: (r) => r.phone,
+    },
+    {
+      key: 'service',
+      label: 'Service',
+      width: '180px',
+      sortable: true,
+      accessor: (r) => r.service,
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      width: '140px',
+      sortable: true,
+      accessor: (r) => r.status,
+      render: (r) => (
+        <StatusPill variant={variantFromStatus(r.status) as any} />
+      ),
+    },
+    {
+      // UX-L05: para leads ASSIGNED muestra countdown 48h con urgency
+      // visual (rojo cuando < 6h). Para otros statuses → updated_at normal.
+      key: 'expires',
+      label: 'Expires / Updated',
+      width: '140px',
+      sortable: true,
+      accessor: (r) => r.date_updated,
+      render: (r) => {
+        if (r.status === 'ASSIGNED') {
+          const deadline = r.date_updated.getTime() + ASSIGNED_FRESHNESS_HOURS * 36e5;
+          const remainingMs = deadline - Date.now();
+          const expired = remainingMs <= 0;
+          const hours = Math.max(0, Math.floor(remainingMs / 36e5));
+          const minutes = Math.max(0, Math.floor((remainingMs % 36e5) / 6e4));
+          const urgent = !expired && hours < 6;
+          const colorClass = expired
+            ? 'text-customRed'
+            : urgent
+            ? 'text-customRed'
+            : 'text-slate-700';
+          const label = expired
+            ? 'Expired'
+            : hours >= 24
+            ? `in ${Math.floor(hours / 24)}d ${hours % 24}h`
+            : hours > 0
+            ? `in ${hours}h ${minutes}m`
+            : `in ${minutes}m`;
+          return (
+            <span className={`text-[12px] font-bold tabular-nums ${colorClass}`}>
+              {label}
+            </span>
+          );
+        }
+        return (
+          <span className='text-[12px] text-slate-500'>
+            {dayjs.utc(r.date_updated).local().format('MMM DD, HH:mm')}
+          </span>
+        );
+      },
+    },
+    {
+      // UX-L12: quick action "Send back" para leads ASSIGNED / IN PROGRESS.
+      key: 'actions',
+      label: '',
+      width: '60px',
+      align: 'right',
+      render: (r) => {
+        if (r.status !== 'ASSIGNED' && r.status !== 'IN PROGRESS') {
+          return <span />;
+        }
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <IconActionButton
+              label='Send back'
+              icon={<MdReplay size={12} />}
+              tone='warning'
+              onClick={() => {
+                setSendBackTarget(r);
+                setSendBackReason('');
+              }}
+            />
+          </div>
+        );
+      },
+    },
+  ];
+
+  if (isLoading && rows.length === 0) return <Loading />;
 
   return (
     <div className='flex flex-col gap-5'>
-      <Modal title='Lead info' isOpen={isOpenLead} setIsOpen={setIsOpenLead}>
-        <div className='px-8'>
-          <p>
-            Selection date :{' '}
-            {dayjs
-              .utc(selectedLead['date'] as string)
-              .local()
-              .format('MM/DD/YYYY hh:mm a')}
-          </p>
-          <p className='text-red-500'>
-            This lead will be marked as lost and will not be reinstated.
-          </p>
-          {selectedLead.status === 'ASSIGNED' && (
-            <CountdownTimer targetDate={selectedLead['date_updated']} />
-          )}
-          <p className='text-4xl py-6 '>{selectedLead?.['lead name']}</p>
-          <form onSubmit={saveLeadContact} className='grid grid-cols-3 gap-2 '>
-            <p className=''>Status:</p>
-
-            <Input
-              type='select'
-              name='status'
-              values={
-                selectedLead.status === 'CLOSED' ? statusClosed : statusSelect
+      <LeadInfoModal
+        open={isOpenLead}
+        onClose={() => setIsOpenLead(false)}
+        lead={
+          selectedLead
+            ? {
+                id: selectedLead.id,
+                name: selectedLead.fullName,
+                email: selectedLead.email,
+                phone: selectedLead.phone,
+                service: selectedLead.service,
+                description: selectedLead.description,
+                comments: selectedLead.comments,
+                status: selectedLead.status,
               }
-              statusColors={statusColors}
-              defaultValue={
-                selectedLead.status === 'ASSIGNED' ? '' : selectedLead?.status
-              }
-              setOnChange={setSelectStatus}
+            : null
+        }
+        statusOptions={
+          selectedLead?.status === 'CLOSED'
+            ? STATUS_OPTIONS_CLOSED
+            : STATUS_OPTIONS
+        }
+        onSubmit={handleSaveLead}
+        loading={submitting}
+        breadcrumb='My Leads'
+        countdown={
+          selectedLead?.status === 'ASSIGNED' ? (
+            <CountdownTimer
+              targetDate={dayjs(selectedLead.date_updated).toISOString()}
             />
-            <p></p>
-            <p>Email:</p>
-            <p
-              className={`col-span-2 text-gray-500 ${
-                selectedLead.status === 'ASSIGNED' && 'blur select-none'
-              }  `}
-            >
-              {selectedLead.status === 'ASSIGNED'
-                ? 'xxx@587lawyers.com'
-                : selectedLead?.email}
-            </p>
-            <p>Phone number:</p>
-            <p
-              className={`col-span-2 text-gray-500 ${
-                selectedLead.status === 'ASSIGNED' && 'blur select-none'
-              }  `}
-            >
-              {selectedLead.status === 'ASSIGNED'
-                ? '0000000000'
-                : selectedLead?.['phone number']}
-            </p>
-            <p>Service Type:</p>
-            <p
-              className={`col-span-2 text-gray-500 ${
-                selectedLead.status === 'ASSIGNED' && 'blur select-none'
-              }  `}
-            >
-              {selectedLead.status === 'ASSIGNED'
-                ? 'lawyers'
-                : selectedLead?.service}
-            </p>
-            <p>Description:</p>
-            <p
-              className={`col-span-2 text-gray-500 ${
-                selectedLead.status === 'ASSIGNED' && 'blur select-none'
-              }  `}
-            >
-              {selectedLead.status === 'ASSIGNED'
-                ? 'Description'
-                : selectedLead?.['description lead']}
-            </p>
-            <p>Comment:</p>
-            <textarea
-              name='comments'
-              className='col-span-2 text-gray-500 border-2 bg-gray-100 rounded-md'
-              placeholder=' Leave your comment.....'
-              required={selectStatus === 'LOST' ? true : false}
-            >
-              {selectedLead?.comments}
-            </textarea>
-            <p></p>
-            {/* <p className='flex gap-1 col-span-2 text-gray-500 '>
-              <input
-                name='checkbox'
-                id={`checkbox-lead`}
-                className='peer hidden'
-                type='checkbox'
-              />
-              <label
-                htmlFor={`checkbox-lead`}
-                className='flex items-center justify-center w-5 h-5 border border-green-500 rounded bg-white cursor-pointer relative  text-white peer-checked:text-green-500'
-              >
-                <i className='fi fi-rr-check absolute  text-sm  peer-checked:block '></i>
-              </label>{' '}
-              Do not contact this lead again
-            </p> */}
-            <div className='col-end-4 text-right'>
-              <Button name='Save' type='submit' />
-            </div>
-          </form>
-          <p className='text-red-500 text-sm py-4'>
-            The super admin will review this case, leave us a clear comment.
-          </p>
-        </div>
-      </Modal>
-      <Tilte
-        name={`${userId?.firstName} ${userId?.lastName}`}
-        des={getNameServiceLawyer(userId?.lawyersServices, dataServiceType).map(
-          (res: any) => (
-            <p key={res?.id}>{res?.name.replace(' Lawyer', '')}</p>
-          )
-        )}
-        search={true}
-        filterSearch={filterSearch}
+          ) : undefined
+        }
       />
-      {!isLoading ? (
-        <div className='flex gap-2 flex-wrap'>
-          <button
-            onClick={() => handleStatusClick(null)}
-            className={`px-4 p-1 rounded text-sm ${
-              selectedStatus === null
-                ? 'bg-primary bg-opacity-80 text-white'
-                : 'bg-gray-200'
-            }`}
-          >
-            All
-          </button>
-          {uniqueStatuses.map((status) => (
-            <button
-              key={status}
-              onClick={() => handleStatusClick(status)}
-              className={`px-4 p-1 rounded text-sm ${
-                selectedStatus === status
-                  ? 'bg-primary bg-opacity-80 text-white'
-                  : 'bg-gray-200'
-              }`}
-            >
-              {statusSelectAll.find((item) => item.value === status)?.name ||
-                status}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <SkeletonText />
-      )}
-      <SortableTable
+
+      <PageHead
+        title='My Leads'
+        action={
+          <span className='text-[13px] font-medium tabular-nums text-slate-400'>
+            {filtered.length} leads
+          </span>
+        }
+      />
+
+      <div className='flex flex-wrap items-center gap-2.5'>
+        <SearchField
+          placeholder='Search by name, email, phone or ID...'
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+        <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
+        <FilterButton
+          label='All'
+          active={!statusFilter && selecArray.length === 0}
+          onClick={() => handleStatusClick(null)}
+        />
+        {uniqueStatuses.map((s) => {
+          const niceLabel =
+            statusSelectAll.find((it) => it.value === s)?.name ?? s;
+          return (
+            <FilterButton
+              key={s}
+              label={niceLabel}
+              active={statusFilter === s}
+              onClick={() => handleStatusClick(s)}
+            />
+          );
+        })}
+      </div>
+
+      <DataTable
         columns={columns}
-        data={lawyerData}
-        statusColors={statusColors}
-        onContact={handleContact}
+        data={filtered}
+        rowKey={(r) => r.id}
+        onRowClick={handleOpenLead}
+        pagination={{
+          enabled: true,
+          initialPageSize: 20,
+          pageSizes: [10, 25, 50],
+        }}
+        totalLabel='leads'
+        emptyState={
+          <EmptyStateBox
+            icon={<MdOutlineCases size={18} />}
+            title='No assigned leads yet'
+            description="Here you will see your selected leads. Go to the 'Select Lead' section to get started."
+          />
+        }
       />
+
+      {/* UX-L12: quick send-back dialog. Activado desde la columna actions. */}
+      <ConfirmationDialog
+        open={sendBackTarget !== null}
+        onClose={() => {
+          if (sendBackLoading) return;
+          setSendBackTarget(null);
+          setSendBackReason('');
+        }}
+        variant='danger'
+        title='Send lead back'
+        subtitle={
+          sendBackTarget
+            ? `${sendBackTarget.fullName} · #${String(sendBackTarget.id).padStart(5, '0')}`
+            : undefined
+        }
+        confirmLabel='Send back'
+        loading={sendBackLoading}
+        onConfirm={handleSendBackConfirm}
+        confirmDisabled={sendBackReason.trim().length === 0}
+      >
+        <div className='flex flex-col gap-1.5'>
+          <label
+            htmlFor='send-back-reason'
+            className='text-[11px] font-semibold uppercase tracking-[0.04em] text-slate-600'
+          >
+            Reason (required)
+          </label>
+          <textarea
+            id='send-back-reason'
+            value={sendBackReason}
+            onChange={(e) => setSendBackReason(e.target.value)}
+            rows={3}
+            placeholder='Why are you sending this lead back? Super admin will see this comment.'
+            disabled={sendBackLoading}
+            className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60'
+          />
+        </div>
+      </ConfirmationDialog>
     </div>
   );
 };

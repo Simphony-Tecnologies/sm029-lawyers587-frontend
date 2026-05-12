@@ -1,157 +1,277 @@
 'use client';
-import Cards from '@/components/atoms/Cards';
-import Tilte from '@/components/organisms/Tilte';
-import { statistics as initialStatistics } from '@/configs/statisticsLawyers.confing';
-import { database } from '@/services/database';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import {
+  MdAddCircleOutline,
+  MdCheckCircleOutline,
+  MdHighlightOff,
+  MdInfoOutline,
+  MdOutbox,
+  MdSwapHoriz,
+} from 'react-icons/md';
+import toast from 'react-hot-toast';
+import { api, database } from '@/services/database';
+import type { LeadDTO, LeadStatus } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
-import { useLeadsStore } from '@/store/useLead.store';
 import useLoadingStore from '@/store/useLoadingStore';
 import { useSelectStatus } from '@/store/useSelectStatus';
 import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
-import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
-import { usePathname } from 'next/navigation';
+import {
+  ActivityPanel,
+  Avatar,
+  KpiCard,
+  PageHead,
+  StatusPill,
+  toneFromString,
+  variantFromStatus,
+  type KpiTone,
+} from '@/components/ui';
+
+dayjs.extend(relativeTime);
+
+type KpiDef = {
+  key: string;
+  label: string;
+  sub: string;
+  tone: KpiTone;
+  icon: JSX.Element;
+  statuses: LeadStatus[];
+};
+
+// Alineado con el mock HTML 13 (lawyer my-leads) — 4 KPIs por status.
+const KPI_DEFS: KpiDef[] = [
+  {
+    key: 'pulled',
+    label: 'Pulled / Assigned',
+    sub: 'Active right now',
+    tone: 'violet',
+    icon: <MdOutbox size={14} />,
+    statuses: ['ASSIGNED'],
+  },
+  {
+    key: 'in_progress',
+    label: 'In Progress',
+    sub: 'Working on them',
+    tone: 'emerald',
+    icon: <MdCheckCircleOutline size={14} />,
+    statuses: ['IN PROGRESS'],
+  },
+  {
+    key: 'problematic',
+    label: 'Problematic',
+    sub: 'Need attention',
+    tone: 'amber',
+    icon: <MdInfoOutline size={14} />,
+    statuses: ['PROBLEMATIC'],
+  },
+  {
+    key: 'closed',
+    label: 'Closed',
+    sub: 'Retained',
+    tone: 'emerald',
+    icon: <MdCheckCircleOutline size={14} />,
+    statuses: ['CLOSED'],
+  },
+];
+
+const ACTION_TONE_BY_STATUS: Record<string, { bg: string; fg: string; icon: JSX.Element }> = {
+  NEW: { bg: 'bg-violet-100', fg: 'text-violet-600', icon: <MdAddCircleOutline size={14} /> },
+  ASSIGNED: { bg: 'bg-violet-100', fg: 'text-violet-600', icon: <MdOutbox size={14} /> },
+  'IN PROGRESS': { bg: 'bg-sky-100', fg: 'text-sky-700', icon: <MdSwapHoriz size={14} /> },
+  PROBLEMATIC: { bg: 'bg-amber-100', fg: 'text-amber-700', icon: <MdInfoOutline size={14} /> },
+  CLOSED: { bg: 'bg-emerald-100', fg: 'text-emerald-700', icon: <MdCheckCircleOutline size={14} /> },
+  LOST: { bg: 'bg-rose-100', fg: 'text-rose-600', icon: <MdHighlightOff size={14} /> },
+  EXPIRED: { bg: 'bg-rose-100', fg: 'text-rose-600', icon: <MdHighlightOff size={14} /> },
+};
 
 const DashboardLawyers = () => {
-  const { dataLeads, fetchLeads } = useLeadsStore();
-  const [statistics, setStatistics] = useState(initialStatistics);
-  const { setSelecArray } = useSelectStatus();
-  const [lawyerData, setLawyerData] = useState<any>(null);
-  const { setLoading, isLoading } = useLoadingStore();
-  const [dataServiceType, setDataServiceType] = useState([]);
+  const [leads, setLeads] = useState<LeadDTO[]>([]);
+  const [dataServiceType, setDataServiceType] = useState<any[]>([]);
   const [maxLeadsAssigned, setMaxLeadsAssigned] = useState<any>(null);
   const [userId, setUserId] = useState<any>(null);
+  const { setSelecArray } = useSelectStatus();
+  const { setLoading } = useLoadingStore();
   const { user } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
-  const getLastElement = (arr: any) => arr[0];
-  const setData = [
-    { value: 'ASSIGNED', index: 1 },
-    { value: 'IN PROGRESS', index: 2 },
-    { value: 'PROBLEMATIC', index: 3 },
-    { value: 'CLOSED', index: 4 },
-    { value: 'EXPIRED', index: 5 },
-  ];
-  const availableLeads = maxLeadsAssigned
+
+  const capacityTotal = maxLeadsAssigned
     ? maxLeadsAssigned.reduce(
-        (acc: number, curr: any) => acc + curr.max_leads,
+        (acc: number, curr: any) => acc + (curr.max_leads ?? 0),
         0
       )
     : 0;
-  const getLawyer = async () => {
+
+  const fetchAssignedLeads = async () => {
+    if (!user?.id) return;
     setLoading(true);
-    try {
-      // Verifica si el usuario tiene datos
-      if (Object.keys(user).length > 0) {
-        const dataLawyerUser = await database.getLawyer(user.id);
-        setUserId(dataLawyerUser.data.data);
-      }
-
-      const dataLawyer = await database.getLeadsAssigned();
-
-      if (!dataLawyer.success) {
-        throw new Error('Error to get leads assigned');
-      }
-
-      const firstItem = dataLawyer.data;
-      const filterItems = firstItem.filter(
-        (item: any) => item.lawyer_id === parseInt(user.id)
-      );
-
-      if (!dataLeads || dataLeads.length === 0) {
-        throw new Error('No leads data found');
-      }
-      const filterLeads = dataLeads.filter((item: any) =>
-        filterItems
-          .map((filterItem: any) => filterItem.lead)
-          .includes(item['lead id'])
-      );
-      statistics[0].value = `${filterLeads.length} of  ${availableLeads}`;
-      setLawyerData(filterLeads);
-    } catch (error: any) {
-      // Manejo centralizado de errores
-      toast.error(error.message || 'An error occurred while fetching data.');
-      console.error('Error fetching lawyer data:', error);
-    } finally {
-      setLoading(false); // Finaliza la carga
+    const [leadsRes, lawyerRes] = await Promise.all([
+      api.leads.list({ assigned_to: Number(user.id), limit: 1000 }),
+      database.getLawyer(user.id),
+    ]);
+    setLoading(false);
+    if (!leadsRes.success || !leadsRes.data) {
+      toast.error(leadsRes.message || 'Could not load assigned leads');
+      setLeads([]);
+      return;
     }
+    setLeads(leadsRes.data.data);
+    const dto = lawyerRes?.data?.data ?? lawyerRes?.data ?? null;
+    setUserId(dto);
   };
-  const getServiceType = async () => {
-    const resType = await database.getData(
-      `${process.env.NEXT_PUBLIC_URL}/service_types` || ''
-    );
-    if (!resType.success) {
-      return toast.error('Error to get service type');
-    }
 
+  const fetchServiceTypes = async () => {
+    const resType = await database.getData(
+      `${process.env.NEXT_PUBLIC_URL}/service_types`
+    );
+    if (!resType.success) return;
     setDataServiceType(resType.data);
   };
-  const filterLeads = async (value: string, index: number) => {
-    if (lawyerData) {
-      const leads = lawyerData.filter((res: any) => res.status === value);
-      const lastNewLead = getLastElement(leads);
 
-      if (leads.length > 0) {
-        setStatistics((prevStatistics) => {
-          const updatedStatistics = [...prevStatistics];
-          updatedStatistics[index] = {
-            ...initialStatistics[index],
-            value: (updatedStatistics[index]?.value || 0) + leads.length,
-            date: lastNewLead.date_updated,
-          };
+  useEffect(() => {
+    void fetchAssignedLeads();
+    void fetchServiceTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
-          return updatedStatistics;
-        });
+  useEffect(() => {
+    if (!userId) return;
+    setMaxLeadsAssigned(
+      getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
+    );
+  }, [userId, dataServiceType]);
+
+  // Conteos por KPI desde los leads asignados.
+  const counts = useMemo(() => {
+    return KPI_DEFS.map(({ statuses }) =>
+      leads.filter((l) => statuses.includes(l.status)).length
+    );
+  }, [leads]);
+
+  // Sparkline por KPI: bucket por día en los últimos 14 días.
+  const sparks = useMemo(() => {
+    const buckets = 14;
+    const now = Date.now();
+    const bucketSize = 86_400_000; // 1 día
+    return KPI_DEFS.map(({ statuses }) => {
+      const filtered = leads.filter((l) => statuses.includes(l.status));
+      const arr = new Array(buckets).fill(0);
+      for (const lead of filtered) {
+        const ts = new Date(lead.updated_at ?? lead.created_at).getTime();
+        const offset = now - ts;
+        const idx = buckets - 1 - Math.floor(offset / bucketSize);
+        if (idx >= 0 && idx < buckets) arr[idx] += 1;
       }
-    }
-  };
-  const handleClickCard = (index: any) => {
-    const valuesCards = setData.filter((item: any) => item.index === index);
-    setSelecArray(valuesCards.map((res: any) => res.value));
+      return arr;
+    });
+  }, [leads]);
 
+  const handleClickKpi = (statuses: LeadStatus[]) => {
+    setSelecArray(statuses as any);
     router.push('/all-leads');
   };
-  useEffect(() => {
-    setStatistics(initialStatistics);
-    if (dataLeads) {
-      setData.forEach((res) => filterLeads(res.value, res.index));
-    }
-    if (dataLeads) getLawyer();
-    if (userId) {
-      setMaxLeadsAssigned(
-        getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
-      );
-    }
-  }, [dataLeads, !userId]);
-  useEffect(() => {
-    fetchLeads();
-    getServiceType();
-  }, []);
-  useEffect(() => {
-    fetchLeads();
-  }, []);
 
-  useEffect(() => {
-    fetchLeads();
-  }, [pathname]);
+  // UX-L02: actividad reciente — 8 leads más recientes del lawyer.
+  const recentLeads = useMemo(() => {
+    return [...leads]
+      .sort(
+        (a, b) =>
+          new Date(b.updated_at ?? b.created_at).getTime() -
+          new Date(a.updated_at ?? a.created_at).getTime()
+      )
+      .slice(0, 8);
+  }, [leads]);
+
+  const displayName =
+    userId && (userId.firstName || userId.lastName)
+      ? `${userId.firstName ?? ''} ${userId.lastName ?? ''}`.trim()
+      : 'My dashboard';
 
   return (
     <div className='flex flex-col gap-5'>
-      <Tilte name='Dashboard' />
-      <div className='grid lg:grid-cols-3 md:grid-cols-2 lg:gap-10 gap-5'>
-        {statistics.map((statistic: any, index: any) => (
-          <Cards
-            key={index}
-            title={statistic?.title}
-            value={statistic?.value}
-            date={statistic?.date}
-            color={statistic?.color}
-            icon={statistic?.icon}
-            onClick={() => handleClickCard(index)}
+      <PageHead
+        eyebrow='Lawyer overview'
+        title={displayName}
+        subtitle={
+          capacityTotal > 0
+            ? `${leads.length} active of ${capacityTotal} capacity`
+            : `${leads.length} active leads`
+        }
+      />
+
+      <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>
+        {KPI_DEFS.map((kpi, idx) => (
+          <KpiCard
+            key={kpi.key}
+            label={kpi.label}
+            period={kpi.sub}
+            value={counts[idx]}
+            tone={kpi.tone}
+            icon={kpi.icon}
+            spark={sparks[idx]}
+            onClick={() => handleClickKpi(kpi.statuses)}
           />
         ))}
       </div>
+
+      <ActivityPanel
+        eyebrow='Your work'
+        title='Recent leads'
+        empty={recentLeads.length === 0}
+        emptyText='No leads assigned yet'
+        onViewAll={
+          recentLeads.length > 0
+            ? () => router.push('/all-leads')
+            : undefined
+        }
+      >
+        <ul className='flex flex-col divide-y divide-slate-100'>
+          {recentLeads.map((lead) => {
+            const meta = ACTION_TONE_BY_STATUS[lead.status] ?? {
+              bg: 'bg-slate-100',
+              fg: 'text-slate-600',
+              icon: <MdSwapHoriz size={14} />,
+            };
+            const name = lead.fullName || '—';
+            return (
+              <li key={lead.id}>
+                <button
+                  type='button'
+                  onClick={() => router.push('/all-leads')}
+                  className='flex w-full items-center gap-3 bg-transparent py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none'
+                >
+                  <span
+                    className={`inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${meta.bg} ${meta.fg}`}
+                  >
+                    {meta.icon}
+                  </span>
+                  <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                    <div className='flex items-center gap-2'>
+                      <Avatar
+                        initials={name.slice(0, 2).toUpperCase() || '·'}
+                        tone={toneFromString(name) as any}
+                        size='sm'
+                      />
+                      <span className='truncate text-[13px] font-bold text-slate-900'>
+                        {name}
+                      </span>
+                      <span className='font-mono text-[10px] font-semibold text-slate-400'>
+                        #{String(lead.id).padStart(5, '0')}
+                      </span>
+                    </div>
+                    <span className='truncate text-[11px] text-slate-500'>
+                      {lead.service || '—'} ·{' '}
+                      {dayjs(lead.updated_at ?? lead.created_at).fromNow()}
+                    </span>
+                  </div>
+                  <StatusPill variant={variantFromStatus(lead.status) as any} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </ActivityPanel>
     </div>
   );
 };

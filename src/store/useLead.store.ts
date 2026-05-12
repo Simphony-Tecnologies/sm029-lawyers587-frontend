@@ -1,70 +1,72 @@
 // store/useLeadsStore.ts
-import { database } from '@/services/database';
+import { api } from '@/services/database';
+import type { LeadDTO, LeadFilters } from '@/types/api.types';
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 interface LeadsStore {
   columns: string[];
   dataLeads: any;
+  total: number;
+  loading: boolean;
   error: string | null;
-  fetchLeads: () => Promise<void>;
+  fetchLeads: (filters?: LeadFilters) => Promise<void>;
 }
+
+const pickName = (lead: any): string =>
+  lead?.fullName ?? lead?.full_name ?? '';
+
+const pickPhone = (lead: any): string =>
+  lead?.phone ?? lead?.phone_number ?? lead?.number ?? '';
+
+const pickService = (lead: any): string =>
+  lead?.service ?? lead?.lawyer_type ?? '';
+
+const pickLawyerName = (lead: any): string => {
+  const dto = lead?.assigned_lawyer;
+  if (dto?.firstName || dto?.lastName) {
+    return `${dto.firstName ?? ''} ${dto.lastName ?? ''}`.trim();
+  }
+  return 'No assigned';
+};
+
+const toRow = (lead: LeadDTO | any) => ({
+  'lead id': lead.id,
+  date: new Date(lead.created_at ?? lead.entry_date),
+  date_updated: new Date(lead.updated_at ?? lead.created_at ?? lead.entry_date),
+  'lead name': pickName(lead),
+  email: lead.email ?? '',
+  'phone number': pickPhone(lead),
+  service: pickService(lead),
+  'description lead': lead.description ?? '',
+  comments: lead.comments ?? '',
+  lawyer: pickLawyerName(lead),
+  status: lead.status,
+  assigned_lawyer_id: lead.assigned_lawyer_id ?? null,
+});
 
 export const useLeadsStore = create<LeadsStore>((set) => ({
   columns: [],
   dataLeads: null,
+  total: 0,
+  loading: false,
   error: null,
-  fetchLeads: async () => {
-    try {
-      const url = `${process.env.NEXT_PUBLIC_URL}/leads`;
-      const response = await fetch(url);
-      const leadsData = await response.json();
-
-      if (!leadsData.success) {
-        throw new Error('Failed to fetch leads data');
-      }
-      const lawyersAssigned = await database.fetchData(
-        `${process.env.NEXT_PUBLIC_URL}/leads-assigned` || ''
-      );
-
-      if (!lawyersAssigned.success) {
-        throw new Error('Error conecting with database');
-      }
-      const data = leadsData.data.map((lead: any) => ({
-        'lead id': lead.id,
-        date: new Date(lead.created_at),
-        date_updated: new Date(lead.updated_at),
-        'lead name': lead.full_name,
-        email: lead.email,
-        'phone number': lead.number,
-        service: lead.lawyer_type,
-        'description lead': lead.description,
-        comments: lead.comments,
-        lawyer: 'No assigned',
-        status: lead.status,
-      }));
-      const updatedDataLeads = data.map((items: any) => {
-        const lawyer = lawyersAssigned.data.find(
-          (lawyer: any) => lawyer.lead === items['lead id']
-        );
-        return {
-          ...items,
-          lawyer: lawyer
-            ? `${lawyer.lawyer.firstName} ${lawyer.lawyer.lastName} `
-            : 'Not assigned',
-        };
-      });
-
+  fetchLeads: async (filters?: LeadFilters) => {
+    set({ loading: true, error: null });
+    const res = await api.leads.list({ limit: 10000, ...(filters || {}) });
+    if (!res.success || !res.data) {
       set({
-        columns: data ? Object.keys(data[0]) : [],
-        dataLeads: updatedDataLeads,
-        error: '',
+        loading: false,
+        error: res.message || 'There are no new leads, please try again later.',
       });
-    } catch (err) {
-      console.log('Error fetching leads data:', err);
-      set({
-        error: 'There are no new leads, please try again later.',
-      });
+      return;
     }
+    const rows = res.data.data.map(toRow);
+    set({
+      columns: rows.length > 0 ? Object.keys(rows[0]) : [],
+      dataLeads: rows,
+      total: res.data.total,
+      loading: false,
+      error: null,
+    });
   },
 }));
