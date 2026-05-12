@@ -100,7 +100,13 @@ const AllLeads = () => {
       setRows([]);
       return;
     }
-    setRows(res.data.data.map(toRow));
+    const next = res.data.data.map(toRow);
+    setRows(next);
+    // UX-L06: si hay leads ASSIGNED y aún no se fijó filtro, default a ASSIGNED
+    // — son los más relevantes para el lawyer al entrar.
+    if (statusFilter === null && next.some((r) => r.status === 'ASSIGNED')) {
+      setStatusFilter('ASSIGNED');
+    }
   };
 
   useEffect(() => {
@@ -335,7 +341,11 @@ const AllLeads = () => {
         data={filtered}
         rowKey={(r) => r.id}
         onRowClick={handleOpenLead}
-        pagination={{ enabled: true, initialPageSize: 20 }}
+        pagination={{
+          enabled: true,
+          initialPageSize: 20,
+          pageSizes: [10, 25, 50],
+        }}
         totalLabel='leads'
         emptyState={
           <EmptyStateBox

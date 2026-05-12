@@ -85,9 +85,13 @@ const DashboardLawyers = () => {
   useEffect(() => {
     // KPIs derived from the assigned leads list.
     const next = [...initialStatistics];
+    // UX-L09: si /service_types falla, availableLeads = 0 → mostrar "—"
+    // en vez de "X of 0" (confuso).
     next[0] = {
       ...initialStatistics[0],
-      value: `${leads.length} of ${availableLeads}` as any,
+      value: `${leads.length} of ${
+        availableLeads > 0 ? availableLeads : '—'
+      }` as any,
     };
     KPI_SLOTS.forEach(({ value, index }) => {
       const matches = leads.filter((l) => l.status === value);

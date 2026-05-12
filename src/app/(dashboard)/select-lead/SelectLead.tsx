@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
-import { MdInfoOutline } from 'react-icons/md';
+import { MdArrowForward, MdInfoOutline } from 'react-icons/md';
 import { api, database } from '@/services/database';
 import type { LeadDTO } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
@@ -44,6 +45,7 @@ const toRow = (lead: LeadDTO): PoolRow => ({
 
 const SelectLead = () => {
   const { user } = useAuth();
+  const router = useRouter();
   const { fetchLeads } = useLeadsStore();
   const { setLoading, isLoading } = useLoadingStore();
 
@@ -140,7 +142,28 @@ const SelectLead = () => {
         icon: '⚠️',
       });
     } else {
-      toast.success(`Pulled ${succeeded} lead${succeeded === 1 ? '' : 's'}`);
+      // UX-L10: toast con CTA para que el lawyer vea sus leads pulled.
+      toast.success(
+        (t) => (
+          <span className='flex items-center gap-2'>
+            <span>
+              Pulled {succeeded} lead{succeeded === 1 ? '' : 's'} successfully
+            </span>
+            <button
+              type='button'
+              onClick={() => {
+                toast.dismiss(t.id);
+                router.push('/all-leads');
+              }}
+              className='inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-[11px] font-bold text-white'
+            >
+              View
+              <MdArrowForward size={12} />
+            </button>
+          </span>
+        ),
+        { duration: 6000 }
+      );
     }
     setSelectedKeys(new Set());
     void fetchLeads();
@@ -257,7 +280,11 @@ const SelectLead = () => {
         data={pool}
         rowKey={(r) => r.id}
         selection={selection}
-        pagination={{ enabled: true, initialPageSize: 20 }}
+        pagination={{
+          enabled: true,
+          initialPageSize: 20,
+          pageSizes: [10, 25, 50],
+        }}
         totalLabel='leads in pool'
         emptyState={
           <EmptyStateBox
