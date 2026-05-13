@@ -466,14 +466,27 @@ const LawyerManagement = () => {
       setLoadingModal(false);
       return;
     }
-    if (payload.specialtyId) {
-      await database.insertData(
-        `${process.env.NEXT_PUBLIC_URL}/lawyers-services`,
-        {
-          lawyer_id: creating.data?.data?.id,
-          service_type_id: payload.specialtyId,
-          max_leads: payload.max_leads,
-        }
+    // Multi-area: crear N registros en /lawyers-services, uno por
+    // service_type_id seleccionado. Mismo max_leads para todas las áreas
+    // (decisión UX validada con cliente — refactor si requiere granular).
+    const newLawyerId = creating.data?.data?.id;
+    const targetIds: number[] = Array.isArray(payload.specialtyIds)
+      ? payload.specialtyIds.map((v: any) => Number(v)).filter(Number.isFinite)
+      : payload.specialtyId
+      ? [Number(payload.specialtyId)]
+      : [];
+    if (newLawyerId && targetIds.length > 0) {
+      await Promise.all(
+        targetIds.map((stId) =>
+          database.insertData(
+            `${process.env.NEXT_PUBLIC_URL}/lawyers-services`,
+            {
+              lawyer_id: newLawyerId,
+              service_type_id: stId,
+              max_leads: payload.max_leads,
+            }
+          )
+        )
       );
     }
     toast.success('Lawyer created successfully');
@@ -519,42 +532,64 @@ const LawyerManagement = () => {
       setLoadingModal(false);
       return;
     }
-    // ── Specialty / max_leads sync (single specialty model) ──
+    // ── Specialty / max_leads sync (multi-area) ──
+    // 1) Diff entre los services actuales del lawyer y los target.
+    // 2) Borrar los que sobran, crear los que faltan, actualizar
+    //    max_leads donde ya existían y cambió.
     const services: any[] = Array.isArray(lawyerServiceRelacion)
       ? lawyerServiceRelacion
       : [];
-    const first = services[0];
-    if (payload.specialtyId !== null && payload.specialtyId !== undefined) {
-      const targetId = Number(payload.specialtyId);
-      const currentId = first ? Number(first.service_type_id) : null;
-      if (!first) {
-        await database.postData(
-          `${process.env.NEXT_PUBLIC_URL}/lawyers-services`,
-          {
-            lawyer_id: dataIndex.id,
-            service_type_id: targetId,
-            max_leads: payload.max_leads,
-          }
-        );
-      } else if (currentId !== targetId) {
-        await database.deleteData(
-          `${process.env.NEXT_PUBLIC_URL}/lawyers-services/${first.id}`
-        );
-        await database.postData(
-          `${process.env.NEXT_PUBLIC_URL}/lawyers-services`,
-          {
-            lawyer_id: dataIndex.id,
-            service_type_id: targetId,
-            max_leads: payload.max_leads,
-          }
-        );
-      } else if (Number(first.max_leads) !== Number(payload.max_leads)) {
-        await database.patchData(
-          `${process.env.NEXT_PUBLIC_URL}/lawyers-services/${first.id}`,
-          { max_leads: payload.max_leads }
-        );
-      }
+    const ownServices = services.filter(
+      (s: any) => Number(s.lawyer_id) === Number(dataIndex.id)
+    );
+    const targetIds: number[] = Array.isArray(payload.specialtyIds)
+      ? payload.specialtyIds.map((v: any) => Number(v)).filter(Number.isFinite)
+      : payload.specialtyId !== null && payload.specialtyId !== undefined
+      ? [Number(payload.specialtyId)]
+      : [];
+    const targetSet = new Set(targetIds);
+    const currentByServiceId = new Map<number, any>();
+    for (const svc of ownServices) {
+      const stId = Number(svc.service_type_id);
+      if (Number.isFinite(stId)) currentByServiceId.set(stId, svc);
     }
+    const nextMax = Number(payload.max_leads);
+
+    // Eliminar áreas que ya no están seleccionadas.
+    const toDelete = ownServices.filter(
+      (svc: any) => !targetSet.has(Number(svc.service_type_id))
+    );
+    // Agregar áreas nuevas.
+    const toAdd = targetIds.filter((id) => !currentByServiceId.has(id));
+    // Actualizar max_leads en áreas que persisten y cambiaron.
+    const toUpdate = targetIds
+      .filter((id) => currentByServiceId.has(id))
+      .map((id) => currentByServiceId.get(id))
+      .filter((svc: any) => Number(svc.max_leads) !== nextMax);
+
+    await Promise.all([
+      ...toDelete.map((svc: any) =>
+        database.deleteData(
+          `${process.env.NEXT_PUBLIC_URL}/lawyers-services/${svc.id}`
+        )
+      ),
+      ...toAdd.map((stId) =>
+        database.postData(
+          `${process.env.NEXT_PUBLIC_URL}/lawyers-services`,
+          {
+            lawyer_id: dataIndex.id,
+            service_type_id: stId,
+            max_leads: nextMax,
+          }
+        )
+      ),
+      ...toUpdate.map((svc: any) =>
+        database.patchData(
+          `${process.env.NEXT_PUBLIC_URL}/lawyers-services/${svc.id}`,
+          { max_leads: nextMax }
+        )
+      ),
+    ]);
     fetchData();
     getExtraData();
     toast.success('Lawyer updated successfully');
@@ -933,6 +968,10 @@ const LawyerManagement = () => {
       notes: dataIndex.notes ?? '',
       profile_image_url: dataIndex.profile_image_url ?? null,
       specialtyId: first ? Number(first.service_type_id) : null,
+      // Multi-area: lista completa de service_type_ids del lawyer.
+      specialtyIds: services
+        .map((s: any) => Number(s.service_type_id))
+        .filter((n: number) => Number.isFinite(n)),
       extraSpecialtiesCount: Math.max(0, services.length - 1),
       max_leads: first ? Number(first.max_leads) : 0,
       stats: lawyerStats,

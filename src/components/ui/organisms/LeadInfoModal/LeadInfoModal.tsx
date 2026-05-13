@@ -52,6 +52,15 @@ export interface LeadInfoSubmitPayload {
   doNotContact?: boolean;
 }
 
+// Si el lead no tiene lawyer asignado, el modal puede ofrecer un picker
+// inline. El parent provee la lista + handler.
+export interface AssignableLawyer {
+  id: number;
+  name: string;
+  services?: string[];
+  activeLeads?: number;
+}
+
 export interface LeadInfoModalProps {
   open: boolean;
   onClose: () => void;
@@ -61,6 +70,11 @@ export interface LeadInfoModalProps {
   loading?: boolean;
   breadcrumb?: string;
   countdown?: ReactNode;
+  /** Si se provee y lead.status indica que no está asignado, el modal
+   *  muestra un picker para asignar a un lawyer directo. */
+  assignableLawyers?: AssignableLawyer[];
+  onAssign?: (lawyerId: number, comment: string) => Promise<void> | void;
+  assignLoading?: boolean;
 }
 
 const formatId = (id: number | string) =>
@@ -84,10 +98,18 @@ export const LeadInfoModal = ({
   loading = false,
   breadcrumb = 'My Leads',
   countdown,
+  assignableLawyers,
+  onAssign,
+  assignLoading = false,
 }: LeadInfoModalProps) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [comment, setComment] = useState<string>('');
   const [doNotContact, setDoNotContact] = useState<boolean>(true);
+  // Issue #2: single-assign desde el modal cuando lead.status indica
+  // que aún no tiene lawyer (NEW / EXPIRED).
+  const [assignLawyerId, setAssignLawyerId] = useState<number | ''>('');
+  const [assignReason, setAssignReason] = useState('');
+  const [assignSearch, setAssignSearch] = useState('');
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState<'all' | 'audit' | 'comment'>('all');
@@ -106,6 +128,9 @@ export const LeadInfoModal = ({
     setDoNotContact(true);
     setNewComment('');
     setNewCommentType('internal');
+    setAssignLawyerId('');
+    setAssignReason('');
+    setAssignSearch('');
   }, [open, lead]);
 
   const fetchTimeline = async (
@@ -174,6 +199,25 @@ export const LeadInfoModal = ({
     !!lead && (lead.status ?? '').toUpperCase() !==
       (selectedStatus ?? '').toUpperCase();
 
+  // Issue #2: el lead se considera asignable cuando está en NEW o EXPIRED
+  // (alineado con la regla del backend en PATCH /leads/:id/assign).
+  const leadStatusUpper = (lead?.status ?? '').toUpperCase();
+  const canAssign =
+    !!onAssign &&
+    Array.isArray(assignableLawyers) &&
+    (leadStatusUpper === 'NEW' || leadStatusUpper === 'EXPIRED');
+
+  const filteredLawyers = useMemo(() => {
+    if (!assignableLawyers) return [];
+    const q = assignSearch.trim().toLowerCase();
+    if (!q) return assignableLawyers;
+    return assignableLawyers.filter(
+      (l) =>
+        l.name.toLowerCase().includes(q) ||
+        (l.services ?? []).some((s) => s.toLowerCase().includes(q))
+    );
+  }, [assignableLawyers, assignSearch]);
+
   const reasonLength = comment.length;
   const reasonRequiredMissing = isDestructive && reasonLength === 0;
 
@@ -186,6 +230,13 @@ export const LeadInfoModal = ({
       comments: comment,
       doNotContact: isDestructive ? doNotContact : undefined,
     });
+  };
+
+  const handleAssignSubmit = async () => {
+    if (!onAssign || assignLawyerId === '' || assignLoading) return;
+    const reason = assignReason.trim();
+    if (reason.length === 0) return;
+    await onAssign(Number(assignLawyerId), reason);
   };
 
   if (!lead && !open) return null;
@@ -524,6 +575,105 @@ export const LeadInfoModal = ({
                       <span className='text-[10px] font-semibold tabular-nums text-slate-400'>
                         {reasonLength} / {REASON_MAX}
                       </span>
+                    </div>
+                  </section>
+                ) : null}
+
+                {/* Issue #2: Assign-to-lawyer inline — sólo cuando el lead
+                    está NEW/EXPIRED y el parent provee el contexto. Evita
+                    forzar al admin a salir del modal y usar bulk con N=1. */}
+                {canAssign ? (
+                  <section className='flex flex-col gap-2'>
+                    <div className='flex items-center justify-between'>
+                      <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
+                        Assign to lawyer
+                      </span>
+                    </div>
+                    <input
+                      type='search'
+                      value={assignSearch}
+                      onChange={(e) => setAssignSearch(e.target.value)}
+                      placeholder='Search by name or area of law…'
+                      disabled={assignLoading}
+                      className='h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-[12px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60'
+                    />
+                    <div className='max-h-[180px] overflow-y-auto rounded-md border border-slate-200 bg-white'>
+                      {filteredLawyers.length === 0 ? (
+                        <div className='px-3 py-3 text-center text-[12px] font-medium text-slate-400'>
+                          {assignableLawyers && assignableLawyers.length === 0
+                            ? 'No active lawyers available'
+                            : 'No matches'}
+                        </div>
+                      ) : (
+                        filteredLawyers.map((l) => {
+                          const selected = assignLawyerId === l.id;
+                          return (
+                            <button
+                              key={l.id}
+                              type='button'
+                              onClick={() =>
+                                setAssignLawyerId(selected ? '' : l.id)
+                              }
+                              disabled={assignLoading}
+                              className={cn(
+                                'flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5 text-left transition-colors last:border-b-0',
+                                selected
+                                  ? 'bg-slate-900 text-white'
+                                  : 'bg-white text-slate-800 hover:bg-slate-50'
+                              )}
+                            >
+                              <div className='flex min-w-0 flex-col'>
+                                <span className='truncate text-[12px] font-bold'>
+                                  {l.name}
+                                </span>
+                                <span
+                                  className={cn(
+                                    'truncate text-[10px]',
+                                    selected ? 'text-white/70' : 'text-slate-500'
+                                  )}
+                                >
+                                  {(l.services ?? []).join(', ') ||
+                                    'No areas of law'}
+                                </span>
+                              </div>
+                              {typeof l.activeLeads === 'number' ? (
+                                <span
+                                  className={cn(
+                                    'flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums',
+                                    selected
+                                      ? 'bg-white/15 text-white'
+                                      : 'bg-slate-100 text-slate-600'
+                                  )}
+                                >
+                                  {l.activeLeads} active
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                    <textarea
+                      value={assignReason}
+                      onChange={(e) => setAssignReason(e.target.value)}
+                      rows={2}
+                      placeholder='Reason for assignment (required)'
+                      disabled={assignLoading}
+                      className='w-full resize-none rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60'
+                    />
+                    <div className='flex items-center justify-end'>
+                      <button
+                        type='button'
+                        onClick={handleAssignSubmit}
+                        disabled={
+                          assignLoading ||
+                          assignLawyerId === '' ||
+                          assignReason.trim().length === 0
+                        }
+                        className='inline-flex h-8 items-center rounded-md bg-slate-900 px-3 text-[12px] font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50'
+                      >
+                        {assignLoading ? 'Assigning…' : 'Assign lawyer'}
+                      </button>
                     </div>
                   </section>
                 ) : null}

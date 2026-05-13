@@ -56,6 +56,9 @@ export interface LawyerFormInitialData {
   notes?: string;
   profile_image_url?: string | null;
   specialtyId?: number | string | null;
+  /** Multi-area: lista de service_type_id actuales del lawyer. Sobreescribe
+   *  specialtyId si está presente. */
+  specialtyIds?: Array<number | string>;
   extraSpecialtiesCount?: number;
   max_leads?: number;
   /** When edit mode: pre-computed stats + status used for the activity block */
@@ -72,7 +75,11 @@ export interface LawyerFormPayload {
   phone: string;
   name_of_law_firm: string;
   notes: string;
+  /** Single area legacy — null si multi. Se mantiene por compat. */
   specialtyId: number | string | null;
+  /** Multi-area: array de service_type_ids seleccionados. Cliente pidió
+   *  recuperar esta funcionalidad que existía antes. */
+  specialtyIds: number[];
   max_leads: number;
   /** Only used in 'new' mode */
   password?: string;
@@ -147,7 +154,8 @@ export const LawyerFormModal = ({
   const [lawFirm, setLawFirm] = useState('');
   const [notes, setNotes] = useState('');
   const [password, setPassword] = useState('');
-  const [specialtyId, setSpecialtyId] = useState<string>('');
+  // Multi-area: Set de service_type_ids seleccionados.
+  const [specialtyIds, setSpecialtyIds] = useState<Set<number>>(new Set());
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -167,11 +175,24 @@ export const LawyerFormModal = ({
     setLawFirm(initial?.name_of_law_firm ?? '');
     setNotes(initial?.notes ?? '');
     setPassword('');
-    setSpecialtyId(
-      initial?.specialtyId !== undefined && initial?.specialtyId !== null
-        ? String(initial.specialtyId)
-        : ''
-    );
+    // Multi-area: leer initial.specialtyIds (preferred) o caer al
+    // legacy specialtyId single.
+    if (Array.isArray(initial?.specialtyIds)) {
+      setSpecialtyIds(
+        new Set(
+          (initial!.specialtyIds || [])
+            .map((v) => Number(v))
+            .filter((n) => Number.isFinite(n))
+        )
+      );
+    } else if (
+      initial?.specialtyId !== undefined &&
+      initial?.specialtyId !== null
+    ) {
+      setSpecialtyIds(new Set([Number(initial.specialtyId)]));
+    } else {
+      setSpecialtyIds(new Set());
+    }
     setImageFile(null);
     setImagePreview(initial?.profile_image_url ?? null);
   }, [open, initial]);
@@ -217,6 +238,7 @@ export const LawyerFormModal = ({
 
   const handleSubmit = async () => {
     if (loading) return;
+    const ids = Array.from(specialtyIds);
     await onSubmit({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -224,10 +246,22 @@ export const LawyerFormModal = ({
       phone: phone.trim(),
       name_of_law_firm: lawFirm.trim(),
       notes: notes.trim(),
-      specialtyId: specialtyId === '' ? null : specialtyId,
+      // legacy single specialty: enviamos el primero si hay alguno, null si no.
+      specialtyId: ids[0] ?? null,
+      // multi-area: array completo.
+      specialtyIds: ids,
       max_leads: Number(maxLeads) || 0,
       password: isEdit ? undefined : password,
       imageFile,
+    });
+  };
+
+  const toggleSpecialty = (id: number) => {
+    setSpecialtyIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
   };
 
@@ -333,20 +367,41 @@ export const LawyerFormModal = ({
                 </FormRow>
 
                 <FormRow>
-                  <Field label='Area of Law'>
-                    <SelectTrigger
-                      value={specialtyId}
-                      onChange={(v) => setSpecialtyId(v)}
-                      placeholder='Select specialty'
-                      options={specialties.map((s) => ({
-                        value: String(s.value),
-                        label: s.label,
-                      }))}
-                      disabled={loading}
-                      extraCount={initial?.extraSpecialtiesCount}
-                    />
+                  <Field label='Areas of Law'>
+                    {/* Multi-area: chips toggleables. Click agrega/quita
+                        del Set. El cliente reportó que la versión single-
+                        select había degradado la funcionalidad original. */}
+                    <div className='flex flex-wrap gap-1.5'>
+                      {specialties.length === 0 ? (
+                        <span className='text-[12px] text-slate-400'>
+                          No areas available
+                        </span>
+                      ) : (
+                        specialties.map((s) => {
+                          const id = Number(s.value);
+                          const active = specialtyIds.has(id);
+                          return (
+                            <button
+                              key={s.value}
+                              type='button'
+                              onClick={() => toggleSpecialty(id)}
+                              disabled={loading}
+                              className={
+                                'inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-[11px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ' +
+                                (active
+                                  ? 'border-slate-900 bg-slate-900 text-white'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300')
+                              }
+                            >
+                              {active ? '✓ ' : ''}
+                              {s.label}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
                   </Field>
-                  <Field label='No. Leads Allowed'>
+                  <Field label='No. Leads Allowed (per area)'>
                     <Input
                       type='number'
                       min={0}

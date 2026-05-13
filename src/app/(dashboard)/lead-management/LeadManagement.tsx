@@ -129,6 +129,7 @@ const LeadManagement = () => {
   const [bulkStatus, setBulkStatus] = useState<string>('');
   const [bulkComment, setBulkComment] = useState<string>('');
   const [lawyers, setLawyers] = useState<LawyerOption[]>([]);
+  const [singleAssignLoading, setSingleAssignLoading] = useState(false);
   const [lawyersLoading, setLawyersLoading] = useState(false);
 
   const uniqueStatuses = useMemo<string[]>(() => {
@@ -173,6 +174,30 @@ const LeadManagement = () => {
   const openLead = (row: LeadRow) => {
     setSelectedLead(row);
     setIsOpenLead(true);
+    // Issue #2: si el lead no está asignado, pre-cargamos lawyers para
+    // que el picker inline esté disponible sin click extra.
+    if (row.status === 'NEW' || row.status === 'EXPIRED') {
+      void ensureLawyersLoaded();
+    }
+  };
+
+  const handleSingleAssign = async (lawyerId: number, comment: string) => {
+    if (!selectedLead || Object.keys(selectedLead).length === 0) return;
+    setSingleAssignLoading(true);
+    const res = await api.leads.assign(selectedLead['lead id'], {
+      lawyer_id: lawyerId,
+      comment,
+    });
+    setSingleAssignLoading(false);
+    if (!res.success) {
+      // Issue #3: muestra el message real del backend en vez de uno
+      // genérico. El backend valida capacidad y matching de área de law.
+      toast.error(res.message || 'Could not assign lead');
+      return;
+    }
+    toast.success('Lead assigned successfully');
+    setIsOpenLead(false);
+    fetchLeads();
   };
 
   const handleSaveLead = async ({
@@ -313,19 +338,67 @@ const LeadManagement = () => {
 
   const summarizeBulkResult = (
     action: string,
-    res: { success: boolean; data?: { total: number; succeeded: number; failed: number } | null; message?: string }
+    res: {
+      success: boolean;
+      data?: {
+        total: number;
+        succeeded: number;
+        failed: number;
+        errors?: Array<{ lead_id: number; message: string }>;
+      } | null;
+      message?: string;
+    }
   ) => {
     if (!res.success || !res.data) {
       toast.error(res.message || `Bulk ${action} failed`);
       return false;
     }
-    const { succeeded, failed, total } = res.data;
+    const { succeeded, failed, total, errors } = res.data;
     if (failed > 0) {
-      toast(`Bulk ${action}: ${succeeded}/${total} ok, ${failed} failed`, {
-        icon: '⚠️',
-      });
+      // Issue #3: el backend devuelve errors[] con { lead_id, message }
+      // específicos (capacity exceeded, lawyer doesn't match area, etc).
+      // Renderizamos hasta 3 inline + "+N more" para que el admin sepa
+      // por qué falló cada lead.
+      const errorList = errors ?? [];
+      const previewCount = Math.min(errorList.length, 3);
+      const extra = errorList.length - previewCount;
+      toast(
+        (t) => (
+          <div className='flex flex-col gap-1.5 text-[12px]'>
+            <span className='font-bold text-slate-900'>
+              Bulk {action}: {succeeded}/{total} ok · {failed} failed
+            </span>
+            {errorList.slice(0, previewCount).map((err, i) => (
+              <span
+                key={`${err.lead_id}-${i}`}
+                className='text-[11px] text-slate-600'
+              >
+                <strong className='font-mono text-slate-900'>
+                  #{String(err.lead_id).padStart(5, '0')}
+                </strong>
+                : {err.message}
+              </span>
+            ))}
+            {extra > 0 ? (
+              <span className='text-[11px] font-medium text-slate-400'>
+                +{extra} more error{extra === 1 ? '' : 's'}
+              </span>
+            ) : null}
+            <button
+              type='button'
+              onClick={() => toast.dismiss(t.id)}
+              className='mt-1 self-end text-[10px] font-bold uppercase tracking-[0.04em] text-slate-500 hover:text-slate-900'
+            >
+              Dismiss
+            </button>
+          </div>
+        ),
+        { icon: '⚠️', duration: 10000 }
+      );
     } else {
-      toast.success(`Bulk ${action}: ${succeeded} lead${succeeded === 1 ? '' : 's'} ok`);
+      toast.success(
+        `Bulk ${action}: ${succeeded} lead${succeeded === 1 ? '' : 's'} ok`
+      );
     }
     return true;
   };
@@ -665,6 +738,14 @@ const LeadManagement = () => {
         }
         onSubmit={handleSaveLead}
         loading={loading}
+        assignableLawyers={lawyers.map((l) => ({
+          id: l.id,
+          name: l.name,
+          services: l.services,
+          activeLeads: l.activeLeads,
+        }))}
+        onAssign={handleSingleAssign}
+        assignLoading={singleAssignLoading}
         countdown={
           selectedLead.status === 'ASSIGNED' && selectedLead.date_updated ? (
             <CountdownTimer targetDate={selectedLead.date_updated} />
