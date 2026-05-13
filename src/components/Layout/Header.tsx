@@ -13,6 +13,7 @@ import {
 import { MdLogout, MdHelpOutline, MdChevronRight } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/store/useAuth.store';
+import { useNotifications } from '@/hooks/useNotifications';
 import { database } from '@/services/database';
 import { formatDate } from '@/utils/formatDate';
 import { cn } from '@/lib/cn';
@@ -40,62 +41,42 @@ const buildInitials = (firstName?: string, lastName?: string) => {
 const Header = () => {
   const { user } = useAuth();
   const router = useRouter();
-  const [dataNotification, setdataNotification] = useState<[] | null>(null);
-  const [count, setCount] = useState(0);
+  // Notificaciones centralizadas en el hook. El bug previo era que la
+  // rama admin (`GET /notifications`) estaba comentada y todos los users
+  // pegaban a `/notifications/lawyer/:id` — admin no recibía nada.
+  const {
+    items: dataNotification,
+    count,
+    markRead,
+    markAllRead,
+  } = useNotifications();
   const [locasUser, setLocasUser] = useState<any>(null);
   const [isOpenSignOut, setIsOpenSignOut] = useState(false);
   const [isOpenFaq, setIsOpenFaq] = useState(false);
 
-  const getNotifications = async () => {
-    if (Object.keys(user).length > 0) {
-      const resData = await database.fetchData(
-        `${process.env.NEXT_PUBLIC_URL}/notifications/lawyer/${user.id}`
-      );
-      if (!resData.success) {
-        toast.error('Error getting notifications');
-      }
-      const dataLawyerUser = await database.getLawyer(user.id);
-      setLocasUser(dataLawyerUser.data.data);
-
-      const countFalse = resData.data
-        .filter((item: any) => item.is_active === false)
-        .sort(
-          (a: any, b: any) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-      setdataNotification(countFalse);
-      setCount(countFalse.length);
-    }
-  };
+  // Cargamos los datos del lawyer en paralelo para el avatar/identity.
+  useEffect(() => {
+    if (!user || Object.keys(user).length === 0 || !user.id) return;
+    let alive = true;
+    (async () => {
+      const res = await database.getLawyer(user.id);
+      if (!alive) return;
+      setLocasUser(res?.data?.data ?? res?.data ?? null);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [user]);
 
   const handleTrueNotification = async (id: number) => {
-    const updateData = { is_active: true };
-    await database.updateData(
-      `${process.env.NEXT_PUBLIC_URL}/notifications/${id}`,
-      updateData
-    );
-    getNotifications();
+    await markRead(id);
     router.push(
-      user.role.name === 'admin' ? '/lead-management' : '/select-lead'
-    );
-  };
-
-  const markAllAsRead = async () => {
-    if (!dataNotification || dataNotification.length === 0) return;
-    const targets = dataNotification as any[];
-    setCount(0);
-    await Promise.all(
-      targets.map((n) =>
-        database.updateData(
-          `${process.env.NEXT_PUBLIC_URL}/notifications/${n.id}`,
-          { is_active: true }
-        )
-      )
+      user?.role?.name === 'admin' ? '/lead-management' : '/select-lead'
     );
   };
 
   const handleBellClick = () => {
-    if (count > 0) markAllAsRead();
+    if (count > 0) void markAllRead();
   };
 
   const signOut = () => {
@@ -103,11 +84,6 @@ const Header = () => {
     router.push('/');
     location.reload();
   };
-
-  useEffect(() => {
-    getNotifications();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
 
   const displayName = locasUser?.firstName
     ? `${locasUser.firstName} ${locasUser.lastName ?? ''}`.trim()
