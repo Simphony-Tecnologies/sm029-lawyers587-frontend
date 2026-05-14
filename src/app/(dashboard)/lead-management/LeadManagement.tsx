@@ -102,6 +102,10 @@ interface LawyerOption {
   name: string;
   services: string[];
   activeLeads: number;
+  /** Suma de max_leads de TODOS los services del lawyer (de /lawyers-services).
+   *  0 → "Pending setup": el admin no le configuró capacidad y NINGÚN
+   *  lead puede asignársele aunque tenga las áreas correctas. */
+  maxLeads: number;
   isActive: boolean;
 }
 
@@ -183,6 +187,24 @@ const LeadManagement = () => {
 
   const handleSingleAssign = async (lawyerId: number, comment: string) => {
     if (!selectedLead || Object.keys(selectedLead).length === 0) return;
+    // Pre-check client-side de capacity para fail-fast con un mensaje
+    // accionable. Backend valida igual server-side. Cubre el bug donde
+    // editar áreas creaba lawyer-service con max_leads=0.
+    const target = lawyers.find((l) => l.id === lawyerId);
+    if (target && target.maxLeads === 0) {
+      toast.error(
+        'This lawyer has no capacity configured. Edit the lawyer and set "No. Leads Allowed" >= 1.',
+        { duration: 8000 }
+      );
+      return;
+    }
+    if (target && target.activeLeads >= target.maxLeads && target.maxLeads > 0) {
+      toast.error(
+        `${target.name} is at capacity (${target.activeLeads}/${target.maxLeads}). Increase max leads or pick another lawyer.`,
+        { duration: 8000 }
+      );
+      return;
+    }
     setSingleAssignLoading(true);
     const res = await api.leads.assign(selectedLead['lead id'], {
       lawyer_id: lawyerId,
@@ -190,9 +212,12 @@ const LeadManagement = () => {
     });
     setSingleAssignLoading(false);
     if (!res.success) {
-      // Issue #3: muestra el message real del backend en vez de uno
-      // genérico. El backend valida capacidad y matching de área de law.
-      toast.error(res.message || 'Could not assign lead');
+      // El backend devuelve el message real (capacity exceeded, no area
+      // match, lead not NEW/EXPIRED). Lo mostramos verbatim con duración
+      // larga para que el admin lo lea.
+      toast.error(res.message || 'Could not assign lead', {
+        duration: 8000,
+      });
       return;
     }
     toast.success('Lead assigned successfully');
@@ -288,11 +313,32 @@ const LeadManagement = () => {
   const ensureLawyersLoaded = async () => {
     if (lawyers.length > 0 || lawyersLoading) return;
     setLawyersLoading(true);
-    const res = await api.lawyers.list({ is_active: true, limit: 1000 });
+    // Necesitamos /lawyers (v2 DTO) + /lawyers-services (legacy) para
+    // cruzar y sumar max_leads. Backend v2 /lawyers no devuelve max_leads;
+    // ese campo vive en la tabla `lawyers_services` con un row por área.
+    const [res, servicesRes] = await Promise.all([
+      api.lawyers.list({ is_active: true, limit: 1000 }),
+      database
+        .getData(`${process.env.NEXT_PUBLIC_URL}/lawyers-services`)
+        .catch(() => ({ success: false, data: [] as any[] })),
+    ]);
     setLawyersLoading(false);
     if (!res.success || !res.data) {
       toast.error(res.message || 'Could not load lawyers');
       return;
+    }
+    // Sum max_leads por lawyer_id.
+    const maxByLawyer = new Map<number, number>();
+    const servicesList: any[] = Array.isArray(servicesRes.data)
+      ? servicesRes.data
+      : Array.isArray((servicesRes as any).data?.data)
+      ? (servicesRes as any).data.data
+      : [];
+    for (const svc of servicesList) {
+      const lid = Number(svc?.lawyer_id);
+      const max = Number(svc?.max_leads ?? 0);
+      if (!Number.isFinite(lid) || !Number.isFinite(max)) continue;
+      maxByLawyer.set(lid, (maxByLawyer.get(lid) ?? 0) + max);
     }
     const opts: LawyerOption[] = res.data.data
       .map((l) => ({
@@ -302,6 +348,7 @@ const LeadManagement = () => {
           `Lawyer #${l.id}`,
         services: l.services ?? [],
         activeLeads: l.active_assigned_leads ?? 0,
+        maxLeads: maxByLawyer.get(l.id) ?? 0,
         isActive: l.is_active ?? true,
       }))
       .filter((o) => Number.isFinite(o.id));
@@ -743,6 +790,7 @@ const LeadManagement = () => {
           name: l.name,
           services: l.services,
           activeLeads: l.activeLeads,
+          maxLeads: l.maxLeads,
         }))}
         onAssign={handleSingleAssign}
         assignLoading={singleAssignLoading}
@@ -1098,16 +1146,34 @@ const LawyerPicker = ({
                     </span>
                   </div>
                 </div>
-                <span
-                  className={
-                    'flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums ' +
-                    (selected
-                      ? 'bg-white/15 text-white'
-                      : 'bg-slate-100 text-slate-600')
-                  }
-                >
-                  {l.activeLeads} active
-                </span>
+                {l.maxLeads === 0 ? (
+                  // Capacidad 0 → backend rechazará cualquier assign.
+                  // Mostrar warning visible para que admin entienda.
+                  <span
+                    className={
+                      'flex-shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] ' +
+                      (selected
+                        ? 'bg-white/15 text-white'
+                        : 'bg-red-50 text-customRed')
+                    }
+                    title='No max_leads configured — edit lawyer to set capacity'
+                  >
+                    Pending setup
+                  </span>
+                ) : (
+                  <span
+                    className={
+                      'flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums ' +
+                      (selected
+                        ? 'bg-white/15 text-white'
+                        : l.activeLeads >= l.maxLeads
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-slate-100 text-slate-600')
+                    }
+                  >
+                    {l.activeLeads}/{l.maxLeads}
+                  </span>
+                )}
               </button>
             );
           })
