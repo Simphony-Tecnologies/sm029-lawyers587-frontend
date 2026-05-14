@@ -59,6 +59,9 @@ export interface AssignableLawyer {
   name: string;
   services?: string[];
   activeLeads?: number;
+  /** Sum de max_leads de todas las áreas del lawyer. 0 = "Pending setup":
+   *  admin no le configuró capacidad y backend rechazará cualquier assign. */
+  maxLeads?: number;
 }
 
 export interface LeadInfoModalProps {
@@ -636,7 +639,33 @@ export const LeadInfoModal = ({
                                     'No areas of law'}
                                 </span>
                               </div>
-                              {typeof l.activeLeads === 'number' ? (
+                              {l.maxLeads === 0 ? (
+                                <span
+                                  className={cn(
+                                    'flex-shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em]',
+                                    selected
+                                      ? 'bg-white/15 text-white'
+                                      : 'bg-red-50 text-customRed'
+                                  )}
+                                  title='No max_leads configured — edit lawyer to set capacity'
+                                >
+                                  Pending setup
+                                </span>
+                              ) : typeof l.activeLeads === 'number' &&
+                                typeof l.maxLeads === 'number' ? (
+                                <span
+                                  className={cn(
+                                    'flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums',
+                                    selected
+                                      ? 'bg-white/15 text-white'
+                                      : l.activeLeads >= l.maxLeads
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-slate-100 text-slate-600'
+                                  )}
+                                >
+                                  {l.activeLeads}/{l.maxLeads}
+                                </span>
+                              ) : typeof l.activeLeads === 'number' ? (
                                 <span
                                   className={cn(
                                     'flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums',

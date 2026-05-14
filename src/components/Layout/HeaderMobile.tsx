@@ -6,76 +6,46 @@ import { useMobileStatus } from '@/store/useMobileStatus.store';
 import SkeletonText from '../atoms/SkeletonText';
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import { database } from '@/services/database';
-import toast from 'react-hot-toast';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/store/useAuth.store';
+import { useNotifications } from '@/hooks/useNotifications';
 import { formatDate } from '@/utils/formatDate';
 import { useRouter } from 'next/navigation';
 function HeaderMobile() {
   const { setStatusMobile, setToggleStatus } = useMobileStatus();
-  const [dataNotification, setdataNotification] = useState<[] | null>(null);
-  const [count, setCount] = useState(0);
+  const {
+    items: dataNotification,
+    count,
+    markRead,
+  } = useNotifications();
   const [locasUser, setLocasUser] = useState<any>(null);
   const { user } = useAuth();
-  const isUser = Object.keys(user).length > 0;
+  const isUser = !!user && Object.keys(user).length > 0;
   const router = useRouter();
-  const getNotifications = async () => {
-    if (Object.keys(user).length > 0) {
-      // if (user.role.name === 'admin') {
-      //   const resData = await database.fetchData(
-      //     `${process.env.NEXT_PUBLIC_URL}/notifications`
-      //   );
-      //   if (!resData.success) {
-      //     toast.error('Error getting notifications');
-      //   }
-      //   const countFalse = resData.data.filter(
-      //     (item: any) => item.is_active === false
-      //   );
-      //   setdataNotification(countFalse);
-      //   setCount(countFalse.length);
-      // }
 
-      const resData = await database.fetchData(
-        `${process.env.NEXT_PUBLIC_URL}/notifications/lawyer/${user.id}`
-      );
-      if (!resData.success) {
-        toast.error('Error getting notifications');
-      }
-      const dataLawyerUser = await database.getLawyer(user.id);
-      setLocasUser(dataLawyerUser.data.data);
-
-      const countFalse = resData.data
-        .filter((item: any) => item.is_active === false)
-        .sort(
-          (a: any, b: any) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-      setdataNotification(countFalse);
-      setCount(countFalse.length);
-    }
-  };
-  const handleTrueNotification = async (id: number) => {
-    const updateData = {
-      is_active: true,
+  useEffect(() => {
+    if (!user || Object.keys(user).length === 0 || !user.id) return;
+    let alive = true;
+    (async () => {
+      const res = await database.getLawyer(user.id);
+      if (!alive) return;
+      setLocasUser(res?.data?.data ?? res?.data ?? null);
+    })();
+    return () => {
+      alive = false;
     };
-    await database.updateData(
-      `${process.env.NEXT_PUBLIC_URL}/notifications/${id}`,
-      updateData
-    );
+  }, [user]);
 
-    getNotifications();
+  const handleTrueNotification = async (id: number) => {
+    await markRead(id);
     router.push(
-      user.role.name === 'admin' ? '/lead-management' : '/select-lead'
+      user?.role?.name === 'admin' ? '/lead-management' : '/select-lead'
     );
   };
   const toggleSidebarMobile = () => {
     setStatusMobile('fixed right-0 grid');
     setToggleStatus(true);
   };
-  useEffect(() => {
-    getNotifications();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
 
   return (
     <header className='lg:hidden bg-white p-4 items-center space-x-4 shadow flex justify-between z-0 '>

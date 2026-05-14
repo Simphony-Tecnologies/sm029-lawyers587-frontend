@@ -236,9 +236,19 @@ export const LawyerFormModal = ({
   const statusHint = initial?.statusHint;
   const sinceLabel = initial?.sinceLabel;
 
+  // Validación crítica: max_leads OBLIGATORIO >= 1 cuando hay áreas.
+  // Antes el form aceptaba 0 silenciosamente → POST /lawyers-services
+  // con max_leads=0 → backend rechaza CADA assign con "max exceeded"
+  // porque cualquier lead lo supera. (Bug reportado en producción).
+  const ids = Array.from(specialtyIds);
+  const parsedMaxLeads = Number(maxLeads);
+  const maxLeadsInvalid =
+    ids.length > 0 &&
+    (!Number.isFinite(parsedMaxLeads) || parsedMaxLeads < 1);
+
   const handleSubmit = async () => {
     if (loading) return;
-    const ids = Array.from(specialtyIds);
+    if (maxLeadsInvalid) return; // ya bloqueado por confirmDisabled
     await onSubmit({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -250,7 +260,7 @@ export const LawyerFormModal = ({
       specialtyId: ids[0] ?? null,
       // multi-area: array completo.
       specialtyIds: ids,
-      max_leads: Number(maxLeads) || 0,
+      max_leads: parsedMaxLeads,
       password: isEdit ? undefined : password,
       imageFile,
     });
@@ -401,15 +411,27 @@ export const LawyerFormModal = ({
                       )}
                     </div>
                   </Field>
-                  <Field label='No. Leads Allowed (per area)'>
+                  <Field
+                    label={
+                      ids.length > 0
+                        ? 'No. Leads Allowed (per area) *'
+                        : 'No. Leads Allowed (per area)'
+                    }
+                  >
                     <Input
                       type='number'
-                      min={0}
+                      min={1}
                       value={maxLeads}
                       onChange={(e) => setMaxLeads(e.target.value)}
                       placeholder='10'
                       disabled={loading}
                     />
+                    {maxLeadsInvalid ? (
+                      <span className='mt-1 block text-[11px] font-semibold text-customRed'>
+                        Required. Must be at least 1 — otherwise no leads
+                        can be assigned to this lawyer.
+                      </span>
+                    ) : null}
                   </Field>
                 </FormRow>
 
@@ -509,7 +531,7 @@ export const LawyerFormModal = ({
                 <button
                   type='button'
                   onClick={handleSubmit}
-                  disabled={loading}
+                  disabled={loading || maxLeadsInvalid}
                   className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-900 bg-slate-900 px-4 text-xs font-bold tracking-[-0.005em] text-white transition-colors hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-700/40 disabled:cursor-not-allowed disabled:opacity-60'
                 >
                   {loading ? 'Saving…' : submitLabel}
