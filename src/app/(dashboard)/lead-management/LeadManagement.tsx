@@ -74,6 +74,7 @@ const STATUS_OPTIONS_SELECT = [
   { name: 'Retained', value: 'CLOSED' },
   { name: 'Disabled', value: 'DISABLED' },
   { name: 'Archive', value: 'ARCHIVED' },
+  { name: 'Expired', value: 'EXPIRED' },
 ];
 const STATUS_OPTIONS_NEW = [
   { name: 'New', value: 'NEW' },
@@ -243,12 +244,6 @@ const LeadManagement = () => {
       toast.success('Lead archived');
       setIsOpenLead(false);
       fetchLeads();
-      return;
-    }
-    if (selectedLead.status === 'NEW') {
-      toast.error(
-        "You can't modify the lead if it isn't assigned to a lawyer"
-      );
       return;
     }
     const reasonRequired = upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST';
@@ -779,7 +774,8 @@ const LeadManagement = () => {
           selectedLead.status === 'DISABLED' ||
           selectedLead.status === 'LOST'
             ? STATUS_OPTIONS_DISABLED
-            : selectedLead.status === 'NEW'
+            : selectedLead.status === 'NEW' ||
+              selectedLead.status === 'EXPIRED'
             ? STATUS_OPTIONS_NEW
             : STATUS_OPTIONS_SELECT
         }

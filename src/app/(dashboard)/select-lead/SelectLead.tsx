@@ -308,9 +308,9 @@ const SelectLead = () => {
           >
             {pulling
               ? 'Pulling…'
-              : `Pull${
-                  selectedKeys.size > 0 ? ` ${selectedKeys.size}` : ''
-                } leads`}
+              : selectedKeys.size > 0
+                ? `Pull ${selectedKeys.size} lead${selectedKeys.size !== 1 ? 's' : ''}`
+                : 'Pull leads'}
           </button>
         }
       />
