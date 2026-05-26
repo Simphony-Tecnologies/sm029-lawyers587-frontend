@@ -15,7 +15,7 @@ const Button = ({
 }: button) => {
   return (
     <div
-      className={` rounded-md  bg-opacity-90 hover:bg-opacity-100 text-white inline-block px-4 py-1  ${color}`}
+      className={` rounded-md  bg-opacity-90 hover:bg-opacity-100 inline-block px-4 py-1  ${color.includes('text-') ? '' : 'text-white'} ${color}`}
     >
       <button disabled={disabled} type={type} onClick={onClick}>
         <p>{name}</p>

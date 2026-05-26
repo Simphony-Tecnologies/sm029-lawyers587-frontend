@@ -222,7 +222,7 @@ export const LeadInfoModal = ({
   }, [assignableLawyers, assignSearch]);
 
   const reasonLength = comment.length;
-  const reasonRequiredMissing = isDestructive && reasonLength === 0;
+  const reasonRequiredMissing = statusChanged && isDestructive && reasonLength === 0;
 
   const handleSubmit = async () => {
     if (!lead) return;

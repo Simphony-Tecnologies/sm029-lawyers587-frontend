@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Select from 'react-select';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
 type inputProps = {
@@ -36,15 +36,23 @@ const Input = ({
   setStatusSelected,
   setOnChange,
 }: inputProps) => {
+  const [selectValue, setSelectValue] = useState(defaultValue);
   const [selectedColor, setSelectedColor] = useState(
     statusColors ? statusColors[defaultValue] : null
   );
+
+  useEffect(() => {
+    setSelectValue(defaultValue);
+    if (statusColors) {
+      setSelectedColor(statusColors[defaultValue] || null);
+    }
+  }, [defaultValue]);
 
   const [showPassword, setShowPassword] = useState(false);
 
   const handleChangeColor = (event: any) => {
     const newValue = event.target.value;
-
+    setSelectValue(newValue);
     if (statusColors) {
       setSelectedColor(statusColors[newValue]);
     }
@@ -66,7 +74,7 @@ const Input = ({
         <select
           className="flex flex-row w-full max-w-lg border border-gray-300 p-1 rounded-lg placeholder:font-light text-text"
           name={name}
-          defaultValue={defaultValue}
+          value={selectValue}
           onChange={handleChangeColor}
           style={{
             color: selectedColor,
