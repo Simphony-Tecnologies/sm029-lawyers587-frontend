@@ -222,7 +222,7 @@ export const LeadInfoModal = ({
   }, [assignableLawyers, assignSearch]);
 
   const reasonLength = comment.length;
-  const reasonRequiredMissing = isDestructive && reasonLength === 0;
+  const reasonRequiredMissing = statusChanged && isDestructive && reasonLength === 0;
 
   const handleSubmit = async () => {
     if (!lead) return;
@@ -760,31 +760,32 @@ export const LeadInfoModal = ({
 
                 {/* Toggle (destructive only) */}
                 {isDestructive ? (
-                  <div className='flex items-center gap-3 rounded-[11px] border border-slate-200 bg-slate-50 px-4 py-3.5'>
-                    <button
-                      type='button'
-                      role='switch'
-                      aria-checked={doNotContact}
-                      onClick={() => setDoNotContact((v) => !v)}
-                      disabled={loading}
+                  <div
+                    role='button'
+                    tabIndex={0}
+                    onClick={() => !loading && setDoNotContact((v) => !v)}
+                    onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); !loading && setDoNotContact((v) => !v); } }}
+                    className='flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5'
+                  >
+                    <span
+                      aria-hidden
                       className={cn(
-                        'relative h-5 w-[34px] flex-shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:opacity-60',
-                        doNotContact ? 'bg-slate-900' : 'bg-slate-300'
+                        'relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors',
+                        doNotContact ? 'bg-slate-700' : 'bg-slate-300'
                       )}
                     >
                       <span
-                        aria-hidden
                         className={cn(
-                          'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-[0_1px_3px_rgba(11,15,25,0.20)] transition-transform',
-                          doNotContact ? 'translate-x-[14px]' : 'translate-x-0.5'
+                          'absolute top-[3px] h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform',
+                          doNotContact ? 'translate-x-[17px]' : 'translate-x-[3px]'
                         )}
                       />
-                    </button>
-                    <div className='flex flex-1 flex-col'>
-                      <span className='text-xs font-bold tracking-[-0.005em] text-slate-900'>
+                    </span>
+                    <div className='flex min-w-0 flex-1 flex-col'>
+                      <span className='text-[11px] font-semibold text-slate-700'>
                         Do not contact this lead again
                       </span>
-                      <span className='text-[11px] font-medium leading-[1.4] text-slate-500'>
+                      <span className='text-[10px] leading-tight text-slate-400'>
                         Client won&apos;t be re-assigned from future intakes.
                       </span>
                     </div>
