@@ -56,7 +56,7 @@ export const routesSidebar: dataItem[] = [
     group: 'Management',
   },
   {
-    name: 'Dashboard',
+    name: 'My workflow',
     route: '/dash-lawyers',
     icon: MdDashboard,
     rol: ['lawyer'],
