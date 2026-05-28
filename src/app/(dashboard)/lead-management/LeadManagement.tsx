@@ -251,8 +251,9 @@ const LeadManagement = () => {
         return;
       }
       toast.success('Lead archived');
+      setSelectedLead({});
       setIsOpenLead(false);
-      fetchLeads();
+      await fetchLeads();
       return;
     }
 
@@ -273,8 +274,9 @@ const LeadManagement = () => {
       return;
     }
     toast.success('Lead information updated successfully');
+    setSelectedLead({});
     setIsOpenLead(false);
-    fetchLeads();
+    await fetchLeads();
     setLoading(false);
   };
 

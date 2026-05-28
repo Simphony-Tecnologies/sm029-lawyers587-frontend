@@ -24,4 +24,16 @@ export const statusSelectAll = [
     name: 'Disabled',
     value: 'DISABLED',
   },
+  {
+    name: 'Assigned',
+    value: 'ASSIGNED',
+  },
+  {
+    name: 'Expired',
+    value: 'EXPIRED',
+  },
+  {
+    name: 'Archived',
+    value: 'ARCHIVED',
+  },
 ];

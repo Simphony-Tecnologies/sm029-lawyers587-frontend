@@ -8,4 +8,5 @@ export const statusColors: any = {
   LOST: '#FF9066',
   EXPIRED: '#FF0300',
   DISABLED: '#84818A',
+  ARCHIVED: '#84818A',
 };
