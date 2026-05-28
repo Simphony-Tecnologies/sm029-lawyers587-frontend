@@ -60,7 +60,7 @@ const KPI_DEFS: KpiDef[] = [
   },
   {
     key: 'problematic',
-    label: 'Problematic',
+    label: 'Flagged',
     sub: 'Need attention',
     tone: 'amber',
     icon: <MdInfoOutline size={14} />,

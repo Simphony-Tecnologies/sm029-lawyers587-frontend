@@ -85,7 +85,7 @@ const KPI_DEFS: KpiDef[] = [
   },
   {
     key: 'problematic',
-    label: 'Problematic',
+    label: 'Flagged',
     period: 'Pending review',
     tone: 'amber',
     icon: <MdInfoOutline size={16} />,

@@ -30,7 +30,7 @@ export const statistics: typeStatistis[] = [
     color: statusColors['IN PROGRESS'],
   },
   {
-    title: 'Problematic',
+    title: 'Flagged',
     value: 0,
     date: 'today',
     icon: LeadsforReview,

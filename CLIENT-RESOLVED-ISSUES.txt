@@ -1,0 +1,233 @@
+=========================================================================
+  REPORTE DE CORRECCIONES — PLATAFORMA DE ABOGADOS
+  Actualizado: 28 de Mayo, 2026
+=========================================================================
+
+
+=== RONDA 1 — 26 de Mayo, 2026 ==========================================
+
+  1. Status "Expired" no aparecia en los dropdowns
+  -------------------------------------------------
+  Problema: Cuando un lead tenia status Expired, el dropdown del modal
+            no lo mostraba correctamente — aparecia vacio o con otro valor.
+  Solucion: Se agrego "Expired" como opcion disponible en todos los
+            dropdowns de cambio de status.
+  Estado:   RESUELTO
+
+
+  2. El dropdown de status no se actualizaba al abrir otro lead
+  -------------------------------------------------------------
+  Problema: Al abrir un lead y luego abrir otro diferente, el dropdown
+            seguia mostrando el status del lead anterior en vez del nuevo.
+  Solucion: Se corrigio para que el dropdown siempre refleje el status
+            actual del lead que se esta viendo.
+  Estado:   RESUELTO
+
+
+  3. Leads jalados del pool seguian mostrando status incorrecto
+  -------------------------------------------------------------
+  Problema: Cuando un abogado jalaba leads del pool, estos seguian
+            apareciendo como "Expired" o "New" en vez de "Assigned".
+            Ademas el contador de 48 horas mostraba 0.
+  Solucion: El backend no estaba devolviendo el campo updated_at en el
+            listado de leads (GET /leads). El frontend usaba la fecha
+            de creacion como respaldo, que podia ser de hace semanas.
+            Backend corrigio el DTO para incluir updated_at. Frontend
+            ya lo usaba correctamente — ahora con el dato real, el
+            contador de 48 horas arranca bien.
+  Donde probar: Login como abogado > Select Lead > jalar un lead >
+                ir a All Leads > debe decir "Assigned" con countdown
+                de ~48h (no "Expired")
+  Estado:   RESUELTO (fix backend + frontend ya estaba correcto)
+
+
+  4. Boton "Pull leads" siempre decia plural
+  -------------------------------------------
+  Problema: El boton siempre decia "Pull leads" aunque solo se
+            seleccionara 1 lead.
+  Solucion: Ahora dice "Pull 1 lead" o "Pull 3 leads" segun la cantidad.
+            El mensaje de exito tambien se ajusta.
+  Estado:   RESUELTO
+
+
+  5. Un checkbox oculto cambiaba el status a Disabled sin avisar
+  --------------------------------------------------------------
+  Problema: En la vista de detalle del abogado, habia un checkbox escondido
+            que al estar marcado forzaba el status a "Disabled", ignorando
+            lo que el admin seleccionara en el dropdown.
+  Solucion: Se elimino ese checkbox y su logica. Ahora el dropdown
+            siempre respeta la seleccion del admin.
+  Estado:   RESUELTO
+
+
+  6. Paginas de sub-rutas de abogados no funcionaban
+  ---------------------------------------------------
+  Problema: Las paginas "Assigned Leads", "Lost Leads" y "Reassigned Leads"
+            dentro de Lawyer Management no tenian funcionalidad — no se
+            podia hacer click ni interactuar con nada.
+  Solucion: Estas paginas ahora redirigen automaticamente a la pagina
+            principal de Lawyer Management donde si se puede operar.
+  Estado:   RESUELTO
+
+
+
+=== RONDA 2 — 28 de Mayo, 2026 ==========================================
+
+  1. Las tarjetas de actividad/historial mostraban muy poca info
+  ---------------------------------------------------------------
+  Problema: En la seccion "Activity and Comments" del modal de un lead,
+            las tarjetas solo mostraban la persona y "update". El cliente
+            queria ver mas detalle.
+  Solucion: Ahora cada tarjeta de actividad muestra:
+            - Tipo de accion (ej: "STATUS CHANGE")
+            - Transicion clara: NEW -> ARCHIVED
+            - La nota/comentario completa (antes se cortaba)
+            - Quien hizo el cambio y su rol (ej: "Sergio Perez (Admin)")
+            - Fecha y hora formateada (ej: "May 27, 2026 — 7:17 AM")
+  Donde probar: Abrir cualquier lead > seccion Activity and Comments
+  Estado:   RESUELTO
+
+
+  2. Los leads archivados no podian regresar al pool
+  ---------------------------------------------------
+  Problema: Una vez que un lead se marcaba como "Archived", no habia
+            forma de regresarlo a "New" para que volviera al pool.
+  Solucion: Ahora cuando el admin abre un lead archivado, el dropdown
+            de status muestra la opcion "New" para poder regresarlo.
+            Backend confirmo que la transicion ARCHIVED -> NEW esta
+            permitida sin restricciones.
+  Donde probar: Lead Management > buscar un lead con status Archived >
+                abrir modal > cambiar a "New" > guardar
+  Estado:   RESUELTO
+
+
+  3. La etiqueta de razon decia "Reason for lost" en vez del nombre correcto
+  --------------------------------------------------------------------------
+  Problema: Cuando se cambiaba un lead de "In Progress" a "Send Back",
+            la etiqueta del campo de razon decia "Reason for lost"
+            en vez de usar el nombre correcto del status.
+  Solucion: Ahora la etiqueta usa el nombre que se ve en pantalla.
+            Ejemplo: "Reason for sent back", "Reason for problematic",
+            "Reason for retained", etc.
+  Donde probar: Abrir un lead > cambiar status a cualquier opcion >
+                verificar que la etiqueta diga el nombre correcto
+  Estado:   RESUELTO
+
+
+  4. Todos los cambios de status ahora requieren una nota obligatoria
+  -------------------------------------------------------------------
+  Problema: Solo los status "criticos" (Lost, Problematic, Send Back)
+            pedian una razon. Los demas cambios se podian hacer sin
+            dejar ningun comentario, lo cual no es ideal para auditoria.
+  Solucion: Ahora TODOS los cambios de status requieren una nota
+            obligatoria antes de guardar. No se puede guardar sin
+            escribir una razon. Incluye archivar — el backend ahora
+            acepta y registra el comentario en el audit log.
+  Donde probar: Abrir cualquier lead > cambiar a CUALQUIER status >
+                verificar que aparezca el campo de razon obligatorio >
+                intentar guardar sin texto (debe bloquear) >
+                escribir razon > guardar (debe funcionar)
+  Estado:   RESUELTO
+
+
+  5. El Admin ya no aparece en las listas de abogados
+  ---------------------------------------------------
+  Problema: Si la cuenta de Admin estaba activa, aparecia en el dropdown
+            de asignacion de leads como si fuera un abogado mas.
+  Solucion: Se filtro la lista para que solo muestre usuarios con rol
+            "Lawyer". Los usuarios con rol "Admin" ya no aparecen en
+            ningun dropdown de asignacion de leads.
+  Donde probar: Lead Management > seleccionar un lead New > abrir
+                picker de asignacion > verificar que ningun admin aparezca
+  Estado:   RESUELTO
+
+
+  6. El filtro de tiempo del Dashboard ahora es "All time" por defecto
+  --------------------------------------------------------------------
+  Problema: El dashboard del admin arrancaba con filtro "This week",
+            mostrando solo datos de la ultima semana.
+  Solucion: Ahora arranca con "All time" por defecto, mostrando todos
+            los datos desde el inicio. El admin puede cambiar el filtro
+            manualmente si quiere ver solo hoy, esta semana o este mes.
+  Donde probar: Ir al Dashboard del admin > verificar que el boton
+                de periodo diga "All time" al cargar
+  Estado:   RESUELTO
+
+
+
+=== RONDA 3 — 28 de Mayo, 2026 (hallados en testing) ====================
+
+  7. Tabs de filtro con texto inconsistente (unos en MAYUSCULAS, otros no)
+  ------------------------------------------------------------------------
+  Problema: En Lead Management, algunos tabs de filtro aparecian en
+            mayusculas (ASSIGNED, ARCHIVED, EXPIRED) mientras que otros
+            aparecian en formato normal (In progress, New, Send back).
+  Solucion: Se agregaron los status faltantes (Assigned, Expired,
+            Archived) al catalogo de nombres. Ahora todos se muestran
+            en formato uniforme.
+  Donde probar: Lead Management > ver los tabs de filtro > todos deben
+                estar en formato "Assigned", "Expired", "Archived"
+                (no en MAYUSCULAS)
+  Estado:   RESUELTO
+
+
+  8. La app se trababa al navegar despues de archivar un lead
+  -----------------------------------------------------------
+  Problema: Despues de archivar un lead y tratar de ir a otra seccion,
+            la pantalla se quedaba en blanco o daba error. Habia que
+            cerrar sesion y volver a entrar.
+  Solucion: Habia una condicion de carrera —si la app cerraba el modal
+            antes de terminar de refrescar los datos, dejando una
+            referencia al lead que ya no existia. Ahora primero
+            refresca los datos y luego cierra el modal.
+  Donde probar: Abrir un lead > cambiar a Archived > guardar >
+                navegar a otra seccion > NO debe dar error
+  Estado:   RESUELTO
+
+
+  9. El conteo "Total assigned" en la ficha del abogado estaba inflado
+  --------------------------------------------------------------------
+  Problema: En la vista de detalle de un abogado (Lawyer Management),
+            la tarjeta "Total assigned" mostraba un numero mayor al
+            real (ej: decia 7 pero solo habia 1 lead asignado).
+  Solucion: La tarjeta estaba usando un conteo historico del audit log
+            (cuantas veces se asigno algo en total) en vez del numero
+            actual de leads asignados. Se corrigio para mostrar el
+            conteo real de leads actuales.
+  Donde probar: Lawyer Management > click en un abogado > la tarjeta
+                "Total assigned" debe coincidir con la cantidad de
+                leads en la tabla de abajo
+  Estado:   RESUELTO
+
+
+  10. La tabla de leads del abogado no ordenaba por fecha
+  -------------------------------------------------------
+  Problema: En la vista "All Leads" del abogado, los leads aparecian
+            en orden aleatorio en vez de mostrar los mas recientes
+            primero. Era la unica tabla de toda la plataforma sin
+            orden por defecto.
+  Solucion: Se agrego orden descendente por fecha como valor por
+            defecto. Ahora los leads mas recientes aparecen primero,
+            igual que en las demas tablas de la plataforma.
+  Donde probar: Login como abogado > All Leads > los leads mas
+                recientes deben aparecer arriba
+  Estado:   RESUELTO
+
+
+  11. Leads recien jalados del pool aparecian como "Expired"
+  ----------------------------------------------------------
+  Problema: Al jalar un lead del pool, este aparecia de inmediato como
+            "Expired" en la tabla del abogado, aunque acabara de ser
+            asignado hace segundos.
+  Solucion: El backend no estaba incluyendo el campo updated_at en la
+            respuesta del listado de leads. Sin ese dato, el frontend
+            usaba la fecha de creacion del lead (que podia ser de hace
+            semanas) para calcular la expiracion de 48 horas.
+            Backend agrego updated_at al DTO de respuesta.
+  Donde probar: Login como abogado > Select Lead > jalar un lead >
+                All Leads > el lead debe mostrar countdown de ~48h,
+                NO "Expired"
+  Estado:   RESUELTO (fix backend)
+
+
+=========================================================================

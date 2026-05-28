@@ -9,7 +9,7 @@ export const statusSelectAll = [
   },
 
   {
-    name: 'Problematic',
+    name: 'Flagged',
     value: 'PROBLEMATIC',
   },
   {

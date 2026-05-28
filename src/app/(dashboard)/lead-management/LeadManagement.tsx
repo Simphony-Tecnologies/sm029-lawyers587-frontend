@@ -69,7 +69,7 @@ const initialsOf = (name: string) =>
 
 const STATUS_OPTIONS_SELECT = [
   { name: 'In progress', value: 'IN PROGRESS' },
-  { name: 'Problematic', value: 'PROBLEMATIC' },
+  { name: 'Flagged', value: 'PROBLEMATIC' },
   { name: 'Send back', value: 'LOST' },
   { name: 'Retained', value: 'CLOSED' },
   { name: 'Disabled', value: 'DISABLED' },
@@ -94,7 +94,7 @@ const STATUS_OPTIONS_ARCHIVED = [
 const BULK_STATUS_OPTIONS: { name: string; value: string }[] = [
   { name: 'New', value: 'NEW' },
   { name: 'In progress', value: 'IN PROGRESS' },
-  { name: 'Problematic', value: 'PROBLEMATIC' },
+  { name: 'Flagged', value: 'PROBLEMATIC' },
   { name: 'Send back', value: 'LOST' },
   { name: 'Retained', value: 'CLOSED' },
   { name: 'Disabled', value: 'DISABLED' },

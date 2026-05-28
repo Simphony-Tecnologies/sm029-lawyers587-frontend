@@ -41,7 +41,7 @@ const LABELS: Record<StatusPillVariant, string> = {
   new: 'New',
   assigned: 'Assigned',
   'in-progress': 'In progress',
-  problematic: 'Problematic',
+  problematic: 'Flagged',
   closed: 'Closed',
   lost: 'Sent back',
   expired: 'Expired',
