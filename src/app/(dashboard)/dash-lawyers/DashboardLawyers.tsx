@@ -60,7 +60,7 @@ const KPI_DEFS: KpiDef[] = [
   },
   {
     key: 'problematic',
-    label: 'Problematic',
+    label: 'Flagged',
     sub: 'Need attention',
     tone: 'amber',
     icon: <MdInfoOutline size={14} />,
@@ -191,7 +191,7 @@ const DashboardLawyers = () => {
   return (
     <div className='flex flex-col gap-5'>
       <PageHead
-        eyebrow='Lawyer overview'
+        eyebrow='My workflow'
         title={displayName}
         subtitle={
           capacityTotal > 0

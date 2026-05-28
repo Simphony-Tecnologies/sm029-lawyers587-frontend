@@ -96,7 +96,7 @@ const STATUS_OPTIONS_SELECT: LeadStatusOption[] = [
   { name: 'Assigned', value: 'ASSIGNED' },
   { name: 'In progress', value: 'IN PROGRESS' },
   { name: 'New', value: 'NEW' },
-  { name: 'Problematic', value: 'PROBLEMATIC' },
+  { name: 'Flagged', value: 'PROBLEMATIC' },
   { name: 'Send back', value: 'LOST' },
   { name: 'Retained', value: 'CLOSED' },
   { name: 'Disabled', value: 'DISABLED' },
@@ -110,7 +110,7 @@ const LEAD_STATUS_LABEL: Partial<Record<LeadStatus, string>> = {
   NEW: 'New',
   ASSIGNED: 'Assigned',
   'IN PROGRESS': 'In progress',
-  PROBLEMATIC: 'Problematic',
+  PROBLEMATIC: 'Flagged',
   CLOSED: 'Retained',
   LOST: 'Sent back',
   SEND_BACK: 'Sent back',
@@ -563,13 +563,11 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     return { total, lost, active };
   }, [lawyerLeads]);
 
-  // Cuando el summary del audit log está disponible, lo preferimos por ser
-  // server-side y no depender del store de leads.
   const kpis = useMemo(() => {
     const s = history?.summary;
     return {
-      total: s?.leads_assigned ?? stats.total,
-      unassigned: s?.leads_unassigned ?? stats.lost,
+      total: stats.total,
+      unassigned: stats.lost,
       active: stats.active,
       lastLogin: s?.last_login ?? lawyer?.last_login ?? null,
     };

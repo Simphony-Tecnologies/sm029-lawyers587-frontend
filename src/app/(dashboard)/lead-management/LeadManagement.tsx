@@ -69,7 +69,7 @@ const initialsOf = (name: string) =>
 
 const STATUS_OPTIONS_SELECT = [
   { name: 'In progress', value: 'IN PROGRESS' },
-  { name: 'Problematic', value: 'PROBLEMATIC' },
+  { name: 'Flagged', value: 'PROBLEMATIC' },
   { name: 'Send back', value: 'LOST' },
   { name: 'Retained', value: 'CLOSED' },
   { name: 'Disabled', value: 'DISABLED' },
@@ -86,11 +86,15 @@ const STATUS_OPTIONS_DISABLED = [
   { name: 'Disabled', value: 'DISABLED' },
   { name: 'Archive', value: 'ARCHIVED' },
 ];
+const STATUS_OPTIONS_ARCHIVED = [
+  { name: 'New', value: 'NEW' },
+  { name: 'Archive', value: 'ARCHIVED' },
+];
 
 const BULK_STATUS_OPTIONS: { name: string; value: string }[] = [
   { name: 'New', value: 'NEW' },
   { name: 'In progress', value: 'IN PROGRESS' },
-  { name: 'Problematic', value: 'PROBLEMATIC' },
+  { name: 'Flagged', value: 'PROBLEMATIC' },
   { name: 'Send back', value: 'LOST' },
   { name: 'Retained', value: 'CLOSED' },
   { name: 'Disabled', value: 'DISABLED' },
@@ -232,24 +236,24 @@ const LeadManagement = () => {
   }: LeadInfoSubmitPayload): Promise<void> => {
     if (!selectedLead || Object.keys(selectedLead).length === 0) return;
     const upper = (status ?? '').toUpperCase() as LeadStatus;
-    // ARCHIVE corre por su endpoint dedicado sin requerir comment.
+    const reason = (comments ?? '').trim();
+    if (reason.length === 0) {
+      toast.error('A reason is required for this status change');
+      return;
+    }
+    // ARCHIVE corre por su endpoint dedicado.
     if (upper === 'ARCHIVED') {
       setLoading(true);
-      const archived = await api.leads.archive(selectedLead['lead id']);
+      const archived = await api.leads.archive(selectedLead['lead id'], { comment: reason });
       setLoading(false);
       if (!archived.success) {
         toast.error(archived.message || 'Error archiving lead');
         return;
       }
       toast.success('Lead archived');
+      setSelectedLead({});
       setIsOpenLead(false);
-      fetchLeads();
-      return;
-    }
-    const reasonRequired = upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST';
-    const reason = (comments ?? '').trim();
-    if (reasonRequired && reason.length === 0) {
-      toast.error('A reason is required for this status change');
+      await fetchLeads();
       return;
     }
 
@@ -270,8 +274,9 @@ const LeadManagement = () => {
       return;
     }
     toast.success('Lead information updated successfully');
+    setSelectedLead({});
     setIsOpenLead(false);
-    fetchLeads();
+    await fetchLeads();
     setLoading(false);
   };
 
@@ -312,7 +317,7 @@ const LeadManagement = () => {
     // cruzar y sumar max_leads. Backend v2 /lawyers no devuelve max_leads;
     // ese campo vive en la tabla `lawyers_services` con un row por área.
     const [res, servicesRes] = await Promise.all([
-      api.lawyers.list({ is_active: true, limit: 1000 }),
+      api.lawyers.list({ is_active: true, role_id: 2, limit: 1000 }),
       database
         .getData(`${process.env.NEXT_PUBLIC_URL}/lawyers-services`)
         .catch(() => ({ success: false, data: [] as any[] })),
@@ -771,8 +776,10 @@ const LeadManagement = () => {
             : null
         }
         statusOptions={
-          selectedLead.status === 'DISABLED' ||
-          selectedLead.status === 'LOST'
+          selectedLead.status === 'ARCHIVED'
+            ? STATUS_OPTIONS_ARCHIVED
+            : selectedLead.status === 'DISABLED' ||
+              selectedLead.status === 'LOST'
             ? STATUS_OPTIONS_DISABLED
             : selectedLead.status === 'NEW' ||
               selectedLead.status === 'EXPIRED'

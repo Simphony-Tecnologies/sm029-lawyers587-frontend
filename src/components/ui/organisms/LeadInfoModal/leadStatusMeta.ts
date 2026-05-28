@@ -47,7 +47,7 @@ export const LEAD_STATUS_META: Record<LeadStatusKey, LeadStatusMeta> = {
     triggerMetaClass: 'text-sky-700/70',
   },
   PROBLEMATIC: {
-    label: 'Problematic',
+    label: 'Flagged',
     dotClass: 'bg-amber-500',
     textClass: 'text-amber-700',
     badgeBgClass: 'bg-amber-50',

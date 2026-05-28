@@ -47,7 +47,7 @@ type LeadRow = {
 
 const STATUS_OPTIONS: LeadStatusOption[] = [
   { name: 'In progress', value: 'IN PROGRESS' },
-  { name: 'Problematic', value: 'PROBLEMATIC' },
+  { name: 'Flagged', value: 'PROBLEMATIC' },
   { name: 'Send back', value: 'LOST' },
   { name: 'Retained', value: 'CLOSED' },
 ];
@@ -425,6 +425,7 @@ const AllLeads = () => {
         data={filtered}
         rowKey={(r) => r.id}
         onRowClick={handleOpenLead}
+        initialSort={{ key: 'expires', direction: 'desc' }}
         pagination={{
           enabled: true,
           initialPageSize: 20,

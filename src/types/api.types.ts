@@ -141,6 +141,7 @@ export type TimelineEntry =
       timestamp: string;
       action_type: ActionType;
       actor: LawyerRef;
+      actor_role?: string;
       old_value: any;
       new_value: any;
       comment: string | null;

@@ -1,0 +1,114 @@
+=========================================================================
+  MENSAJE URGENTE PARA EQUIPO BACKEND
+  Fecha: 28 de Mayo, 2026
+  Prioridad: ALTA
+=========================================================================
+
+Hola equipo,
+
+Durante las pruebas del frontend encontramos 3 problemas que dependen
+del backend. Los detallo abajo con la info necesaria para reproducir
+y resolver.
+
+
+--- PROBLEMA 1 (CRITICO) ---
+Pull de lead muestra "Expired" inmediatamente
+=========================================================================
+
+Que pasa:
+  Cuando un abogado jala un lead del pool, ese lead aparece de
+  inmediato como "Expired" en su tabla de leads, en vez de "Assigned".
+
+Causa identificada:
+  El endpoint POST /leads/pull NO esta actualizando el campo
+  "updated_at" del lead a la fecha/hora actual.
+
+  El frontend calcula si un lead esta expirado asi:
+    (fecha_actual - updated_at) > 48 horas → Expired
+
+  Si el pull no actualiza updated_at, el lead conserva su fecha
+  original (puede ser de hace dias), y el frontend lo marca como
+  expirado automaticamente.
+
+Que necesitamos:
+  Al procesar POST /leads/pull, el backend debe:
+  1. Cambiar el status del lead a "ASSIGNED"
+  2. Actualizar "updated_at" a NOW()
+  3. Asignar el "assigned_lawyer_id" al abogado que jalo
+
+Como verificar:
+  1. Hacer POST /leads/pull con un lead del pool
+  2. Luego GET /leads/:id
+  3. Confirmar que:
+     - status = "ASSIGNED"
+     - updated_at = fecha actual (no la fecha original del lead)
+     - assigned_lawyer_id = ID del abogado
+
+
+--- PROBLEMA 2 (IMPORTANTE) ---
+Endpoint de archivo debe aceptar comentario
+=========================================================================
+
+Que pasa:
+  El cliente pidio que TODOS los cambios de status requieran una nota
+  obligatoria, incluyendo archivar. El frontend ahora envia un body
+  con el comentario al archivar.
+
+Request actual del frontend:
+  PUT /leads/:id/archive
+  Body: { "comment": "razon del archivo..." }
+
+Que necesitamos:
+  Que el endpoint PUT /leads/:id/archive:
+  1. Acepte el campo "comment" en el body
+  2. Lo guarde en el audit_log (como se hace con los otros status changes)
+
+Si el endpoint ya ignora el body sin error, no se rompe nada, pero
+el comentario se pierde y no queda registrado en el historial.
+
+
+--- PROBLEMA 3 (IMPORTANTE) ---
+Transicion ARCHIVED → NEW debe estar permitida
+=========================================================================
+
+Que pasa:
+  El cliente pidio que el admin pueda regresar un lead archivado al
+  pool como "New". El frontend ahora permite esto y envia:
+
+  PUT /leads/:id
+  Body: { "status": "NEW", "comment": "razon..." }
+
+Que necesitamos:
+  Que el backend permita la transicion de status ARCHIVED → NEW.
+  Si hay validacion de transiciones de status en el backend, agregar
+  esta transicion como permitida.
+
+
+--- PROBLEMA 4 (MENOR) ---
+Conexion a base de datos inestable (ECONNRESET)
+=========================================================================
+
+En los logs del backend local vemos errores frecuentes:
+  ERROR [ExceptionsHandler] read ECONNRESET
+  QueryFailedError: read ECONNRESET
+
+Esto causa que algunas peticiones del frontend fallen
+intermitentemente. Puede ser un tema de:
+  - Pool de conexiones MySQL agotado
+  - Timeout de conexion muy bajo
+  - Base de datos remota con latencia alta
+
+No es bloqueante pero afecta las pruebas.
+
+
+=========================================================================
+  RESUMEN
+=========================================================================
+
+  #1 POST /leads/pull → actualizar updated_at a NOW()     [CRITICO]
+  #2 PUT /leads/:id/archive → aceptar { comment }         [IMPORTANTE]
+  #3 PUT /leads/:id → permitir ARCHIVED → NEW             [IMPORTANTE]
+  #4 Conexion DB inestable (ECONNRESET)                    [MENOR]
+
+Gracias!
+=========================================================================

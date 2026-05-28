@@ -85,7 +85,7 @@ const KPI_DEFS: KpiDef[] = [
   },
   {
     key: 'problematic',
-    label: 'Problematic',
+    label: 'Flagged',
     period: 'Pending review',
     tone: 'amber',
     icon: <MdInfoOutline size={16} />,
@@ -132,7 +132,7 @@ const Dashboard = () => {
   const pathname = usePathname();
 
   const [period, setPeriod] = useState<{ key: PeriodKey; days: number | null }>(
-    { key: 'week', days: 7 }
+    { key: 'all', days: null }
   );
 
   // Leads filtrados por la ventana temporal seleccionada en PeriodSelect.
