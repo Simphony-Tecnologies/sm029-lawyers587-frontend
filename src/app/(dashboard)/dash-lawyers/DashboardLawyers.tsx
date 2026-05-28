@@ -191,7 +191,7 @@ const DashboardLawyers = () => {
   return (
     <div className='flex flex-col gap-5'>
       <PageHead
-        eyebrow='Lawyer overview'
+        eyebrow='My workflow'
         title={displayName}
         subtitle={
           capacityTotal > 0
