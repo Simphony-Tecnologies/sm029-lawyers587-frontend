@@ -86,6 +86,10 @@ const STATUS_OPTIONS_DISABLED = [
   { name: 'Disabled', value: 'DISABLED' },
   { name: 'Archive', value: 'ARCHIVED' },
 ];
+const STATUS_OPTIONS_ARCHIVED = [
+  { name: 'New', value: 'NEW' },
+  { name: 'Archive', value: 'ARCHIVED' },
+];
 
 const BULK_STATUS_OPTIONS: { name: string; value: string }[] = [
   { name: 'New', value: 'NEW' },
@@ -771,8 +775,10 @@ const LeadManagement = () => {
             : null
         }
         statusOptions={
-          selectedLead.status === 'DISABLED' ||
-          selectedLead.status === 'LOST'
+          selectedLead.status === 'ARCHIVED'
+            ? STATUS_OPTIONS_ARCHIVED
+            : selectedLead.status === 'DISABLED' ||
+              selectedLead.status === 'LOST'
             ? STATUS_OPTIONS_DISABLED
             : selectedLead.status === 'NEW' ||
               selectedLead.status === 'EXPIRED'
