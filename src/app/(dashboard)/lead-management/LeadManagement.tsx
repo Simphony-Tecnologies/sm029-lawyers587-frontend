@@ -312,7 +312,7 @@ const LeadManagement = () => {
     // cruzar y sumar max_leads. Backend v2 /lawyers no devuelve max_leads;
     // ese campo vive en la tabla `lawyers_services` con un row por área.
     const [res, servicesRes] = await Promise.all([
-      api.lawyers.list({ is_active: true, limit: 1000 }),
+      api.lawyers.list({ is_active: true, role_id: 2, limit: 1000 }),
       database
         .getData(`${process.env.NEXT_PUBLIC_URL}/lawyers-services`)
         .catch(() => ({ success: false, data: [] as any[] })),
