@@ -425,6 +425,7 @@ const AllLeads = () => {
         data={filtered}
         rowKey={(r) => r.id}
         onRowClick={handleOpenLead}
+        initialSort={{ key: 'expires', direction: 'desc' }}
         pagination={{
           enabled: true,
           initialPageSize: 20,
