@@ -563,13 +563,11 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     return { total, lost, active };
   }, [lawyerLeads]);
 
-  // Cuando el summary del audit log está disponible, lo preferimos por ser
-  // server-side y no depender del store de leads.
   const kpis = useMemo(() => {
     const s = history?.summary;
     return {
-      total: s?.leads_assigned ?? stats.total,
-      unassigned: s?.leads_unassigned ?? stats.lost,
+      total: stats.total,
+      unassigned: stats.lost,
       active: stats.active,
       lastLogin: s?.last_login ?? lawyer?.last_login ?? null,
     };
