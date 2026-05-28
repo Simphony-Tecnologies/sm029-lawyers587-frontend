@@ -236,10 +236,15 @@ const LeadManagement = () => {
   }: LeadInfoSubmitPayload): Promise<void> => {
     if (!selectedLead || Object.keys(selectedLead).length === 0) return;
     const upper = (status ?? '').toUpperCase() as LeadStatus;
-    // ARCHIVE corre por su endpoint dedicado sin requerir comment.
+    const reason = (comments ?? '').trim();
+    if (reason.length === 0) {
+      toast.error('A reason is required for this status change');
+      return;
+    }
+    // ARCHIVE corre por su endpoint dedicado.
     if (upper === 'ARCHIVED') {
       setLoading(true);
-      const archived = await api.leads.archive(selectedLead['lead id']);
+      const archived = await api.leads.archive(selectedLead['lead id'], { comment: reason });
       setLoading(false);
       if (!archived.success) {
         toast.error(archived.message || 'Error archiving lead');
@@ -248,12 +253,6 @@ const LeadManagement = () => {
       toast.success('Lead archived');
       setIsOpenLead(false);
       fetchLeads();
-      return;
-    }
-    const reasonRequired = upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST';
-    const reason = (comments ?? '').trim();
-    if (reasonRequired && reason.length === 0) {
-      toast.error('A reason is required for this status change');
       return;
     }
 

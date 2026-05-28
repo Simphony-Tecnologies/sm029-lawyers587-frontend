@@ -717,10 +717,13 @@ export const api = {
         token
       ),
 
-    archive: (id: number, token?: string) =>
+    archive: (id: number, body?: { comment: string }, token?: string) =>
       apiRequest<{ id: number; status: 'ARCHIVED' }>(
         `/leads/${id}/archive`,
-        { method: 'PUT' },
+        {
+          method: 'PUT',
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        },
         token
       ),
 

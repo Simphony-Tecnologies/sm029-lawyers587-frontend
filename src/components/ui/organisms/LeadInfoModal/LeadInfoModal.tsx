@@ -222,7 +222,7 @@ export const LeadInfoModal = ({
   }, [assignableLawyers, assignSearch]);
 
   const reasonLength = comment.length;
-  const reasonRequiredMissing = statusChanged && isDestructive && reasonLength === 0;
+  const reasonRequiredMissing = statusChanged && reasonLength === 0;
 
   const handleSubmit = async () => {
     if (!lead) return;
@@ -535,19 +535,16 @@ export const LeadInfoModal = ({
                   </div>
                 </section>
 
-                {/* Reason for status change — sólo visible cuando el status
-                    seleccionado es crítico (PROBLEMATIC / SEND_BACK / LOST).
-                    Backend obliga `comment` en esos casos y va al
-                    audit_log.comment. Para statuses no críticos la razón
-                    NO es necesaria — el cliente lo veía como redundancia con
-                    el composer "Add a comment" de abajo. */}
-                {isDestructive ? (
+                {/* Reason for status change — visible for ALL status changes
+                    for legal/audit compliance. Destructive statuses (LOST,
+                    PROBLEMATIC, SEND_BACK) get red styling; others get neutral. */}
+                {statusChanged ? (
                   <section className='flex flex-col gap-1.5'>
                     <label
                       htmlFor='lead-comment'
                       className='inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'
                     >
-                      Reason for {(selectedStatus ?? '').toLowerCase().replace('_', ' ')}
+                      Reason for {getLeadStatusMeta(selectedStatus).label.toLowerCase()}
                       <span className='rounded bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-customRed'>
                         Required
                       </span>
@@ -563,7 +560,9 @@ export const LeadInfoModal = ({
                       className={cn(
                         'min-h-[96px] w-full resize-y rounded-[10px] border-[1.5px] bg-white px-3.5 py-3 text-[13px] font-medium leading-[1.5] text-slate-900 outline-none transition-colors',
                         'placeholder:font-normal placeholder:text-slate-400',
-                        'border-rose-200 focus:border-customRed focus:shadow-[0_0_0_3px_rgba(240,68,56,0.10)]',
+                        isDestructive
+                          ? 'border-rose-200 focus:border-customRed focus:shadow-[0_0_0_3px_rgba(240,68,56,0.10)]'
+                          : 'border-slate-200 focus:border-slate-400 focus:shadow-[0_0_0_3px_rgba(11,15,25,0.06)]',
                         'disabled:cursor-not-allowed disabled:opacity-60'
                       )}
                     />
