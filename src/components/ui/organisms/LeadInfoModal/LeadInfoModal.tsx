@@ -940,12 +940,19 @@ const NOTE_TYPE_PLACEHOLDER: Record<NoteType, string> = {
 const formatTs = (ts: string) => {
   try {
     const d = new Date(ts);
-    return d.toLocaleString(undefined, {
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return (
+      d.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      }) +
+      ' — ' +
+      d.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
+    );
   } catch {
     return ts;
   }
@@ -1078,37 +1085,50 @@ const TimelineRow = ({ entry }: { entry: TimelineEntry }) => {
     );
   }
 
+  // ── Audit entry ──
+  const actionLabel = entry.action_type.replace(/_/g, ' ').toUpperCase();
   const from = entry.old_value?.status;
   const to = entry.new_value?.status;
-  const detail =
-    entry.action_type === 'status_change' && from && to ? (
-      <>
-        <strong className='font-bold text-slate-900'>{from}</strong>
-        {' → '}
-        <strong className='font-bold text-slate-900'>{to}</strong>
-      </>
-    ) : (
-      entry.action_type.replace('_', ' ')
-    );
+  const roleSuffix =
+    entry.actor_role
+      ? ` (${entry.actor_role.charAt(0).toUpperCase() + entry.actor_role.slice(1)})`
+      : '';
 
   return (
     <div className='flex gap-2.5 px-3.5 py-3'>
       <span className='mt-0.5 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-slate-100 text-[10px] font-bold text-slate-600'>
         {initials}
       </span>
-      <div className='flex min-w-0 flex-1 flex-col gap-1'>
-        <div className='flex items-center justify-between gap-2'>
-          <span className='truncate text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
-            {entry.action_type.replace('_', ' ')}
-          </span>
-          <span className='text-[10px] font-semibold text-slate-400'>
-            {formatTs(entry.timestamp)}
-          </span>
-        </div>
-        <span className='text-[12px] text-slate-700'>{detail}</span>
-        <span className='text-[10px] font-medium text-slate-500'>
-          by {actorName}
-          {entry.comment ? ` · "${entry.comment.slice(0, 80)}"` : ''}
+      <div className='flex min-w-0 flex-1 flex-col gap-1.5'>
+        {/* Action label */}
+        <span className='text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500'>
+          {actionLabel}
+        </span>
+
+        {/* Status transition (only for status_change) */}
+        {entry.action_type === 'status_change' && from && to ? (
+          <div className='flex items-center gap-1.5 text-[13px] font-bold text-slate-900'>
+            <span>{from}</span>
+            <span className='text-slate-400'>→</span>
+            <span>{to}</span>
+          </div>
+        ) : null}
+
+        {/* Note / comment (full, not truncated) */}
+        {entry.comment ? (
+          <p className='whitespace-pre-wrap text-[12px] leading-[1.5] text-slate-700'>
+            {entry.comment}
+          </p>
+        ) : null}
+
+        {/* Actor + role */}
+        <p className='text-[11px] font-medium text-slate-500'>
+          By: <span className='font-semibold text-slate-700'>{actorName}{roleSuffix}</span>
+        </p>
+
+        {/* Timestamp */}
+        <span className='text-[10px] font-semibold text-slate-400'>
+          {formatTs(entry.timestamp)}
         </span>
       </div>
     </div>
