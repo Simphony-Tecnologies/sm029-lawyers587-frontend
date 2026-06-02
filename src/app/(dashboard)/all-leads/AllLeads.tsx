@@ -28,6 +28,7 @@ import {
   type LeadStatusOption,
 } from '@/components/ui';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
+import { useExpiredLeadsRelease } from '@/hooks/useExpiredLeadsRelease';
 import Loading from '../loading';
 
 dayjs.extend(utc);
@@ -93,6 +94,7 @@ const AllLeads = () => {
   const [sendBackTarget, setSendBackTarget] = useState<LeadRow | null>(null);
   const [sendBackReason, setSendBackReason] = useState('');
   const [sendBackLoading, setSendBackLoading] = useState(false);
+  const { releaseExpired } = useExpiredLeadsRelease();
 
   const fetchAssigned = async () => {
     if (!user?.id) return;
@@ -107,10 +109,27 @@ const AllLeads = () => {
       setRows([]);
       return;
     }
+    // Auto-release zombie ASSIGNED leads >48h to free capacity.
+    const released = await releaseExpired(res.data.data);
+    if (released > 0) {
+      // Re-fetch after releasing zombies to get clean data.
+      const fresh = await api.leads.list({
+        assigned_to: Number(user.id),
+        limit: 1000,
+      });
+      if (fresh.success && fresh.data) {
+        const next = fresh.data.data.map(toRow);
+        setRows(next);
+        if (statusFilter === null && next.some((r) => r.status === 'ASSIGNED')) {
+          setStatusFilter('ASSIGNED');
+        }
+        return;
+      }
+    }
+
     const next = res.data.data.map(toRow);
     setRows(next);
     // UX-L06: si hay leads ASSIGNED y aún no se fijó filtro, default a ASSIGNED
-    // — son los más relevantes para el lawyer al entrar.
     if (statusFilter === null && next.some((r) => r.status === 'ASSIGNED')) {
       setStatusFilter('ASSIGNED');
     }

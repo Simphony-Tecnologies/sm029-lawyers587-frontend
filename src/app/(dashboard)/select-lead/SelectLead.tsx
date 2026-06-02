@@ -4,10 +4,11 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
-import { MdArrowForward, MdInfoOutline, MdOutbox } from 'react-icons/md';
+import { MdInfoOutline, MdOutbox } from 'react-icons/md';
 import { api, database } from '@/services/database';
 import type { LeadDTO } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
+import { useExpiredLeadsRelease } from '@/hooks/useExpiredLeadsRelease';
 import useLoadingStore from '@/store/useLoadingStore';
 import { useLeadsStore } from '@/store/useLead.store';
 import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
@@ -61,6 +62,7 @@ const SelectLead = () => {
   );
   const [pulling, setPulling] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const { releaseExpired, reset: resetRelease } = useExpiredLeadsRelease();
 
   const lawyerServices = useMemo(
     () => getNameServiceLawyer(userDetail?.lawyersServices, services),
@@ -147,6 +149,22 @@ const SelectLead = () => {
 
   const handlePull = async () => {
     setPulling(true);
+
+    // Pre-pull: release zombie leads to free capacity if needed.
+    if (user?.id) {
+      const myLeads = await api.leads.list({
+        assigned_to: Number(user.id),
+        limit: 1000,
+      });
+      if (myLeads.success && myLeads.data) {
+        resetRelease();
+        const released = await releaseExpired(myLeads.data.data);
+        if (released > 0) {
+          await fetchAssignedCount();
+        }
+      }
+    }
+
     const ids = Array.from(selectedKeys).map((k) => Number(k));
     let succeeded = 0;
     const errors: string[] = [];
@@ -159,35 +177,26 @@ const SelectLead = () => {
       }
     }
     setPulling(false);
+
     if (errors.length > 0) {
       const unique = Array.from(new Set(errors));
+      const isCapacity = unique.some((e) => e.toLowerCase().includes('maximum'));
       toast.error(
-        `Pulled ${succeeded}/${ids.length} · ${errors.length} failed: ${unique.join('; ')}`
-      );
-    } else {
-      // UX-L10: toast con CTA para que el lawyer vea sus leads pulled.
-      toast.success(
-        (t) => (
-          <span className='flex items-center gap-2'>
-            <span>
-              Pulled {succeeded} lead{succeeded === 1 ? '' : 's'} successfully
-            </span>
-            <button
-              type='button'
-              onClick={() => {
-                toast.dismiss(t.id);
-                router.push('/all-leads');
-              }}
-              className='inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-[11px] font-bold text-white'
-            >
-              View
-              <MdArrowForward size={12} />
-            </button>
-          </span>
-        ),
-        { duration: 6000 }
+        `Pulled ${succeeded}/${ids.length} · ${errors.length} failed: ${unique.join('; ')}${
+          isCapacity
+            ? ' — Check "My Leads" for expired leads taking up capacity.'
+            : ''
+        }`
       );
     }
+
+    if (succeeded > 0) {
+      toast.success(
+        `Pulled ${succeeded} lead${succeeded === 1 ? '' : 's'} successfully`
+      );
+      router.push('/all-leads');
+    }
+
     setSelectedKeys(new Set());
     setConfirmOpen(false);
     void fetchLeads();
