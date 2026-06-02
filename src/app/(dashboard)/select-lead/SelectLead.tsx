@@ -8,7 +8,6 @@ import { MdInfoOutline, MdOutbox } from 'react-icons/md';
 import { api, database } from '@/services/database';
 import type { LeadDTO } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
-import { useExpiredLeadsRelease } from '@/hooks/useExpiredLeadsRelease';
 import useLoadingStore from '@/store/useLoadingStore';
 import { useLeadsStore } from '@/store/useLead.store';
 import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
@@ -62,7 +61,6 @@ const SelectLead = () => {
   );
   const [pulling, setPulling] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const { releaseExpired, reset: resetRelease } = useExpiredLeadsRelease();
 
   const lawyerServices = useMemo(
     () => getNameServiceLawyer(userDetail?.lawyersServices, services),
@@ -149,22 +147,6 @@ const SelectLead = () => {
 
   const handlePull = async () => {
     setPulling(true);
-
-    // Pre-pull: release zombie leads to free capacity if needed.
-    if (user?.id) {
-      const myLeads = await api.leads.list({
-        assigned_to: Number(user.id),
-        limit: 1000,
-      });
-      if (myLeads.success && myLeads.data) {
-        resetRelease();
-        const released = await releaseExpired(myLeads.data.data);
-        if (released > 0) {
-          await fetchAssignedCount();
-        }
-      }
-    }
-
     const ids = Array.from(selectedKeys).map((k) => Number(k));
     let succeeded = 0;
     const errors: string[] = [];
@@ -180,13 +162,8 @@ const SelectLead = () => {
 
     if (errors.length > 0) {
       const unique = Array.from(new Set(errors));
-      const isCapacity = unique.some((e) => e.toLowerCase().includes('maximum'));
       toast.error(
-        `Pulled ${succeeded}/${ids.length} · ${errors.length} failed: ${unique.join('; ')}${
-          isCapacity
-            ? ' — Check "My Leads" for expired leads taking up capacity.'
-            : ''
-        }`
+        `Pulled ${succeeded}/${ids.length} · ${errors.length} failed: ${unique.join('; ')}`
       );
     }
 
