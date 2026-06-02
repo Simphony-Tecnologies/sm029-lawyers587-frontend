@@ -81,6 +81,16 @@ const SelectLead = () => {
     0
   );
 
+  // Filtrar pool por services del lawyer — evita pulls a áreas que el backend rechaza
+  const filteredPool = useMemo(() => {
+    if (!lawyerServices.length) return pool;
+    const names = new Set(
+      lawyerServices.map((s: any) => s?.name).filter(Boolean)
+    );
+    if (names.size === 0) return pool;
+    return pool.filter((row) => names.has(row.service));
+  }, [pool, lawyerServices]);
+
   const fetchUserAndServices = async () => {
     if (!user?.id) return;
     const [lawyerRes, servicesRes] = await Promise.all([
@@ -138,18 +148,23 @@ const SelectLead = () => {
   const handlePull = async () => {
     setPulling(true);
     const ids = Array.from(selectedKeys).map((k) => Number(k));
-    const results = await Promise.all(
-      ids.map((leadId) =>
-        api.leads.pull({ lead_id: leadId, comment: 'Pulled from pool' })
-      )
-    );
+    let succeeded = 0;
+    const errors: string[] = [];
+    for (const leadId of ids) {
+      const res = await api.leads.pull({ lead_id: leadId, comment: 'Pulled from pool' });
+      console.log(`[pull] lead_id=${leadId}`, res.success, res.code, res.message, res.data);
+      if (res.success) {
+        succeeded++;
+      } else {
+        errors.push(res.message || `Lead #${leadId} failed (code ${res.code})`);
+      }
+    }
     setPulling(false);
-    const failed = results.filter((r) => !r.success);
-    const succeeded = results.length - failed.length;
-    if (failed.length > 0) {
-      toast(`Pulled ${succeeded}/${results.length} · ${failed.length} failed`, {
-        icon: '⚠️',
-      });
+    if (errors.length > 0) {
+      const unique = Array.from(new Set(errors));
+      toast.error(
+        `Pulled ${succeeded}/${ids.length} · ${errors.length} failed: ${unique.join('; ')}`
+      );
     } else {
       // UX-L10: toast con CTA para que el lawyer vea sus leads pulled.
       toast.success(
@@ -183,7 +198,7 @@ const SelectLead = () => {
 
   // Resumen para el dialog de pre-confirmación.
   const pullPreview = useMemo(() => {
-    const selected = pool.filter((p) => selectedKeys.has(p.id));
+    const selected = filteredPool.filter((p) => selectedKeys.has(p.id));
     const byService: Record<string, number> = {};
     for (const lead of selected) {
       const s = lead.service || '—';
@@ -194,7 +209,7 @@ const SelectLead = () => {
       byService,
       after: capacityTotal - assignedCount - selected.length,
     };
-  }, [pool, selectedKeys, capacityTotal, assignedCount]);
+  }, [filteredPool, selectedKeys, capacityTotal, assignedCount]);
 
   const pullFields: ConfirmationField[] = [
     {
@@ -347,7 +362,7 @@ const SelectLead = () => {
           period='Available to pull'
           tone='amber'
           icon={<MdOutbox size={14} />}
-          value={pool.length}
+          value={filteredPool.length}
           caption={
             <span className='text-[11px] font-medium text-slate-400'>
               {selectedKeys.size > 0
@@ -360,7 +375,7 @@ const SelectLead = () => {
 
       <DataTable
         columns={columns}
-        data={pool}
+        data={filteredPool}
         rowKey={(r) => r.id}
         selection={selection}
         pagination={{

@@ -107,6 +107,12 @@ const AllLeads = () => {
       setRows([]);
       return;
     }
+    const assigned = res.data.data.filter((l: LeadDTO) => l.status === 'ASSIGNED');
+    if (assigned.length > 0) {
+      console.log('[all-leads] ASSIGNED leads timestamps:', assigned.map((l: LeadDTO) => ({
+        id: l.id, updated_at: l.updated_at, created_at: l.created_at, entry_date: l.entry_date,
+      })));
+    }
     const next = res.data.data.map(toRow);
     setRows(next);
     // UX-L06: si hay leads ASSIGNED y aún no se fijó filtro, default a ASSIGNED
