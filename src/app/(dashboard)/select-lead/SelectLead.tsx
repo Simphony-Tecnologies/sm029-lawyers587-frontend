@@ -256,14 +256,6 @@ const SelectLead = () => {
       accessor: (r) => r.service,
     },
     {
-      key: 'status',
-      label: 'Status',
-      width: '140px',
-      sortable: true,
-      accessor: (r) => r.status,
-      render: (r) => <StatusPill variant={variantFromStatus(r.status) as any} />,
-    },
-    {
       key: 'entry_date',
       label: 'Entry',
       width: '130px',

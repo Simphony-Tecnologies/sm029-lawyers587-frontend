@@ -58,11 +58,9 @@ const STATUS_OPTIONS_CLOSED: LeadStatusOption[] = [
 
 const ASSIGNED_FRESHNESS_HOURS = 48;
 
-const isLeadExpired = (lead: LeadRow) => {
-  if (lead.status !== 'ASSIGNED') return false;
-  const hours = (Date.now() - lead.date_updated.getTime()) / 36e5;
-  return hours > ASSIGNED_FRESHNESS_HOURS;
-};
+// Backend is the authority on expiration (cron moves ASSIGNED→EXPIRED after 48h).
+// Frontend never blocks based on local timestamp calculation.
+const isLeadExpired = (_lead: LeadRow) => false;
 
 const toRow = (lead: LeadDTO): LeadRow => ({
   id: lead.id,
@@ -290,22 +288,25 @@ const AllLeads = () => {
         if (r.status === 'ASSIGNED') {
           const deadline = r.date_updated.getTime() + ASSIGNED_FRESHNESS_HOURS * 36e5;
           const remainingMs = deadline - Date.now();
-          const expired = remainingMs <= 0;
-          const hours = Math.max(0, Math.floor(remainingMs / 36e5));
-          const minutes = Math.max(0, Math.floor((remainingMs % 36e5) / 6e4));
-          const urgent = !expired && hours < 6;
-          const colorClass = expired
-            ? 'text-customRed'
-            : urgent
-            ? 'text-customRed'
-            : 'text-slate-700';
-          const label = expired
-            ? 'Expired'
-            : hours >= 24
-            ? `in ${Math.floor(hours / 24)}d ${hours % 24}h`
-            : hours > 0
-            ? `in ${hours}h ${minutes}m`
-            : `in ${minutes}m`;
+          if (remainingMs <= 0) {
+            // Backend is the authority on expiration. If it still says ASSIGNED,
+            // show the assigned date — don't show "Expired" label.
+            return (
+              <span className='text-[12px] text-slate-500'>
+                {dayjs.utc(r.date_updated).local().format('MMM DD, HH:mm')}
+              </span>
+            );
+          }
+          const hours = Math.floor(remainingMs / 36e5);
+          const minutes = Math.floor((remainingMs % 36e5) / 6e4);
+          const urgent = hours < 6;
+          const colorClass = urgent ? 'text-customRed' : 'text-slate-700';
+          const label =
+            hours >= 24
+              ? `in ${Math.floor(hours / 24)}d ${hours % 24}h`
+              : hours > 0
+              ? `in ${hours}h ${minutes}m`
+              : `in ${minutes}m`;
           return (
             <span className={`text-[12px] font-bold tabular-nums ${colorClass}`}>
               {label}
