@@ -152,7 +152,6 @@ const SelectLead = () => {
     const errors: string[] = [];
     for (const leadId of ids) {
       const res = await api.leads.pull({ lead_id: leadId, comment: 'Pulled from pool' });
-      console.log(`[pull] lead_id=${leadId}`, res.success, res.code, res.message, res.data);
       if (res.success) {
         succeeded++;
       } else {
