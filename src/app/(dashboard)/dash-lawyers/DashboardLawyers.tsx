@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import { api, database } from '@/services/database';
 import type { LeadDTO, LeadStatus } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
+import { useExpiredLeadsRelease } from '@/hooks/useExpiredLeadsRelease';
 import useLoadingStore from '@/store/useLoadingStore';
 import { useSelectStatus } from '@/store/useSelectStatus';
 import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
@@ -95,6 +96,7 @@ const DashboardLawyers = () => {
   const { setLoading } = useLoadingStore();
   const { user } = useAuth();
   const router = useRouter();
+  const { releaseExpired } = useExpiredLeadsRelease();
 
   const capacityTotal = maxLeadsAssigned
     ? maxLeadsAssigned.reduce(
@@ -116,9 +118,23 @@ const DashboardLawyers = () => {
       setLeads([]);
       return;
     }
-    setLeads(leadsRes.data.data);
     const dto = lawyerRes?.data?.data ?? lawyerRes?.data ?? null;
     setUserId(dto);
+
+    // Auto-release zombie ASSIGNED leads >48h to free capacity.
+    const released = await releaseExpired(leadsRes.data.data);
+    if (released > 0) {
+      const fresh = await api.leads.list({
+        assigned_to: Number(user.id),
+        limit: 1000,
+      });
+      if (fresh.success && fresh.data) {
+        setLeads(fresh.data.data);
+        return;
+      }
+    }
+
+    setLeads(leadsRes.data.data);
   };
 
   const fetchServiceTypes = async () => {
