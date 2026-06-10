@@ -95,6 +95,7 @@ type AuditFilter = 'all' | 'assignments' | 'status' | 'edits' | 'comments' | 'lo
 const STATUS_OPTIONS_SELECT: LeadStatusOption[] = [
   { name: 'Assigned', value: 'ASSIGNED' },
   { name: 'In progress', value: 'IN PROGRESS' },
+  { name: 'Waiting on Client', value: 'WAITING_ON_CLIENT' },
   { name: 'New', value: 'NEW' },
   { name: 'Flagged', value: 'PROBLEMATIC' },
   { name: 'Send back', value: 'LOST' },
@@ -102,7 +103,7 @@ const STATUS_OPTIONS_SELECT: LeadStatusOption[] = [
   { name: 'Disabled', value: 'DISABLED' },
 ];
 
-const ACTIVE_STATUSES = new Set(['ASSIGNED', 'IN PROGRESS']);
+const ACTIVE_STATUSES = new Set(['ASSIGNED', 'IN PROGRESS', 'WAITING_ON_CLIENT']);
 const LOST_STATUSES = new Set(['LOST', 'EXPIRED']);
 
 // Etiquetas legibles para los chips de status del lawyer detail.
@@ -110,6 +111,7 @@ const LEAD_STATUS_LABEL: Partial<Record<LeadStatus, string>> = {
   NEW: 'New',
   ASSIGNED: 'Assigned',
   'IN PROGRESS': 'In progress',
+  WAITING_ON_CLIENT: 'Waiting on Client',
   PROBLEMATIC: 'Flagged',
   CLOSED: 'Retained',
   LOST: 'Sent back',
@@ -641,7 +643,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     if (!selectedLead) return;
     const upper = (status ?? '').toUpperCase() as LeadStatus;
     const reasonRequired =
-      upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST';
+      upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST' || upper === 'WAITING_ON_CLIENT';
     const reason = (comments ?? '').trim();
     if (reasonRequired && reason.length === 0) {
       toast.error('A reason is required for this status change');

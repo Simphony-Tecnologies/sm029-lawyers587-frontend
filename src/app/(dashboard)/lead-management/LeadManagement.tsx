@@ -69,6 +69,7 @@ const initialsOf = (name: string) =>
 
 const STATUS_OPTIONS_SELECT = [
   { name: 'In progress', value: 'IN PROGRESS' },
+  { name: 'Waiting on Client', value: 'WAITING_ON_CLIENT' },
   { name: 'Flagged', value: 'PROBLEMATIC' },
   { name: 'Send back', value: 'LOST' },
   { name: 'Retained', value: 'CLOSED' },
@@ -76,8 +77,16 @@ const STATUS_OPTIONS_SELECT = [
   { name: 'Archive', value: 'ARCHIVED' },
   { name: 'Expired', value: 'EXPIRED' },
 ];
+// Lead NEW/EXPIRED: no tiene lawyer asignado.
+// Flagged (ej: spam) y Send back (ej: lawyer inactivo) son acciones
+// del admin que no requieren lawyer. In Progress y Retained sí requieren
+// un lawyer activo trabajando el lead.
 const STATUS_OPTIONS_NEW = [
-  { name: 'New', value: 'NEW' },
+  { name: 'In progress (assign first)', value: 'IN PROGRESS', disabled: true },
+  { name: 'Flagged', value: 'PROBLEMATIC' },
+  { name: 'Send back', value: 'LOST' },
+  { name: 'Retained (assign first)', value: 'CLOSED', disabled: true },
+  { name: 'Disabled', value: 'DISABLED' },
   { name: 'Archive', value: 'ARCHIVED' },
 ];
 const STATUS_OPTIONS_DISABLED = [
@@ -94,6 +103,7 @@ const STATUS_OPTIONS_ARCHIVED = [
 const BULK_STATUS_OPTIONS: { name: string; value: string }[] = [
   { name: 'New', value: 'NEW' },
   { name: 'In progress', value: 'IN PROGRESS' },
+  { name: 'Waiting on Client', value: 'WAITING_ON_CLIENT' },
   { name: 'Flagged', value: 'PROBLEMATIC' },
   { name: 'Send back', value: 'LOST' },
   { name: 'Retained', value: 'CLOSED' },
@@ -258,10 +268,13 @@ const LeadManagement = () => {
     }
 
     setLoading(true);
-    // Statuses que implican quitar asignación → endpoint /unassign dedicado.
+    // Statuses que implican quitar asignación → endpoint /unassign dedicado,
+    // pero solo si el lead tiene lawyer asignado. Un lead NEW/EXPIRED sin
+    // lawyer usa update directamente (ej: admin marca spam como LOST).
     const unassignStatuses: LeadStatus[] = ['LOST', 'SEND_BACK'];
     const leadId = selectedLead['lead id'];
-    const res = unassignStatuses.includes(upper)
+    const hasLawyer = !!selectedLead.assigned_lawyer_id;
+    const res = unassignStatuses.includes(upper) && hasLawyer
       ? await api.leads.unassign(leadId, { status: upper, comment: reason })
       : await api.leads.update(leadId, {
           status: upper,

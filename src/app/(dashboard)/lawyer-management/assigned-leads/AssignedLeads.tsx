@@ -27,7 +27,7 @@ type LeadRow = {
   status: string;
 };
 
-const ACTIVE_STATUSES = new Set(['ASSIGNED', 'IN PROGRESS']);
+const ACTIVE_STATUSES = new Set(['ASSIGNED', 'IN PROGRESS', 'WAITING_ON_CLIENT']);
 
 const formatId = (id: number | string) => String(id).padStart(5, '0');
 const formatDate = (d: Date | string) => dayjs(d).format('MMM DD, YYYY');
