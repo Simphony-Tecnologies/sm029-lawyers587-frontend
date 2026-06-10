@@ -1,11 +1,12 @@
 'use client';
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import Logo from '@/assets/Logo.svg';
 import { useAuth } from '@/store/useAuth.store';
 import { useMobileStatus } from '@/store/useMobileStatus.store';
-import { database } from '@/services/database';
+import { useSelectStatus } from '@/store/useSelectStatus';
+import { api, database } from '@/services/database';
 import { routesSidebar } from '@/routes/routes';
 import type { dataItem, NavGroup, rol } from '@/types/routes.interface';
 import { cn } from '@/lib/cn';
@@ -49,6 +50,18 @@ export default function Sidebar() {
   const role = (user?.role?.name as rol | undefined) ?? undefined;
   const pathName = decodeURIComponent(usePathname() ?? '');
 
+  // Lawyer sidebar: open dropdown by default + fetch pool count
+  const [poolCount, setPoolCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (role !== 'lawyer') return;
+    setOpenDropdown('/dash-lawyers');
+    api.leads.pool({ limit: 1 }).then((res) => {
+      if (res.success && res.data) {
+        setPoolCount(res.data.total ?? res.data.data?.length ?? 0);
+      }
+    });
+  }, [role]);
+
   const grouped = useMemo(() => {
     const map: Record<NavGroup, dataItem[]> = {
       Overview: [],
@@ -62,6 +75,19 @@ export default function Sidebar() {
     return map;
   }, [role]);
 
+  const { setSelecArray } = useSelectStatus();
+
+  // Map lawyer sub-item routes → status filters for /all-leads.
+  // Empty array [] = clear filter (show all leads).
+  // null = disabled item (not clickable).
+  const LAWYER_STATUS_MAP: Record<string, string[] | null> = {
+    '/all-leads': [],  // show all assigned leads (no filter)
+    '/all-leads/flagged': ['PROBLEMATIC'],
+    '/all-leads/retained': ['CLOSED'],
+    '/all-leads/waiting': ['WAITING_ON_CLIENT'],
+    '/all-leads/conversion': null, // TODO: conversion rate view
+  };
+
   const handleParentClick = (item: dataItem) => {
     if (item.children?.length) {
       setOpenDropdown((prev) => (prev === item.route ? null : item.route));
@@ -71,6 +97,14 @@ export default function Sidebar() {
   };
 
   const handleNavigate = () => setStatusMobile('hidden');
+
+  const handleLawyerSubItem = (child: dataItem) => {
+    const statuses = LAWYER_STATUS_MAP[child.route];
+    if (statuses === null) return; // disabled item
+    setSelecArray(statuses as any);
+    router.push('/all-leads');
+    setStatusMobile('hidden');
+  };
 
   const signOut = () => {
     database.signout();
@@ -167,14 +201,55 @@ export default function Sidebar() {
                         active={active}
                         href={item.route}
                         onClick={handleNavigate}
+                        badge={
+                          item.route === '/select-lead' && poolCount != null ? (
+                            <span className='inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-customRed px-1.5 text-[10px] font-bold tabular-nums text-white'>
+                              {poolCount}
+                            </span>
+                          ) : undefined
+                        }
                       />
                     )}
                     {expandable && expanded
                       ? item.children!.map((child) => {
                           if (role && !child.rol.includes(role)) return null;
-                          // Strict equality for subitems so the "overview"
-                          // subitem (route === parent.route) doesn't stay
-                          // active when navigating to deeper child routes.
+
+                          // Lawyer sub-items: status-filtered views of /all-leads.
+                          // They use the store instead of actual routes.
+                          const isLawyerFilter = child.route in LAWYER_STATUS_MAP;
+                          if (isLawyerFilter) {
+                            const disabled = LAWYER_STATUS_MAP[child.route] === null;
+                            const childActive = pathName === '/all-leads' && child.route === '/all-leads';
+                            return (
+                              <button
+                                key={child.route}
+                                type='button'
+                                disabled={disabled}
+                                onClick={() => handleLawyerSubItem(child)}
+                                className={cn(
+                                  'flex items-center gap-2.5 rounded-lg py-1.5 pl-10 pr-2.5 text-xs font-medium tracking-[-0.005em] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900',
+                                  childActive && 'font-semibold text-slate-900',
+                                  disabled && 'cursor-not-allowed opacity-40'
+                                )}
+                              >
+                                <span
+                                  aria-hidden
+                                  className={cn(
+                                    'h-1 w-1 shrink-0 rounded-full',
+                                    childActive ? 'bg-customRed' : 'bg-slate-300'
+                                  )}
+                                />
+                                <span className='truncate'>{child.name}</span>
+                                {disabled ? (
+                                  <span className='ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-400'>
+                                    Soon
+                                  </span>
+                                ) : null}
+                              </button>
+                            );
+                          }
+
+                          // Admin sub-items: regular route links.
                           const childActive = pathName === child.route;
                           return (
                             <NavSubItem

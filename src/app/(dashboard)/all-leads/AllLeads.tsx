@@ -47,6 +47,7 @@ type LeadRow = {
 
 const STATUS_OPTIONS: LeadStatusOption[] = [
   { name: 'In progress', value: 'IN PROGRESS' },
+  { name: 'Waiting on Client', value: 'WAITING_ON_CLIENT' },
   { name: 'Flagged', value: 'PROBLEMATIC' },
   { name: 'Send back', value: 'LOST' },
   { name: 'Retained', value: 'CLOSED' },
@@ -115,6 +116,7 @@ const AllLeads = () => {
 
   useEffect(() => {
     void fetchAssigned();
+    return () => setSelecArray([]); // clean up filter on unmount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -165,7 +167,7 @@ const AllLeads = () => {
     if (!selectedLead) return;
     const upper = (status ?? '').toUpperCase() as LeadStatus;
     const reasonRequired =
-      upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST';
+      upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST' || upper === 'WAITING_ON_CLIENT';
     const reason = (comments ?? '').trim();
     if (reasonRequired && reason.length === 0) {
       toast.error('A reason is required for this status change');
