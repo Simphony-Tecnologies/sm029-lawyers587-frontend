@@ -9,6 +9,7 @@ export {
   LEAD_STATUS_META,
   getLeadStatusMeta,
   isDestructiveStatus,
+  isReasonRequired,
   type LeadStatusKey,
   type LeadStatusMeta,
 } from './leadStatusMeta';

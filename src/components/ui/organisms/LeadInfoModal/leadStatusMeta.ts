@@ -108,9 +108,14 @@ export const getLeadStatusMeta = (raw?: string): LeadStatusMeta => {
   return LEAD_STATUS_META[key] ?? LEAD_STATUS_META.DISABLED;
 };
 
-// Statuses que requieren razón obligatoria — alineado con backend
-// (PROBLEMATIC y SEND_BACK validan `comment` server-side; LOST implica unassign).
+// Statuses que requieren razón obligatoria — alineado con backend.
 const REASON_REQUIRED_STATUSES = new Set(['LOST', 'PROBLEMATIC', 'SEND_BACK', 'WAITING_ON_CLIENT']);
 
-export const isDestructiveStatus = (raw?: string): boolean =>
+export const isReasonRequired = (raw?: string): boolean =>
   REASON_REQUIRED_STATUSES.has((raw ?? '').toUpperCase());
+
+// Destructive = permanent/unassign action. Red warning + "do not contact" toggle.
+const DESTRUCTIVE_STATUSES = new Set(['LOST', 'SEND_BACK']);
+
+export const isDestructiveStatus = (raw?: string): boolean =>
+  DESTRUCTIVE_STATUSES.has((raw ?? '').toUpperCase());

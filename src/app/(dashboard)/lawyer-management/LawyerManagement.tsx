@@ -328,6 +328,7 @@ const LawyerManagement = () => {
           item.status === 'ASSIGNED' ||
           item.status === 'PROBLEMATIC' ||
           item.status === 'IN PROGRESS' ||
+          item.status === 'WAITING_ON_CLIENT' ||
           item.status === 'CLOSED'
       ).length;
       const lost = filterLeads.filter(

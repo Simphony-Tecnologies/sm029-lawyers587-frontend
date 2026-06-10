@@ -45,7 +45,7 @@ const LABELS: Record<StatusPillVariant, string> = {
   'in-progress': 'In progress',
   'waiting-on-client': 'Waiting on Client',
   problematic: 'Flagged',
-  closed: 'Closed',
+  closed: 'Retained',
   lost: 'Sent back',
   expired: 'Expired',
   disabled: 'Disabled',
