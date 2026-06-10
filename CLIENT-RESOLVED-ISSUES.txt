@@ -180,7 +180,7 @@
             antes de terminar de refrescar los datos, dejando una
             referencia al lead que ya no existia. Ahora primero
             refresca los datos y luego cierra el modal.
-  Donde probar: Abrir un lead > cambiar a Archived > guardar >
+\  Donde probar: Abrir un lead > cambiar a Archived > guardar >
                 navegar a otra seccion > NO debe dar error
   Estado:   RESUELTO
 

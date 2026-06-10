@@ -13,6 +13,7 @@ import { useLeadsStore } from '@/store/useLead.store';
 import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
 import {
   Avatar,
+  BulkActionBar,
   ConfirmationDialog,
   DataTable,
   EmptyStateBox,
@@ -53,6 +54,7 @@ const SelectLead = () => {
   const { setLoading, isLoading } = useLoadingStore();
 
   const [pool, setPool] = useState<PoolRow[]>([]);
+  const [poolTotal, setPoolTotal] = useState(0);
   const [assignedCount, setAssignedCount] = useState(0);
   const [userDetail, setUserDetail] = useState<any>(null);
   const [services, setServices] = useState<any[]>([]);
@@ -120,6 +122,7 @@ const SelectLead = () => {
       setPool([]);
       return;
     }
+    setPoolTotal(res.data.total ?? res.data.data.length);
     setPool(res.data.data.map(toRow));
   };
 
@@ -339,7 +342,7 @@ const SelectLead = () => {
           period='Available to pull'
           tone='amber'
           icon={<MdOutbox size={14} />}
-          value={filteredPool.length}
+          value={poolTotal}
           caption={
             <span className='text-[11px] font-medium text-slate-400'>
               {selectedKeys.size > 0
@@ -368,6 +371,23 @@ const SelectLead = () => {
             description='There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.'
           />
         }
+      />
+
+      <BulkActionBar
+        count={selectedKeys.size}
+        itemLabel={{ singular: 'lead selected', plural: 'leads selected' }}
+        onDeselect={() => setSelectedKeys(new Set())}
+        actions={[
+          {
+            key: 'pull',
+            label: pulling
+              ? 'Pulling…'
+              : `Pull ${selectedKeys.size} lead${selectedKeys.size !== 1 ? 's' : ''}`,
+            icon: <MdOutbox size={14} />,
+            onClick: openPullConfirm,
+            disabled: pulling || selectedKeys.size === 0,
+          },
+        ]}
       />
 
       {/* UX-L03: pre-confirmación con resumen claro. Evita pulls accidentales. */}
