@@ -75,7 +75,7 @@ export default function Sidebar() {
     return map;
   }, [role]);
 
-  const { setSelecArray } = useSelectStatus();
+  const { selecArray, setSelecArray } = useSelectStatus();
 
   // Map lawyer sub-item routes → status filters for /all-leads.
   // Empty array [] = clear filter (show all leads).
@@ -85,7 +85,6 @@ export default function Sidebar() {
     '/all-leads/flagged': ['PROBLEMATIC'],
     '/all-leads/retained': ['CLOSED'],
     '/all-leads/waiting': ['WAITING_ON_CLIENT'],
-    '/all-leads/conversion': null, // TODO: conversion rate view
   };
 
   const handleParentClick = (item: dataItem) => {
@@ -218,8 +217,15 @@ export default function Sidebar() {
                           // They use the store instead of actual routes.
                           const isLawyerFilter = child.route in LAWYER_STATUS_MAP;
                           if (isLawyerFilter) {
-                            const disabled = LAWYER_STATUS_MAP[child.route] === null;
-                            const childActive = pathName === '/all-leads' && child.route === '/all-leads';
+                            const mapped = LAWYER_STATUS_MAP[child.route];
+                            const disabled = mapped === null;
+                            // Active when on /all-leads and the store filter matches this item's statuses
+                            const childActive =
+                              pathName === '/all-leads' &&
+                              mapped !== null &&
+                              (mapped.length === 0
+                                ? selecArray.length === 0
+                                : mapped.every((s) => (selecArray as string[]).includes(s)));
                             return (
                               <button
                                 key={child.route}

@@ -183,7 +183,6 @@ const AllLeads = () => {
       : await api.leads.update(selectedLead.id, {
           status: upper,
           comment: reason || undefined,
-          description: selectedLead.description,
         });
     setSubmitting(false);
     if (!res.success) {
