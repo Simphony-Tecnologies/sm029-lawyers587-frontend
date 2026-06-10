@@ -4,6 +4,7 @@ export const statusColors: any = {
   'IN PROGRESS': '#4AD991',
   CLOSED: '#00B69B',
   PROBLEMATIC: '#FEC53D',
+  WAITING_ON_CLIENT: '#FF9066',
   REASSIGNED: '#FEC53D',
   LOST: '#FF9066',
   EXPIRED: '#FF0300',

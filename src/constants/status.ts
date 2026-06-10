@@ -13,6 +13,10 @@ export const statusSelectAll = [
     value: 'PROBLEMATIC',
   },
   {
+    name: 'Waiting on Client',
+    value: 'WAITING_ON_CLIENT',
+  },
+  {
     name: 'Send back',
     value: 'LOST',
   },

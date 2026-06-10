@@ -3,6 +3,7 @@ export type LeadStatusKey =
   | 'ASSIGNED'
   | 'IN PROGRESS'
   | 'PROBLEMATIC'
+  | 'WAITING_ON_CLIENT'
   | 'CLOSED'
   | 'LOST'
   | 'EXPIRED'
@@ -55,6 +56,15 @@ export const LEAD_STATUS_META: Record<LeadStatusKey, LeadStatusMeta> = {
     triggerHoverClass: 'hover:bg-amber-100 hover:border-amber-300',
     triggerMetaClass: 'text-amber-700/70',
   },
+  WAITING_ON_CLIENT: {
+    label: 'Waiting on Client',
+    dotClass: 'bg-orange-500',
+    textClass: 'text-orange-700',
+    badgeBgClass: 'bg-orange-50',
+    triggerClass: 'bg-orange-50 border-orange-200 text-orange-700',
+    triggerHoverClass: 'hover:bg-orange-100 hover:border-orange-300',
+    triggerMetaClass: 'text-orange-700/70',
+  },
   CLOSED: {
     label: 'Retained',
     dotClass: 'bg-emerald-500',
@@ -100,7 +110,7 @@ export const getLeadStatusMeta = (raw?: string): LeadStatusMeta => {
 
 // Statuses que requieren razón obligatoria — alineado con backend
 // (PROBLEMATIC y SEND_BACK validan `comment` server-side; LOST implica unassign).
-const REASON_REQUIRED_STATUSES = new Set(['LOST', 'PROBLEMATIC', 'SEND_BACK']);
+const REASON_REQUIRED_STATUSES = new Set(['LOST', 'PROBLEMATIC', 'SEND_BACK', 'WAITING_ON_CLIENT']);
 
 export const isDestructiveStatus = (raw?: string): boolean =>
   REASON_REQUIRED_STATUSES.has((raw ?? '').toUpperCase());

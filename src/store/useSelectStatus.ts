@@ -7,7 +7,8 @@ type status =
   | 'IN PROGRESS'
   | 'LOST'
   | 'EXPIRED'
-  | 'DISABLED';
+  | 'DISABLED'
+  | 'WAITING_ON_CLIENT';
 type typeSelectStatus = {
   selecArray: status[];
   setSelecArray: (state: status[]) => void;
