@@ -14,7 +14,8 @@ export type LeadStatus =
   | 'EXPIRED'
   | 'DISABLED'
   | 'ARCHIVED'
-  | 'SEND_BACK';
+  | 'SEND_BACK'
+  | 'WAITING_ON_CLIENT';
 
 export type NoteType = 'internal' | 'client_facing' | 'urgent';
 

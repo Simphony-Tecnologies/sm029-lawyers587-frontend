@@ -10,6 +10,7 @@ const statusPillStyles = cva(
         new: 'bg-emerald-50 text-emerald-700',
         assigned: 'bg-sky-50 text-sky-700',
         'in-progress': 'bg-amber-50 text-amber-700',
+        'waiting-on-client': 'bg-orange-50 text-orange-700',
         problematic: 'bg-rose-50 text-rose-700',
         closed: 'bg-slate-100 text-slate-600',
         lost: 'bg-orange-50 text-orange-700',
@@ -27,6 +28,7 @@ export type StatusPillVariant =
   | 'new'
   | 'assigned'
   | 'in-progress'
+  | 'waiting-on-client'
   | 'problematic'
   | 'closed'
   | 'lost'
@@ -41,8 +43,9 @@ const LABELS: Record<StatusPillVariant, string> = {
   new: 'New',
   assigned: 'Assigned',
   'in-progress': 'In progress',
+  'waiting-on-client': 'Waiting on Client',
   problematic: 'Flagged',
-  closed: 'Closed',
+  closed: 'Retained',
   lost: 'Sent back',
   expired: 'Expired',
   disabled: 'Disabled',
@@ -52,6 +55,7 @@ const RAW_TO_VARIANT: Record<string, StatusPillVariant> = {
   NEW: 'new',
   ASSIGNED: 'assigned',
   'IN PROGRESS': 'in-progress',
+  WAITING_ON_CLIENT: 'waiting-on-client',
   PROBLEMATIC: 'problematic',
   CLOSED: 'closed',
   LOST: 'lost',

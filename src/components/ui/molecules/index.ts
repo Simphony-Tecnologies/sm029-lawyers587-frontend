@@ -14,6 +14,7 @@ export * from './NavGroupLabel';
 export * from './NavItem';
 export * from './NavSubItem';
 export * from './PageHead';
+export * from './PipelineChart';
 export * from './Pagination';
 export * from './PeriodSelect';
 export * from './PillBell';

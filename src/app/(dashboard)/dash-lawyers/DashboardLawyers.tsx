@@ -9,7 +9,9 @@ import {
   MdHighlightOff,
   MdInfoOutline,
   MdOutbox,
+  MdSchedule,
   MdSwapHoriz,
+  MdFlag,
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import { api, database } from '@/services/database';
@@ -23,10 +25,12 @@ import {
   Avatar,
   KpiCard,
   PageHead,
+  PipelineChart,
   StatusPill,
   toneFromString,
   variantFromStatus,
   type KpiTone,
+  type PipelineSegment,
 } from '@/components/ui';
 
 dayjs.extend(relativeTime);
@@ -40,39 +44,43 @@ type KpiDef = {
   statuses: LeadStatus[];
 };
 
-// Alineado con el mock HTML 13 (lawyer my-leads) — 4 KPIs por status.
-const KPI_DEFS: KpiDef[] = [
+// Row 1: primary KPIs (2 cols) — Active + Retained
+const KPI_ROW_1: KpiDef[] = [
   {
-    key: 'pulled',
-    label: 'Pulled / Assigned',
+    key: 'active',
+    label: 'Active Leads',
     sub: 'Active right now',
     tone: 'violet',
     icon: <MdOutbox size={14} />,
-    statuses: ['ASSIGNED'],
+    statuses: ['ASSIGNED', 'IN PROGRESS'],
   },
   {
-    key: 'in_progress',
-    label: 'In Progress',
-    sub: 'Working on them',
-    tone: 'emerald',
-    icon: <MdCheckCircleOutline size={14} />,
-    statuses: ['IN PROGRESS'],
-  },
-  {
-    key: 'problematic',
-    label: 'Flagged',
-    sub: 'Need attention',
-    tone: 'amber',
-    icon: <MdInfoOutline size={14} />,
-    statuses: ['PROBLEMATIC'],
-  },
-  {
-    key: 'closed',
-    label: 'Closed',
-    sub: 'Retained',
+    key: 'retained',
+    label: 'Retained',
+    sub: 'Closed successfully',
     tone: 'emerald',
     icon: <MdCheckCircleOutline size={14} />,
     statuses: ['CLOSED'],
+  },
+];
+
+// Row 2: secondary KPIs (alongside Pipeline Chart)
+const KPI_ROW_2: KpiDef[] = [
+  {
+    key: 'waiting',
+    label: 'Waiting on Client',
+    sub: 'Pending response',
+    tone: 'amber',
+    icon: <MdSchedule size={14} />,
+    statuses: ['WAITING_ON_CLIENT'],
+  },
+  {
+    key: 'flagged',
+    label: 'Flagged Leads',
+    sub: 'Need attention',
+    tone: 'coral',
+    icon: <MdFlag size={14} />,
+    statuses: ['PROBLEMATIC'],
   },
 ];
 
@@ -84,6 +92,7 @@ const ACTION_TONE_BY_STATUS: Record<string, { bg: string; fg: string; icon: JSX.
   CLOSED: { bg: 'bg-emerald-100', fg: 'text-emerald-700', icon: <MdCheckCircleOutline size={14} /> },
   LOST: { bg: 'bg-rose-100', fg: 'text-rose-600', icon: <MdHighlightOff size={14} /> },
   EXPIRED: { bg: 'bg-rose-100', fg: 'text-rose-600', icon: <MdHighlightOff size={14} /> },
+  WAITING_ON_CLIENT: { bg: 'bg-orange-100', fg: 'text-orange-700', icon: <MdSchedule size={14} /> },
 };
 
 const DashboardLawyers = () => {
@@ -142,20 +151,22 @@ const DashboardLawyers = () => {
     );
   }, [userId, dataServiceType]);
 
+  const ALL_KPIS = useMemo(() => [...KPI_ROW_1, ...KPI_ROW_2], []);
+
   // Conteos por KPI desde los leads asignados.
   const counts = useMemo(() => {
-    return KPI_DEFS.map(({ statuses }) =>
-      leads.filter((l) => statuses.includes(l.status)).length
+    return ALL_KPIS.map(({ statuses }) =>
+      leads.filter((l) => (statuses as string[]).includes(l.status)).length
     );
-  }, [leads]);
+  }, [leads, ALL_KPIS]);
 
   // Sparkline por KPI: bucket por día en los últimos 14 días.
   const sparks = useMemo(() => {
     const buckets = 14;
     const now = Date.now();
     const bucketSize = 86_400_000; // 1 día
-    return KPI_DEFS.map(({ statuses }) => {
-      const filtered = leads.filter((l) => statuses.includes(l.status));
+    return ALL_KPIS.map(({ statuses }) => {
+      const filtered = leads.filter((l) => (statuses as string[]).includes(l.status));
       const arr = new Array(buckets).fill(0);
       for (const lead of filtered) {
         const ts = new Date(lead.updated_at ?? lead.created_at).getTime();
@@ -165,7 +176,7 @@ const DashboardLawyers = () => {
       }
       return arr;
     });
-  }, [leads]);
+  }, [leads, ALL_KPIS]);
 
   const handleClickKpi = (statuses: LeadStatus[]) => {
     setSelecArray(statuses as any);
@@ -182,6 +193,37 @@ const DashboardLawyers = () => {
       )
       .slice(0, 8);
   }, [leads]);
+
+  const pipelineSegments: PipelineSegment[] = useMemo(() => [
+    {
+      key: 'active',
+      label: 'Active',
+      value: leads.filter((l) => l.status === 'ASSIGNED' || l.status === 'IN PROGRESS').length,
+      color: '#8280FF',
+      dotClass: 'bg-violet-500',
+    },
+    {
+      key: 'waiting',
+      label: 'Waiting',
+      value: leads.filter((l) => l.status === 'WAITING_ON_CLIENT').length,
+      color: '#FF9066',
+      dotClass: 'bg-orange-400',
+    },
+    {
+      key: 'flagged',
+      label: 'Flagged',
+      value: leads.filter((l) => l.status === 'PROBLEMATIC').length,
+      color: '#FEC53D',
+      dotClass: 'bg-amber-400',
+    },
+    {
+      key: 'retained',
+      label: 'Retained',
+      value: leads.filter((l) => l.status === 'CLOSED').length,
+      color: '#4AD991',
+      dotClass: 'bg-emerald-400',
+    },
+  ], [leads]);
 
   const displayName =
     userId && (userId.firstName || userId.lastName)
@@ -200,8 +242,9 @@ const DashboardLawyers = () => {
         }
       />
 
-      <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>
-        {KPI_DEFS.map((kpi, idx) => (
+      {/* Row 1: Active + Retained (2 cols) */}
+      <div className='grid gap-3.5 sm:grid-cols-2'>
+        {KPI_ROW_1.map((kpi, idx) => (
           <KpiCard
             key={kpi.key}
             label={kpi.label}
@@ -213,6 +256,26 @@ const DashboardLawyers = () => {
             onClick={() => handleClickKpi(kpi.statuses)}
           />
         ))}
+      </div>
+
+      {/* Row 2: Waiting + Flagged + Pipeline Chart (3 cols) */}
+      <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3'>
+        {KPI_ROW_2.map((kpi) => {
+          const i = ALL_KPIS.findIndex((k) => k.key === kpi.key);
+          return (
+            <KpiCard
+              key={kpi.key}
+              label={kpi.label}
+              period={kpi.sub}
+              value={counts[i]}
+              tone={kpi.tone}
+              icon={kpi.icon}
+              spark={sparks[i]}
+              onClick={() => handleClickKpi(kpi.statuses)}
+            />
+          );
+        })}
+        <PipelineChart segments={pipelineSegments} />
       </div>
 
       <ActivityPanel

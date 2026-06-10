@@ -22,6 +22,7 @@ import { cn } from '@/lib/cn';
 import {
   getLeadStatusMeta,
   isDestructiveStatus,
+  isReasonRequired,
   type LeadStatusKey,
 } from './leadStatusMeta';
 import { api } from '@/services/database';
@@ -44,6 +45,7 @@ export interface LeadInfoLead {
 export interface LeadStatusOption {
   name: string;
   value: string;
+  disabled?: boolean;
 }
 
 export interface LeadInfoSubmitPayload {
@@ -222,7 +224,8 @@ export const LeadInfoModal = ({
   }, [assignableLawyers, assignSearch]);
 
   const reasonLength = comment.length;
-  const reasonRequiredMissing = statusChanged && reasonLength === 0;
+  const reasonRequiredMissing =
+    statusChanged && isReasonRequired(selectedStatus) && reasonLength === 0;
 
   const handleSubmit = async () => {
     if (!lead) return;
@@ -464,7 +467,7 @@ export const LeadInfoModal = ({
                         <option value=''>No options available</option>
                       ) : null}
                       {statusOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
+                        <option key={opt.value} value={opt.value} disabled={opt.disabled}>
                           {opt.name}
                         </option>
                       ))}
@@ -482,108 +485,9 @@ export const LeadInfoModal = ({
                   </div>
                 </section>
 
-                {/* Destructive warning */}
-                {isDestructive ? (
-                  <div className='flex items-start gap-2.5 rounded-[10px] border border-rose-200/80 bg-red-50 px-3.5 py-3 text-xs font-medium leading-[1.5] text-slate-700'>
-                    <span
-                      aria-hidden
-                      className='mt-0.5 inline-flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-customRed text-[10px] font-extrabold text-white'
-                    >
-                      !
-                    </span>
-                    <span>
-                      <strong className='font-bold text-slate-900'>
-                        This action is permanent.
-                      </strong>{' '}
-                      Once marked as lost, the lead will not be reinstated to
-                      the active queue and will be reviewed by the super admin.
-                    </span>
-                  </div>
-                ) : null}
-
-                {/* Lead details */}
-                <section className='flex flex-col gap-2'>
-                  <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
-                    Lead details
-                  </span>
-                  <div className='flex flex-col rounded-[11px] border border-slate-200 bg-slate-50 px-4'>
-                    <DetailRow
-                      icon={<MdEmail size={11} />}
-                      label='Email'
-                      value={lead?.email}
-                      locked
-                    />
-                    <DetailRow
-                      icon={<MdPhone size={11} />}
-                      label='Phone'
-                      value={lead?.phone}
-                      locked
-                    />
-                    <DetailRow
-                      icon={<MdWorkOutline size={11} />}
-                      label='Service'
-                      value={lead?.service}
-                      locked
-                    />
-                    <DetailRow
-                      icon={<MdDescription size={11} />}
-                      label='Summary'
-                      value={lead?.description}
-                      multiline
-                      isLast
-                    />
-                  </div>
-                </section>
-
-                {/* Reason for status change — visible for ALL status changes
-                    for legal/audit compliance. Destructive statuses (LOST,
-                    PROBLEMATIC, SEND_BACK) get red styling; others get neutral. */}
-                {statusChanged ? (
-                  <section className='flex flex-col gap-1.5'>
-                    <label
-                      htmlFor='lead-comment'
-                      className='inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'
-                    >
-                      Reason for {getLeadStatusMeta(selectedStatus).label.toLowerCase()}
-                      <span className='rounded bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-customRed'>
-                        Required
-                      </span>
-                    </label>
-                    <textarea
-                      id='lead-comment'
-                      value={comment}
-                      onChange={(e) =>
-                        setComment(e.target.value.slice(0, REASON_MAX))
-                      }
-                      placeholder='Explain the reason for this status change. The super admin will see this in the lead history.'
-                      disabled={loading}
-                      className={cn(
-                        'min-h-[96px] w-full resize-y rounded-[10px] border-[1.5px] bg-white px-3.5 py-3 text-[13px] font-medium leading-[1.5] text-slate-900 outline-none transition-colors',
-                        'placeholder:font-normal placeholder:text-slate-400',
-                        isDestructive
-                          ? 'border-rose-200 focus:border-customRed focus:shadow-[0_0_0_3px_rgba(240,68,56,0.10)]'
-                          : 'border-slate-200 focus:border-slate-400 focus:shadow-[0_0_0_3px_rgba(11,15,25,0.06)]',
-                        'disabled:cursor-not-allowed disabled:opacity-60'
-                      )}
-                    />
-                    <div className='flex items-center justify-between'>
-                      {reasonRequiredMissing ? (
-                        <span className='text-[10px] font-semibold text-customRed'>
-                          A reason is required for this status change.
-                        </span>
-                      ) : (
-                        <span />
-                      )}
-                      <span className='text-[10px] font-semibold tabular-nums text-slate-400'>
-                        {reasonLength} / {REASON_MAX}
-                      </span>
-                    </div>
-                  </section>
-                ) : null}
-
-                {/* Issue #2: Assign-to-lawyer inline — sólo cuando el lead
-                    está NEW/EXPIRED y el parent provee el contexto. Evita
-                    forzar al admin a salir del modal y usar bulk con N=1. */}
+                {/* Assign-to-lawyer picker — right after status for quick
+                    workflow: pick status → assign lawyer → done. Only visible
+                    when the lead is NEW/EXPIRED and parent provides context. */}
                 {canAssign ? (
                   <section className='flex flex-col gap-2'>
                     <div className='flex items-center justify-between'>
@@ -702,6 +606,105 @@ export const LeadInfoModal = ({
                       >
                         {assignLoading ? 'Assigning…' : 'Assign lawyer'}
                       </button>
+                    </div>
+                  </section>
+                ) : null}
+
+                {/* Destructive warning */}
+                {isDestructive ? (
+                  <div className='flex items-start gap-2.5 rounded-[10px] border border-rose-200/80 bg-red-50 px-3.5 py-3 text-xs font-medium leading-[1.5] text-slate-700'>
+                    <span
+                      aria-hidden
+                      className='mt-0.5 inline-flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-customRed text-[10px] font-extrabold text-white'
+                    >
+                      !
+                    </span>
+                    <span>
+                      <strong className='font-bold text-slate-900'>
+                        This action is permanent.
+                      </strong>{' '}
+                      Once marked as lost, the lead will not be reinstated to
+                      the active queue and will be reviewed by the super admin.
+                    </span>
+                  </div>
+                ) : null}
+
+                {/* Lead details */}
+                <section className='flex flex-col gap-2'>
+                  <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
+                    Lead details
+                  </span>
+                  <div className='flex flex-col rounded-[11px] border border-slate-200 bg-slate-50 px-4'>
+                    <DetailRow
+                      icon={<MdEmail size={11} />}
+                      label='Email'
+                      value={lead?.email}
+                      locked
+                    />
+                    <DetailRow
+                      icon={<MdPhone size={11} />}
+                      label='Phone'
+                      value={lead?.phone}
+                      locked
+                    />
+                    <DetailRow
+                      icon={<MdWorkOutline size={11} />}
+                      label='Service'
+                      value={lead?.service}
+                      locked
+                    />
+                    <DetailRow
+                      icon={<MdDescription size={11} />}
+                      label='Summary'
+                      value={lead?.description}
+                      multiline
+                      isLast
+                    />
+                  </div>
+                </section>
+
+                {/* Reason for status change — visible for ALL status changes
+                    for legal/audit compliance. Destructive statuses (LOST,
+                    PROBLEMATIC, SEND_BACK) get red styling; others get neutral. */}
+                {statusChanged ? (
+                  <section className='flex flex-col gap-1.5'>
+                    <label
+                      htmlFor='lead-comment'
+                      className='inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'
+                    >
+                      Reason for {getLeadStatusMeta(selectedStatus).label.toLowerCase()}
+                      <span className='rounded bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-customRed'>
+                        Required
+                      </span>
+                    </label>
+                    <textarea
+                      id='lead-comment'
+                      value={comment}
+                      onChange={(e) =>
+                        setComment(e.target.value.slice(0, REASON_MAX))
+                      }
+                      placeholder='Explain the reason for this status change. The super admin will see this in the lead history.'
+                      disabled={loading}
+                      className={cn(
+                        'min-h-[96px] w-full resize-y rounded-[10px] border-[1.5px] bg-white px-3.5 py-3 text-[13px] font-medium leading-[1.5] text-slate-900 outline-none transition-colors',
+                        'placeholder:font-normal placeholder:text-slate-400',
+                        isDestructive
+                          ? 'border-rose-200 focus:border-customRed focus:shadow-[0_0_0_3px_rgba(240,68,56,0.10)]'
+                          : 'border-slate-200 focus:border-slate-400 focus:shadow-[0_0_0_3px_rgba(11,15,25,0.06)]',
+                        'disabled:cursor-not-allowed disabled:opacity-60'
+                      )}
+                    />
+                    <div className='flex items-center justify-between'>
+                      {reasonRequiredMissing ? (
+                        <span className='text-[10px] font-semibold text-customRed'>
+                          A reason is required for this status change.
+                        </span>
+                      ) : (
+                        <span />
+                      )}
+                      <span className='text-[10px] font-semibold tabular-nums text-slate-400'>
+                        {reasonLength} / {REASON_MAX}
+                      </span>
                     </div>
                   </section>
                 ) : null}
