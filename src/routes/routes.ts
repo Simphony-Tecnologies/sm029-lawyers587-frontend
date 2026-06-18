@@ -56,6 +56,13 @@ export const routesSidebar: dataItem[] = [
     group: 'Management',
   },
   {
+    name: 'Spam Settings',
+    route: '/spam-settings',
+    icon: MdWork,
+    rol: ['admin'],
+    group: 'Management',
+  },
+  {
     name: 'My Workflow',
     route: '/dash-lawyers',
     icon: MdDashboard,
