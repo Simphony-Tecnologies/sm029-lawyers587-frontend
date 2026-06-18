@@ -926,10 +926,10 @@ export const LeadInfoModal = ({
                   )}
                 </span>
                 {!isSpecialStatus ? (
-                  <div className='flex items-center gap-2'>
+                  <div className='flex flex-shrink-0 items-center gap-2'>
                     {onTrash && !isTrashedLead ? (
                       <button type='button' onClick={() => lead && onTrash(lead.id, comment || undefined)} disabled={loading}
-                        className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-red-200 bg-white px-3 text-[12px] font-bold text-red-600 transition-colors hover:bg-red-50 focus:outline-none disabled:opacity-50'
+                        className='inline-flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-red-200 bg-white px-3 text-[12px] font-bold text-red-600 transition-colors hover:bg-red-50 focus:outline-none disabled:opacity-50'
                         title='Move to Trash'>
                         Move to Trash
                       </button>
@@ -938,7 +938,7 @@ export const LeadInfoModal = ({
                       type='button'
                       onClick={onClose}
                       disabled={loading}
-                      className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-4 text-[13px] font-bold tracking-[-0.005em] text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50'
+                      className='inline-flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-slate-200 bg-white px-4 text-[13px] font-bold tracking-[-0.005em] text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50'
                     >
                       Cancel
                     </button>
@@ -947,7 +947,7 @@ export const LeadInfoModal = ({
                       onClick={handleSubmit}
                       disabled={loading || reasonRequiredMissing}
                       className={cn(
-                        'inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border px-4 text-[13px] font-bold tracking-[-0.005em] text-white transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60',
+                        'inline-flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[9px] border px-4 text-[13px] font-bold tracking-[-0.005em] text-white transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60',
                         isDestructive
                           ? 'border-customRed bg-customRed shadow-[0_6px_16px_rgba(240,68,56,0.25)] hover:bg-red-600 focus-visible:ring-customRed/40'
                           : 'border-slate-900 bg-slate-900 hover:bg-slate-800 focus-visible:ring-slate-700/40'
