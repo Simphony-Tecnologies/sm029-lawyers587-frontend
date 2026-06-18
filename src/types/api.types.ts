@@ -15,7 +15,9 @@ export type LeadStatus =
   | 'DISABLED'
   | 'ARCHIVED'
   | 'SEND_BACK'
-  | 'WAITING_ON_CLIENT';
+  | 'WAITING_ON_CLIENT'
+  | 'REVIEW'
+  | 'TRASHED';
 
 export type NoteType = 'internal' | 'client_facing' | 'urgent';
 
@@ -80,6 +82,10 @@ export interface LeadDTO {
   assigned_lawyer_id: number | null;
   comments?: string;
   updated_at?: string;
+  trashed_at?: string | null;
+  previous_status?: LeadStatus | null;
+  spam_score?: number;
+  spam_reasons?: string[] | null;
 }
 
 export interface LeadFilters {
@@ -234,6 +240,47 @@ export interface PoolFilters {
 export interface PullLeadDTO {
   lead_id: number;
   comment?: string;
+}
+
+// ─── Spam / Trash ───────────────────────────────────────────────────────────
+
+export interface TrashLeadDTO {
+  comment?: string;
+}
+
+export interface BlacklistEntry {
+  id: number;
+  type: 'email' | 'domain';
+  value: string;
+  created_at: string;
+}
+
+export interface CreateBlacklistDTO {
+  type: 'email' | 'domain';
+  value: string;
+}
+
+export interface SuspiciousPattern {
+  id: number;
+  field_name: 'full_name' | 'email' | 'description' | 'number';
+  pattern: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface CreatePatternDTO {
+  field_name: SuspiciousPattern['field_name'];
+  pattern: string;
+  description?: string;
+  is_active?: boolean;
+}
+
+export interface UpdatePatternDTO {
+  field_name?: SuspiciousPattern['field_name'];
+  pattern?: string;
+  description?: string;
+  is_active?: boolean;
 }
 
 // ─── Lawyers ─────────────────────────────────────────────────────────────────

@@ -10,4 +10,6 @@ export const statusColors: any = {
   EXPIRED: '#FF0300',
   DISABLED: '#84818A',
   ARCHIVED: '#84818A',
+  REVIEW: '#F59E0B',
+  TRASHED: '#EF4444',
 };

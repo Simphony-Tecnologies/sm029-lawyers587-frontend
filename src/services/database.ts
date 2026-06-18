@@ -5,13 +5,16 @@ import type {
   AssignLeadDTO,
   AssignLeadResult,
   AuditEvent,
+  BlacklistEntry,
   BulkArchiveDTO,
   BulkAssignDTO,
   BulkDeleteDTO,
   BulkResult,
   BulkStatusDTO,
   CommentFilters,
+  CreateBlacklistDTO,
   CreateCommentDTO,
+  CreatePatternDTO,
   ExportFormat,
   HistoryFilters,
   LawyerFilters,
@@ -24,11 +27,14 @@ import type {
   Paginated,
   PoolFilters,
   PullLeadDTO,
+  SuspiciousPattern,
   TimelineEntry,
   TimelineFilters,
+  TrashLeadDTO,
   UnassignLeadDTO,
   UpdateLawyerPasswordDTO,
   UpdateLawyerStatusDTO,
+  UpdatePatternDTO,
 } from '@/types/api.types';
 
 const readCookie = (name: string): string | undefined => {
@@ -811,6 +817,51 @@ export const api = {
         token
       ),
 
+    review: (filters?: LeadFilters, token?: string) =>
+      apiRequest<Paginated<LeadDTO>>(
+        `/leads/review${buildQuery(filters as Record<string, unknown>)}`,
+        { method: 'GET' },
+        token
+      ),
+
+    trashList: (filters?: LeadFilters, token?: string) =>
+      apiRequest<Paginated<LeadDTO>>(
+        `/leads/trash${buildQuery(filters as Record<string, unknown>)}`,
+        { method: 'GET' },
+        token
+      ),
+
+    markValid: (id: number, token?: string) =>
+      apiRequest<LeadDTO>(
+        `/leads/${id}/mark-valid`,
+        { method: 'PATCH' },
+        token
+      ),
+
+    markSpam: (id: number, token?: string) =>
+      apiRequest<LeadDTO>(
+        `/leads/${id}/mark-spam`,
+        { method: 'PATCH' },
+        token
+      ),
+
+    trash: (id: number, body?: TrashLeadDTO, token?: string) =>
+      apiRequest<{ id: number; status: 'TRASHED' }>(
+        `/leads/${id}/trash`,
+        {
+          method: 'PUT',
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        },
+        token
+      ),
+
+    restore: (id: number, token?: string) =>
+      apiRequest<LeadDTO>(
+        `/leads/${id}/restore`,
+        { method: 'PATCH' },
+        token
+      ),
+
     exportCsv: (filters?: LeadFilters, token?: string) =>
       apiBlob(
         `/leads/export${buildQuery({ ...(filters || {}), format: 'csv' })}`,
@@ -885,6 +936,55 @@ export const api = {
         token,
         format === 'csv' ? 'text/csv' : 'application/pdf'
       ),
+  },
+
+  spam: {
+    blacklist: {
+      list: (filters?: { limit?: number; offset?: number }, token?: string) =>
+        apiRequest<Paginated<BlacklistEntry>>(
+          `/spam/blacklist${buildQuery(filters as Record<string, unknown>)}`,
+          { method: 'GET' },
+          token
+        ),
+      create: (body: CreateBlacklistDTO, token?: string) =>
+        apiRequest<BlacklistEntry>(
+          `/spam/blacklist`,
+          { method: 'POST', body: JSON.stringify(body) },
+          token
+        ),
+      delete: (id: number, token?: string) =>
+        apiRequest<void>(
+          `/spam/blacklist/${id}`,
+          { method: 'DELETE' },
+          token
+        ),
+    },
+    patterns: {
+      list: (filters?: { limit?: number; offset?: number }, token?: string) =>
+        apiRequest<Paginated<SuspiciousPattern>>(
+          `/spam/patterns${buildQuery(filters as Record<string, unknown>)}`,
+          { method: 'GET' },
+          token
+        ),
+      create: (body: CreatePatternDTO, token?: string) =>
+        apiRequest<SuspiciousPattern>(
+          `/spam/patterns`,
+          { method: 'POST', body: JSON.stringify(body) },
+          token
+        ),
+      update: (id: number, body: UpdatePatternDTO, token?: string) =>
+        apiRequest<SuspiciousPattern>(
+          `/spam/patterns/${id}`,
+          { method: 'PATCH', body: JSON.stringify(body) },
+          token
+        ),
+      delete: (id: number, token?: string) =>
+        apiRequest<void>(
+          `/spam/patterns/${id}`,
+          { method: 'DELETE' },
+          token
+        ),
+    },
   },
 };
 

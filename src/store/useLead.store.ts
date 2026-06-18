@@ -42,6 +42,11 @@ const toRow = (lead: LeadDTO | any) => ({
   lawyer: pickLawyerName(lead),
   status: lead.status,
   assigned_lawyer_id: lead.assigned_lawyer_id ?? null,
+  // Spam / trash pass-through
+  spam_score: lead.spam_score ?? 0,
+  spam_reasons: lead.spam_reasons ?? null,
+  trashed_at: lead.trashed_at ?? null,
+  previous_status: lead.previous_status ?? null,
 });
 
 export const useLeadsStore = create<LeadsStore>((set) => ({

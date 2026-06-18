@@ -10,6 +10,10 @@ export {
   getLeadStatusMeta,
   isDestructiveStatus,
   isReasonRequired,
+  SPAM_REASON_LABELS,
+  SPAM_REASON_TONE,
+  SPAM_SCORE_META,
+  TRASH_PURGE_DAYS,
   type LeadStatusKey,
   type LeadStatusMeta,
 } from './leadStatusMeta';

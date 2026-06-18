@@ -40,4 +40,12 @@ export const statusSelectAll = [
     name: 'Archived',
     value: 'ARCHIVED',
   },
+  {
+    name: 'Review',
+    value: 'REVIEW',
+  },
+  {
+    name: 'Trash',
+    value: 'TRASHED',
+  },
 ];
