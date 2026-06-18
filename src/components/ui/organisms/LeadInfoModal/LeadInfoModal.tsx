@@ -23,8 +23,13 @@ import {
   getLeadStatusMeta,
   isDestructiveStatus,
   isReasonRequired,
+  SPAM_REASON_LABELS,
+  SPAM_REASON_TONE,
+  SPAM_SCORE_META,
+  TRASH_PURGE_DAYS,
   type LeadStatusKey,
 } from './leadStatusMeta';
+import dayjs from 'dayjs';
 import { api } from '@/services/database';
 import type { NoteType, TimelineEntry } from '@/types/api.types';
 
@@ -40,6 +45,11 @@ export interface LeadInfoLead {
   comments?: string;
   selectedAt?: string;
   status: string;
+  // Spam / trash (optional — only populated for REVIEW/TRASHED leads)
+  spam_score?: number;
+  spam_reasons?: string[] | null;
+  trashed_at?: string | null;
+  previous_status?: string | null;
 }
 
 export interface LeadStatusOption {
@@ -80,6 +90,12 @@ export interface LeadInfoModalProps {
   assignableLawyers?: AssignableLawyer[];
   onAssign?: (lawyerId: number, comment: string) => Promise<void> | void;
   assignLoading?: boolean;
+  // Review / Trash actions
+  onMarkValid?: (id: number | string) => Promise<void> | void;
+  onMarkSpam?: (id: number | string) => Promise<void> | void;
+  onRestore?: (id: number | string) => Promise<void> | void;
+  onTrash?: (id: number | string, comment?: string) => Promise<void> | void;
+  onDeletePermanent?: (id: number | string) => Promise<void> | void;
 }
 
 const formatId = (id: number | string) =>
@@ -106,6 +122,11 @@ export const LeadInfoModal = ({
   assignableLawyers,
   onAssign,
   assignLoading = false,
+  onMarkValid,
+  onMarkSpam,
+  onRestore,
+  onTrash,
+  onDeletePermanent,
 }: LeadInfoModalProps) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [comment, setComment] = useState<string>('');
@@ -121,6 +142,7 @@ export const LeadInfoModal = ({
   const [newComment, setNewComment] = useState('');
   const [newCommentType, setNewCommentType] = useState<NoteType>('internal');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Reset internal state when the modal opens with a new lead.
   // `comment` (razón de auditoría) siempre arranca vacío — sólo se llena
@@ -136,6 +158,7 @@ export const LeadInfoModal = ({
     setAssignLawyerId('');
     setAssignReason('');
     setAssignSearch('');
+    setConfirmDelete(false);
   }, [open, lead]);
 
   const fetchTimeline = async (
@@ -207,9 +230,15 @@ export const LeadInfoModal = ({
   // Issue #2: el lead se considera asignable cuando está en NEW o EXPIRED
   // (alineado con la regla del backend en PATCH /leads/:id/assign).
   const leadStatusUpper = (lead?.status ?? '').toUpperCase();
+  const isReviewLead = leadStatusUpper === 'REVIEW';
+  const isTrashedLead = leadStatusUpper === 'TRASHED';
+  const isArchivedLead = leadStatusUpper === 'ARCHIVED';
+  const isSpecialStatus = isReviewLead || isTrashedLead;
+
   const canAssign =
     !!onAssign &&
     Array.isArray(assignableLawyers) &&
+    !isSpecialStatus &&
     (leadStatusUpper === 'NEW' || leadStatusUpper === 'EXPIRED');
 
   const filteredLawyers = useMemo(() => {
@@ -247,7 +276,13 @@ export const LeadInfoModal = ({
 
   if (!lead && !open) return null;
 
-  const accentClass = isDestructive ? 'bg-customRed' : 'bg-sky-500';
+  const accentClass = isDestructive
+    ? 'bg-customRed'
+    : isReviewLead
+    ? 'bg-amber-500'
+    : isTrashedLead
+    ? 'bg-red-500'
+    : 'bg-sky-500';
 
   return (
     <Transition show={open} as={Fragment}>
@@ -379,111 +414,193 @@ export const LeadInfoModal = ({
                 ) : null}
 
                 {/* Status block */}
-                <section className='flex flex-col gap-2'>
-                  <label
-                    htmlFor='lead-status'
-                    className='inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'
-                  >
-                    Status
-                  </label>
-
-                  {statusChanged ? (
-                    <div className='grid grid-cols-[1fr_24px_1fr] items-center gap-2.5 rounded-[11px] border border-slate-200 bg-white px-3.5 py-3'>
-                      <div className='flex flex-col gap-1'>
-                        <span className='text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400'>
-                          Current
-                        </span>
-                        <span
-                          className={cn(
-                            'inline-flex items-center gap-1.5 text-[13px] font-bold tracking-[-0.005em]',
-                            currentMeta.textClass
-                          )}
-                        >
-                          <span
-                            aria-hidden
-                            className={cn(
-                              'h-[7px] w-[7px] rounded-full',
-                              currentMeta.dotClass
-                            )}
-                          />
-                          {currentMeta.label}
+                {isReviewLead ? (
+                  /* REVIEW: spam info + actions */
+                  <section className='flex flex-col gap-3'>
+                    <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
+                      Spam Review
+                    </span>
+                    {typeof lead?.spam_score === 'number' && lead.spam_score > 0 ? (
+                      <div className='flex items-center gap-2'>
+                        <span className='text-[11px] font-semibold text-slate-500'>Spam Score</span>
+                        <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold', (SPAM_SCORE_META[lead.spam_score] ?? SPAM_SCORE_META[1]).tone)}>
+                          {lead.spam_score}/3 — {(SPAM_SCORE_META[lead.spam_score] ?? SPAM_SCORE_META[1]).label}
                         </span>
                       </div>
+                    ) : null}
+                    {Array.isArray(lead?.spam_reasons) && lead.spam_reasons.length > 0 ? (
+                      <div className='flex flex-wrap gap-1.5'>
+                        {lead.spam_reasons.map((reason) => (
+                          <span key={reason} className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wide', SPAM_REASON_TONE[reason] ?? 'bg-slate-100 text-slate-600')}>
+                            {SPAM_REASON_LABELS[reason] ?? reason}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className='flex items-center gap-2'>
+                      <button type='button' onClick={() => lead && onMarkValid?.(lead.id)} disabled={loading}
+                        className='inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[9px] border border-emerald-200 bg-emerald-50 text-[12px] font-bold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50'>
+                        {loading ? 'Processing\u2026' : 'Mark as Valid'}
+                      </button>
+                      <button type='button' onClick={() => lead && onMarkSpam?.(lead.id)} disabled={loading}
+                        className='inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[9px] border border-red-200 bg-red-50 text-[12px] font-bold text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50'>
+                        {loading ? 'Processing\u2026' : 'Confirm Spam'}
+                      </button>
+                    </div>
+                  </section>
+                ) : isTrashedLead ? (
+                  /* TRASHED: purge countdown + restore/delete */
+                  <section className='flex flex-col gap-3'>
+                    <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>Trash</span>
+                    {lead?.trashed_at ? (() => {
+                      const purgeDate = dayjs(lead.trashed_at).add(TRASH_PURGE_DAYS, 'day');
+                      const daysLeft = Math.max(0, purgeDate.diff(dayjs(), 'day'));
+                      return (
+                        <div className='flex items-start gap-2.5 rounded-[10px] border border-red-200/80 bg-red-50 px-3.5 py-3 text-xs font-medium leading-[1.5] text-slate-700'>
+                          <span className='text-red-500'>&#128465;</span>
+                          <span>
+                            <strong className='font-bold text-red-700'>Auto-purge in {daysLeft} day{daysLeft !== 1 ? 's' : ''}</strong>
+                            <br />
+                            <span className='text-slate-500'>
+                              Trashed on {dayjs(lead.trashed_at).format('MMM D, YYYY')}
+                              {lead.previous_status ? ` \u00b7 Previously: ${lead.previous_status}` : ''}
+                            </span>
+                          </span>
+                        </div>
+                      );
+                    })() : null}
+                    <div className='flex items-center gap-2'>
+                      <button type='button' onClick={() => lead && onRestore?.(lead.id)} disabled={loading}
+                        className='inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[9px] border border-sky-200 bg-sky-50 text-[12px] font-bold text-sky-700 transition-colors hover:bg-sky-100 disabled:opacity-50'>
+                        {loading ? 'Restoring\u2026' : 'Restore'}
+                      </button>
+                      <button type='button' onClick={() => setConfirmDelete(true)} disabled={loading}
+                        className='inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[9px] border border-red-200 bg-red-50 text-[12px] font-bold text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50'>
+                        Delete Permanently
+                      </button>
+                    </div>
+                    {confirmDelete ? (
+                      <div className='rounded-[10px] border border-red-300 bg-red-50 px-3.5 py-3'>
+                        <p className='mb-2 text-[12px] font-semibold text-red-800'>This action cannot be undone. The lead will be permanently deleted.</p>
+                        <div className='flex items-center gap-2'>
+                          <button type='button' onClick={() => setConfirmDelete(false)}
+                            className='inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-600 hover:bg-slate-50'>Cancel</button>
+                          <button type='button' onClick={() => { if (lead) onDeletePermanent?.(lead.id); setConfirmDelete(false); }} disabled={loading}
+                            className='inline-flex h-8 items-center rounded-md bg-red-600 px-3 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-50'>
+                            {loading ? 'Deleting\u2026' : 'Yes, delete forever'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </section>
+                ) : (
+                  /* NORMAL: existing status dropdown */
+                  <section className='flex flex-col gap-2'>
+                    <label
+                      htmlFor='lead-status'
+                      className='inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'
+                    >
+                      Status
+                    </label>
+
+                    {statusChanged ? (
+                      <div className='grid grid-cols-[1fr_24px_1fr] items-center gap-2.5 rounded-[11px] border border-slate-200 bg-white px-3.5 py-3'>
+                        <div className='flex flex-col gap-1'>
+                          <span className='text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400'>
+                            Current
+                          </span>
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1.5 text-[13px] font-bold tracking-[-0.005em]',
+                              currentMeta.textClass
+                            )}
+                          >
+                            <span
+                              aria-hidden
+                              className={cn(
+                                'h-[7px] w-[7px] rounded-full',
+                                currentMeta.dotClass
+                              )}
+                            />
+                            {currentMeta.label}
+                          </span>
+                        </div>
+                        <span
+                          aria-hidden
+                          className='text-center text-[14px] text-slate-300'
+                        >
+                          →
+                        </span>
+                        <div className='flex flex-col gap-1'>
+                          <span className='text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400'>
+                            New status
+                          </span>
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1.5 text-[13px] font-bold tracking-[-0.005em]',
+                              nextMeta.textClass
+                            )}
+                          >
+                            <span
+                              aria-hidden
+                              className={cn(
+                                'h-[7px] w-[7px] rounded-full',
+                                nextMeta.dotClass
+                              )}
+                            />
+                            {nextMeta.label}
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div
+                      className={cn(
+                        'relative flex h-11 w-full items-center rounded-[10px] border-[1.5px] transition-colors',
+                        nextMeta.triggerClass,
+                        nextMeta.triggerHoverClass,
+                        'focus-within:border-slate-900 focus-within:shadow-[0_0_0_3px_rgba(11,15,25,0.06)]'
+                      )}
+                    >
                       <span
                         aria-hidden
-                        className='text-center text-[14px] text-slate-300'
+                        className={cn(
+                          'pointer-events-none absolute left-3.5 h-2 w-2 rounded-full',
+                          nextMeta.dotClass
+                        )}
+                      />
+                      <select
+                        id='lead-status'
+                        value={selectedStatus}
+                        onChange={(e) => setSelectedStatus(e.target.value)}
+                        disabled={loading || statusOptions.length === 0}
+                        className={cn(
+                          'h-full w-full cursor-pointer appearance-none bg-transparent pl-9 pr-9 text-[13px] font-bold leading-none tracking-[-0.005em] focus:outline-none disabled:cursor-not-allowed',
+                          'text-current'
+                        )}
                       >
-                        →
+                        {statusOptions.length === 0 ? (
+                          <option value=''>No options available</option>
+                        ) : null}
+                        {statusOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                            {opt.name}
+                          </option>
+                        ))}
+                      </select>
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'pointer-events-none absolute right-3.5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.06em]',
+                          nextMeta.triggerMetaClass
+                        )}
+                      >
+                        <span>Change</span>
+                        <MdKeyboardArrowDown size={14} />
                       </span>
-                      <div className='flex flex-col gap-1'>
-                        <span className='text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400'>
-                          New status
-                        </span>
-                        <span
-                          className={cn(
-                            'inline-flex items-center gap-1.5 text-[13px] font-bold tracking-[-0.005em]',
-                            nextMeta.textClass
-                          )}
-                        >
-                          <span
-                            aria-hidden
-                            className={cn(
-                              'h-[7px] w-[7px] rounded-full',
-                              nextMeta.dotClass
-                            )}
-                          />
-                          {nextMeta.label}
-                        </span>
-                      </div>
                     </div>
-                  ) : null}
-
-                  <div
-                    className={cn(
-                      'relative flex h-11 w-full items-center rounded-[10px] border-[1.5px] transition-colors',
-                      nextMeta.triggerClass,
-                      nextMeta.triggerHoverClass,
-                      'focus-within:border-slate-900 focus-within:shadow-[0_0_0_3px_rgba(11,15,25,0.06)]'
-                    )}
-                  >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'pointer-events-none absolute left-3.5 h-2 w-2 rounded-full',
-                        nextMeta.dotClass
-                      )}
-                    />
-                    <select
-                      id='lead-status'
-                      value={selectedStatus}
-                      onChange={(e) => setSelectedStatus(e.target.value)}
-                      disabled={loading || statusOptions.length === 0}
-                      className={cn(
-                        'h-full w-full cursor-pointer appearance-none bg-transparent pl-9 pr-9 text-[13px] font-bold leading-none tracking-[-0.005em] focus:outline-none disabled:cursor-not-allowed',
-                        'text-current'
-                      )}
-                    >
-                      {statusOptions.length === 0 ? (
-                        <option value=''>No options available</option>
-                      ) : null}
-                      {statusOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value} disabled={opt.disabled}>
-                          {opt.name}
-                        </option>
-                      ))}
-                    </select>
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'pointer-events-none absolute right-3.5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.06em]',
-                        nextMeta.triggerMetaClass
-                      )}
-                    >
-                      <span>Change</span>
-                      <MdKeyboardArrowDown size={14} />
-                    </span>
-                  </div>
-                </section>
+                  </section>
+                )}
 
                 {/* Assign-to-lawyer picker — right after status for quick
                     workflow: pick status → assign lawyer → done. Only visible
@@ -798,45 +915,52 @@ export const LeadInfoModal = ({
               {/* Footer */}
               <div className='flex items-center justify-between gap-2 border-t border-slate-100 bg-white px-6 pb-5 pt-4'>
                 <span className='inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500'>
-                  {isDestructive ? (
-                    <>
-                      <MdLock size={12} className='text-slate-400' />
-                      Logged &amp; sent to super admin review
-                    </>
+                  {isReviewLead ? (
+                    <><MdInfoOutline size={12} className='text-amber-500' />Flagged for spam review</>
+                  ) : isTrashedLead ? (
+                    <><MdInfoOutline size={12} className='text-red-500' />In trash — will be auto-purged</>
+                  ) : isDestructive ? (
+                    <><MdLock size={12} className='text-slate-400' />Logged &amp; sent to super admin review</>
                   ) : (
-                    <>
-                      <MdHistoryEdu size={12} className='text-slate-400' />
-                      Changes are logged in the lead history
-                    </>
+                    <><MdHistoryEdu size={12} className='text-slate-400' />Changes are logged in the lead history</>
                   )}
                 </span>
-                <div className='flex items-center gap-2'>
-                  <button
-                    type='button'
-                    onClick={onClose}
-                    disabled={loading}
-                    className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-4 text-[13px] font-bold tracking-[-0.005em] text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50'
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type='button'
-                    onClick={handleSubmit}
-                    disabled={loading || reasonRequiredMissing}
-                    className={cn(
-                      'inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border px-4 text-[13px] font-bold tracking-[-0.005em] text-white transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60',
-                      isDestructive
-                        ? 'border-customRed bg-customRed shadow-[0_6px_16px_rgba(240,68,56,0.25)] hover:bg-red-600 focus-visible:ring-customRed/40'
-                        : 'border-slate-900 bg-slate-900 hover:bg-slate-800 focus-visible:ring-slate-700/40'
-                    )}
-                  >
-                    {loading
-                      ? 'Saving…'
-                      : isDestructive
-                      ? 'Mark as Lost'
-                      : 'Save changes'}
-                  </button>
-                </div>
+                {!isSpecialStatus ? (
+                  <div className='flex items-center gap-2'>
+                    {onTrash && !isTrashedLead ? (
+                      <button type='button' onClick={() => lead && onTrash(lead.id, comment || undefined)} disabled={loading}
+                        className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-red-200 bg-white px-3 text-[12px] font-bold text-red-600 transition-colors hover:bg-red-50 focus:outline-none disabled:opacity-50'
+                        title='Move to Trash'>
+                        Move to Trash
+                      </button>
+                    ) : null}
+                    <button
+                      type='button'
+                      onClick={onClose}
+                      disabled={loading}
+                      className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-4 text-[13px] font-bold tracking-[-0.005em] text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50'
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type='button'
+                      onClick={handleSubmit}
+                      disabled={loading || reasonRequiredMissing}
+                      className={cn(
+                        'inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border px-4 text-[13px] font-bold tracking-[-0.005em] text-white transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60',
+                        isDestructive
+                          ? 'border-customRed bg-customRed shadow-[0_6px_16px_rgba(240,68,56,0.25)] hover:bg-red-600 focus-visible:ring-customRed/40'
+                          : 'border-slate-900 bg-slate-900 hover:bg-slate-800 focus-visible:ring-slate-700/40'
+                      )}
+                    >
+                      {loading
+                        ? 'Saving\u2026'
+                        : isDestructive
+                        ? 'Mark as Lost'
+                        : 'Save changes'}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </DialogPanel>
           </TransitionChild>
