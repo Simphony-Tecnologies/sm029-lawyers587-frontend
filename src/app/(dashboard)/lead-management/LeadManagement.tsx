@@ -54,6 +54,12 @@ type LeadRow = {
   comments: string;
   lawyer: string;
   status: string;
+  assigned_lawyer_id: number | null;
+  // Spam / trash
+  spam_score: number;
+  spam_reasons: string[] | null;
+  trashed_at: string | null;
+  previous_status: string | null;
 };
 
 const formatId = (id: number | string) => String(id).padStart(5, '0');
@@ -110,7 +116,7 @@ const BULK_STATUS_OPTIONS: { name: string; value: string }[] = [
   { name: 'Disabled', value: 'DISABLED' },
 ];
 
-type BulkDialogType = 'assign' | 'status' | 'archive' | 'delete' | null;
+type BulkDialogType = 'assign' | 'status' | 'archive' | 'delete' | 'trash' | null;
 
 interface LawyerOption {
   id: number;
@@ -151,12 +157,77 @@ const LeadManagement = () => {
   const [singleAssignLoading, setSingleAssignLoading] = useState(false);
   const [lawyersLoading, setLawyersLoading] = useState(false);
 
+  // ── Dedicated-tab state (REVIEW / TRASHED / ARCHIVED) ──
+  const [dedicatedData, setDedicatedData] = useState<LeadRow[] | null>(null);
+  const [dedicatedLoading, setDedicatedLoading] = useState(false);
+
+  const DEDICATED_TABS = ['REVIEW', 'TRASHED', 'ARCHIVED'] as const;
+  type DedicatedTab = (typeof DEDICATED_TABS)[number];
+  const isDedicatedTab = (s: string | null): s is DedicatedTab =>
+    !!s && (DEDICATED_TABS as readonly string[]).includes(s);
+
+  const fetchDedicated = async (status: DedicatedTab) => {
+    setDedicatedLoading(true);
+    setDedicatedData(null);
+    let res;
+    if (status === 'REVIEW') {
+      res = await api.leads.review({ limit: 10000 });
+    } else if (status === 'TRASHED') {
+      res = await api.leads.trashList({ limit: 10000 });
+    } else {
+      res = await api.leads.list({ status, limit: 10000 });
+    }
+    setDedicatedLoading(false);
+    if (!res.success || !res.data) {
+      setDedicatedData([]);
+      return;
+    }
+    const toRowLocal = (lead: any): LeadRow => ({
+      'lead id': lead.id,
+      date: new Date(lead.created_at ?? lead.entry_date),
+      date_updated: new Date(lead.updated_at ?? lead.created_at ?? lead.entry_date),
+      'lead name': lead.fullName ?? lead.full_name ?? '',
+      email: lead.email ?? '',
+      'phone number': lead.phone ?? lead.phone_number ?? lead.number ?? '',
+      service: lead.service ?? lead.lawyer_type ?? '',
+      'description lead': lead.description ?? '',
+      comments: lead.comments ?? '',
+      lawyer: (() => {
+        const dto = lead.assigned_lawyer;
+        if (dto?.firstName || dto?.lastName) return `${dto.firstName ?? ''} ${dto.lastName ?? ''}`.trim();
+        return 'No assigned';
+      })(),
+      status: lead.status,
+      assigned_lawyer_id: lead.assigned_lawyer_id ?? null,
+      spam_score: lead.spam_score ?? 0,
+      spam_reasons: lead.spam_reasons ?? null,
+      trashed_at: lead.trashed_at ?? null,
+      previous_status: lead.previous_status ?? null,
+    });
+    setDedicatedData(res.data.data.map(toRowLocal));
+  };
+
   const uniqueStatuses = useMemo<string[]>(() => {
     if (!dataLeads) return [];
-    return Array.from(new Set((dataLeads as any[]).map((l) => l.status)));
+    return Array.from(new Set((dataLeads as any[]).map((l) => l.status)))
+      .filter((s) => s !== 'ARCHIVED' && s !== 'REVIEW' && s !== 'TRASHED');
   }, [dataLeads]);
 
   const filtered = useMemo<LeadRow[]>(() => {
+    // When a dedicated tab is active, use its own dataset.
+    if (isDedicatedTab(statusFilter) && dedicatedData !== null) {
+      const q = searchText.trim().toLowerCase();
+      if (!q) return dedicatedData;
+      return dedicatedData.filter(
+        (l) =>
+          l['lead name']?.toLowerCase().includes(q) ||
+          l.email?.toLowerCase().includes(q) ||
+          l['phone number']?.toLowerCase().includes(q) ||
+          l.status?.toLowerCase().includes(q) ||
+          String(l['lead id']).includes(q)
+      );
+    }
+
     if (!dataLeads) return [];
     let list = dataLeads as LeadRow[];
 
@@ -166,8 +237,6 @@ const LeadManagement = () => {
     } else if (statusFilter) {
       list = list.filter((l) => l.status === statusFilter);
     } else {
-      // Por defecto excluir leads archivados; el user puede filtrarlos
-      // explícitamente con el chip "ARCHIVED".
       list = list.filter((l) => l.status !== 'ARCHIVED');
     }
 
@@ -183,11 +252,17 @@ const LeadManagement = () => {
       );
     }
     return list;
-  }, [dataLeads, selecArray, statusFilter, searchText]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataLeads, selecArray, statusFilter, searchText, dedicatedData]);
 
   const handleStatusClick = (status: string | null) => {
     setSelecArray([]);
     setStatusFilter(status);
+    if (status && isDedicatedTab(status)) {
+      void fetchDedicated(status);
+    } else {
+      setDedicatedData(null);
+    }
   };
 
   const openLead = (row: LeadRow) => {
@@ -291,6 +366,84 @@ const LeadManagement = () => {
     setIsOpenLead(false);
     await fetchLeads();
     setLoading(false);
+  };
+
+  // ── Modal action handlers (Review / Trash / Restore) ──
+
+  const handleMarkValid = async (id: number | string) => {
+    setLoading(true);
+    const res = await api.leads.markValid(Number(id));
+    setLoading(false);
+    if (!res.success) {
+      toast.error(res.message || 'Error marking lead as valid');
+      return;
+    }
+    toast.success('Lead marked as valid — moved to New');
+    setSelectedLead({});
+    setIsOpenLead(false);
+    if (isDedicatedTab(statusFilter)) void fetchDedicated(statusFilter);
+    else await fetchLeads();
+  };
+
+  const handleMarkSpam = async (id: number | string) => {
+    setLoading(true);
+    const res = await api.leads.markSpam(Number(id));
+    setLoading(false);
+    if (!res.success) {
+      toast.error(res.message || 'Error confirming spam');
+      return;
+    }
+    toast.success('Lead confirmed as spam — moved to Trash');
+    setSelectedLead({});
+    setIsOpenLead(false);
+    if (isDedicatedTab(statusFilter)) void fetchDedicated(statusFilter);
+    else await fetchLeads();
+  };
+
+  const handleRestore = async (id: number | string) => {
+    setLoading(true);
+    const res = await api.leads.restore(Number(id));
+    setLoading(false);
+    if (!res.success) {
+      toast.error(res.message || 'Error restoring lead');
+      return;
+    }
+    toast.success('Lead restored successfully');
+    setSelectedLead({});
+    setIsOpenLead(false);
+    if (isDedicatedTab(statusFilter)) void fetchDedicated(statusFilter);
+    else await fetchLeads();
+  };
+
+  const handleTrash = async (id: number | string, comment?: string) => {
+    setLoading(true);
+    const res = await api.leads.trash(Number(id), comment ? { comment } : undefined);
+    setLoading(false);
+    if (!res.success) {
+      toast.error(res.message || 'Error moving lead to trash');
+      return;
+    }
+    toast.success('Lead moved to trash');
+    setSelectedLead({});
+    setIsOpenLead(false);
+    await fetchLeads();
+  };
+
+  const handleDeletePermanent = async (id: number | string) => {
+    setLoading(true);
+    const res = await database.deleteData(
+      `${process.env.NEXT_PUBLIC_URL}/leads/${Number(id)}`
+    );
+    setLoading(false);
+    if (!res.success) {
+      toast.error('Error deleting lead permanently');
+      return;
+    }
+    toast.success('Lead permanently deleted');
+    setSelectedLead({});
+    setIsOpenLead(false);
+    if (isDedicatedTab(statusFilter)) void fetchDedicated(statusFilter);
+    else await fetchLeads();
   };
 
   const deleteLead = async () => {
@@ -547,6 +700,28 @@ const LeadManagement = () => {
     if (summarizeBulkResult('delete', res)) finishBulk();
   };
 
+  const handleConfirmTrash = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkLoading(true);
+    let succeeded = 0;
+    let failed = 0;
+    const errors: Array<{ lead_id: number; message: string }> = [];
+    for (const id of Array.from(selectedIds)) {
+      const res = await api.leads.trash(id, bulkComment.trim() ? { comment: bulkComment.trim() } : undefined);
+      if (res.success) {
+        succeeded++;
+      } else {
+        failed++;
+        errors.push({ lead_id: id, message: res.message || 'Unknown error' });
+      }
+    }
+    setBulkLoading(false);
+    if (summarizeBulkResult('trash', {
+      success: true,
+      data: { total: selectedIds.size, succeeded, failed, errors },
+    })) finishBulk();
+  };
+
   // Preview helpers shared by dialogs
   const previewIds = useMemo(() => {
     const ids = selectedLeads.map((l) => `#${formatId(l['lead id'])}`);
@@ -582,6 +757,12 @@ const LeadManagement = () => {
       label: 'Archive',
       icon: <MdArchive size={14} />,
       onClick: () => openBulkDialog('archive'),
+    },
+    {
+      key: 'trash',
+      label: 'Move to Trash',
+      icon: <MdDeleteOutline size={14} />,
+      onClick: () => openBulkDialog('trash'),
     },
     {
       key: 'delete',
@@ -785,11 +966,17 @@ const LeadManagement = () => {
                       .format('MMM D, YYYY')
                   : undefined,
                 status: selectedLead.status,
+                spam_score: selectedLead.spam_score,
+                spam_reasons: selectedLead.spam_reasons,
+                trashed_at: selectedLead.trashed_at,
+                previous_status: selectedLead.previous_status,
               }
             : null
         }
         statusOptions={
-          selectedLead.status === 'ARCHIVED'
+          selectedLead.status === 'REVIEW' || selectedLead.status === 'TRASHED'
+            ? []
+            : selectedLead.status === 'ARCHIVED'
             ? STATUS_OPTIONS_ARCHIVED
             : selectedLead.status === 'DISABLED' ||
               selectedLead.status === 'LOST'
@@ -810,6 +997,11 @@ const LeadManagement = () => {
         }))}
         onAssign={handleSingleAssign}
         assignLoading={singleAssignLoading}
+        onMarkValid={handleMarkValid}
+        onMarkSpam={handleMarkSpam}
+        onRestore={handleRestore}
+        onTrash={handleTrash}
+        onDeletePermanent={handleDeletePermanent}
         countdown={
           selectedLead.status === 'ASSIGNED' && selectedLead.date_updated ? (
             <CountdownTimer targetDate={selectedLead.date_updated} />
@@ -892,6 +1084,22 @@ const LeadManagement = () => {
             />
           );
         })}
+        <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
+        <FilterButton
+          label='Review'
+          active={statusFilter === 'REVIEW'}
+          onClick={() => handleStatusClick('REVIEW')}
+        />
+        <FilterButton
+          label='Trash'
+          active={statusFilter === 'TRASHED'}
+          onClick={() => handleStatusClick('TRASHED')}
+        />
+        <FilterButton
+          label='Archived'
+          active={statusFilter === 'ARCHIVED'}
+          onClick={() => handleStatusClick('ARCHIVED')}
+        />
 
         <div className='ml-auto flex items-center gap-2'>
           <ViewToggle
@@ -1065,6 +1273,33 @@ const LeadManagement = () => {
           onChange={setBulkComment}
           disabled={bulkLoading}
           placeholder='Why are these leads being deleted?'
+        />
+      </ConfirmationDialog>
+
+      <ConfirmationDialog
+        open={bulkDialog === 'trash'}
+        onClose={closeBulkDialog}
+        title='Move to Trash'
+        subtitle='These leads will be moved to trash and auto-purged after 30 days.'
+        fields={[
+          { label: 'Action', value: 'Move to trash' },
+          {
+            label: 'Leads affected',
+            value: `${selectedIds.size} ${selectedIds.size === 1 ? 'lead' : 'leads'}`,
+          },
+          { label: 'IDs', value: previewIds || '—' },
+        ]}
+        notice='Trashed leads can be restored before the purge date.'
+        confirmLabel='Move to Trash'
+        onConfirm={handleConfirmTrash}
+        loading={bulkLoading}
+        confirmDisabled={bulkComment.trim().length === 0}
+      >
+        <BulkCommentField
+          value={bulkComment}
+          onChange={setBulkComment}
+          disabled={bulkLoading}
+          placeholder='Why are these leads being trashed?'
         />
       </ConfirmationDialog>
     </div>

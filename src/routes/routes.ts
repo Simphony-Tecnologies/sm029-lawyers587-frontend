@@ -4,6 +4,7 @@ import {
   MdChecklist,
   MdDashboard,
   MdNotifications,
+  MdShield,
   MdWork,
 } from 'react-icons/md';
 
@@ -52,6 +53,13 @@ export const routesSidebar: dataItem[] = [
     name: 'Leads',
     route: '/lead-management',
     icon: MdWork,
+    rol: ['admin'],
+    group: 'Management',
+  },
+  {
+    name: 'Spam Settings',
+    route: '/spam-settings',
+    icon: MdShield,
     rol: ['admin'],
     group: 'Management',
   },

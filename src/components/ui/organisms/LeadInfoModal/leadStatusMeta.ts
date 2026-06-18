@@ -7,7 +7,9 @@ export type LeadStatusKey =
   | 'CLOSED'
   | 'LOST'
   | 'EXPIRED'
-  | 'DISABLED';
+  | 'DISABLED'
+  | 'REVIEW'
+  | 'TRASHED';
 
 export interface LeadStatusMeta {
   label: string;
@@ -101,12 +103,54 @@ export const LEAD_STATUS_META: Record<LeadStatusKey, LeadStatusMeta> = {
     triggerHoverClass: 'hover:bg-slate-100 hover:border-slate-300',
     triggerMetaClass: 'text-slate-500',
   },
+  REVIEW: {
+    label: 'Review',
+    dotClass: 'bg-amber-500',
+    textClass: 'text-amber-700',
+    badgeBgClass: 'bg-amber-50',
+    triggerClass: 'bg-amber-50 border-amber-200 text-amber-700',
+    triggerHoverClass: 'hover:bg-amber-100 hover:border-amber-300',
+    triggerMetaClass: 'text-amber-700/70',
+  },
+  TRASHED: {
+    label: 'Trashed',
+    dotClass: 'bg-red-500',
+    textClass: 'text-red-700',
+    badgeBgClass: 'bg-red-50',
+    triggerClass: 'bg-red-50 border-red-200 text-red-700',
+    triggerHoverClass: 'hover:bg-red-100 hover:border-red-300',
+    triggerMetaClass: 'text-red-700/70',
+  },
 };
 
 export const getLeadStatusMeta = (raw?: string): LeadStatusMeta => {
   const key = (raw ?? '').toUpperCase() as LeadStatusKey;
   return LEAD_STATUS_META[key] ?? LEAD_STATUS_META.DISABLED;
 };
+
+// Friendly labels for machine-generated spam reason codes.
+export const SPAM_REASON_LABELS: Record<string, string> = {
+  blacklisted_email: 'Blacklisted Email',
+  blacklisted_domain: 'Blacklisted Domain',
+  suspicious_field: 'Suspicious Content',
+  duplicate_email: 'Duplicate Submission',
+};
+
+export const SPAM_REASON_TONE: Record<string, string> = {
+  blacklisted_email: 'bg-red-50 text-red-700',
+  blacklisted_domain: 'bg-red-50 text-red-700',
+  suspicious_field: 'bg-amber-50 text-amber-700',
+  duplicate_email: 'bg-yellow-50 text-yellow-700',
+};
+
+export const SPAM_SCORE_META: Record<number, { label: string; tone: string }> = {
+  1: { label: 'Low', tone: 'bg-yellow-50 text-yellow-700' },
+  2: { label: 'Medium', tone: 'bg-amber-50 text-amber-700' },
+  3: { label: 'High', tone: 'bg-red-50 text-red-700' },
+};
+
+// Auto-purge period in days (matches backend TRASH_RETENTION_DAYS).
+export const TRASH_PURGE_DAYS = 30;
 
 // Statuses que requieren razón obligatoria — alineado con backend.
 const REASON_REQUIRED_STATUSES = new Set(['LOST', 'PROBLEMATIC', 'SEND_BACK', 'WAITING_ON_CLIENT']);

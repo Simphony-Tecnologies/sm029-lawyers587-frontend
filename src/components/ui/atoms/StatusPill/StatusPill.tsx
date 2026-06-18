@@ -16,6 +16,8 @@ const statusPillStyles = cva(
         lost: 'bg-orange-50 text-orange-700',
         expired: 'bg-stone-100 text-stone-600',
         disabled: 'bg-slate-100 text-slate-500',
+        review: 'bg-amber-50 text-amber-700',
+        trashed: 'bg-red-50 text-red-700',
       },
     },
     defaultVariants: {
@@ -33,7 +35,9 @@ export type StatusPillVariant =
   | 'closed'
   | 'lost'
   | 'expired'
-  | 'disabled';
+  | 'disabled'
+  | 'review'
+  | 'trashed';
 
 export interface StatusPillProps
   extends HTMLAttributes<HTMLSpanElement>,
@@ -49,6 +53,8 @@ const LABELS: Record<StatusPillVariant, string> = {
   lost: 'Sent back',
   expired: 'Expired',
   disabled: 'Disabled',
+  review: 'Review',
+  trashed: 'Trashed',
 };
 
 const RAW_TO_VARIANT: Record<string, StatusPillVariant> = {
@@ -61,6 +67,8 @@ const RAW_TO_VARIANT: Record<string, StatusPillVariant> = {
   LOST: 'lost',
   EXPIRED: 'expired',
   DISABLED: 'disabled',
+  REVIEW: 'review',
+  TRASHED: 'trashed',
 };
 
 export const variantFromStatus = (raw: string): StatusPillVariant =>
