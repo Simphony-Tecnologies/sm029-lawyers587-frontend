@@ -252,6 +252,7 @@ const LeadManagement = () => {
       );
     }
     return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataLeads, selecArray, statusFilter, searchText, dedicatedData]);
 
   const handleStatusClick = (status: string | null) => {
