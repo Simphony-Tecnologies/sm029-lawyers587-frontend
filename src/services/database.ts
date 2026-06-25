@@ -35,6 +35,11 @@ import type {
   UpdateLawyerPasswordDTO,
   UpdateLawyerStatusDTO,
   UpdatePatternDTO,
+  GlobalNotifSettingsDTO,
+  NotificationDTO,
+  NotificationHistoryFilters,
+  NotificationPreferenceDTO,
+  ScheduleNotificationDTO,
 } from '@/types/api.types';
 
 const readCookie = (name: string): string | undefined => {
@@ -985,6 +990,61 @@ export const api = {
           token
         ),
     },
+  },
+
+  notifications: {
+    settings: {
+      global: {
+        get: (token?: string) =>
+          apiRequest<GlobalNotifSettingsDTO>(
+            '/notifications/settings/global',
+            { method: 'GET' },
+            token
+          ),
+        update: (body: Partial<GlobalNotifSettingsDTO>, token?: string) =>
+          apiRequest<GlobalNotifSettingsDTO>(
+            '/notifications/settings/global',
+            { method: 'PUT', body: JSON.stringify(body) },
+            token
+          ),
+      },
+    },
+    preferences: {
+      get: (lawyerId: number, token?: string) =>
+        apiRequest<NotificationPreferenceDTO[]>(
+          `/notifications/preferences/${lawyerId}`,
+          { method: 'GET' },
+          token
+        ),
+      update: (
+        lawyerId: number,
+        prefs: Array<Partial<NotificationPreferenceDTO> & { notification_type: string }>,
+        token?: string
+      ) =>
+        apiRequest<NotificationPreferenceDTO[]>(
+          `/notifications/preferences/${lawyerId}`,
+          { method: 'PUT', body: JSON.stringify({ preferences: prefs }) },
+          token
+        ),
+    },
+    history: (filters?: NotificationHistoryFilters, token?: string) =>
+      apiRequest<Paginated<NotificationDTO>>(
+        `/notifications/history/all${buildQuery(filters as Record<string, unknown>)}`,
+        { method: 'GET' },
+        token
+      ),
+    schedule: (body: ScheduleNotificationDTO, token?: string) =>
+      apiRequest<NotificationDTO>(
+        '/notifications/schedule',
+        { method: 'POST', body: JSON.stringify(body) },
+        token
+      ),
+    test: (body?: { lawyer_id?: number }, token?: string) =>
+      apiRequest<NotificationDTO>(
+        '/notifications/test',
+        { method: 'POST', body: JSON.stringify(body || {}) },
+        token
+      ),
   },
 };
 
