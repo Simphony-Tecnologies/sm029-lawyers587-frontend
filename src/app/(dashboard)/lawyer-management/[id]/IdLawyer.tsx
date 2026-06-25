@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -11,6 +11,7 @@ import {
   MdCircle,
   MdDownload,
   MdHistoryEdu,
+  MdNotifications,
   MdOutlineLogin,
   MdSquare,
 } from 'react-icons/md';
@@ -23,6 +24,9 @@ import type {
   LeadComment,
   LeadDTO,
   LeadStatus,
+  NotificationChannel,
+  NotificationPreferenceDTO,
+  NotificationType,
 } from '@/types/api.types';
 import {
   Avatar,
@@ -120,6 +124,20 @@ const LEAD_STATUS_LABEL: Partial<Record<LeadStatus, string>> = {
   DISABLED: 'Disabled',
   ARCHIVED: 'Archived',
 };
+
+const NOTIF_TYPES: { value: NotificationType; label: string }[] = [
+  { value: 'IMMEDIATE', label: 'Immediate' },
+  { value: 'SCHEDULED', label: 'Scheduled' },
+  { value: 'DAILY_SUMMARY', label: 'Daily Summary' },
+  { value: 'WEEKLY_SUMMARY', label: 'Weekly Summary' },
+  { value: 'CALENDAR_REMINDER', label: 'Calendar Reminder' },
+];
+
+const CHANNEL_OPTIONS: { value: NotificationChannel; label: string; disabled: boolean }[] = [
+  { value: 'EMAIL', label: 'Email', disabled: false },
+  { value: 'SMS', label: 'SMS', disabled: true },
+  { value: 'BOTH', label: 'Both', disabled: true },
+];
 
 const formatLeadCode = (id: number | string) =>
   `#${String(id ?? '').padStart(5, '0')}`;
@@ -604,6 +622,115 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     return auditMapped;
   }, [history, lawyerComments, auditFilter]);
 
+  // ── Notification preferences ───────────────────────────────────────
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPreferenceDTO[]>([]);
+  const [notifPrefsLoading, setNotifPrefsLoading] = useState(false);
+  const [notifPrefsSaving, setNotifPrefsSaving] = useState(false);
+  const [notifPrefsOpen, setNotifPrefsOpen] = useState(false);
+
+  const fetchNotifPrefs = useCallback(async (lawyerId: number) => {
+    setNotifPrefsLoading(true);
+    try {
+      const res = await api.notifications.preferences.get(lawyerId);
+      if (res.success && res.data) {
+        setNotifPrefs(Array.isArray(res.data) ? res.data : []);
+      }
+    } catch {
+      // silent — section is non-critical
+    } finally {
+      setNotifPrefsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (lawyer?.id) fetchNotifPrefs(lawyer.id);
+  }, [lawyer?.id, fetchNotifPrefs]);
+
+  const getPref = (type: NotificationType): NotificationPreferenceDTO => {
+    return (
+      notifPrefs.find((p) => p.notification_type === type) ?? {
+        lawyer_id: lawyer?.id ?? 0,
+        notification_type: type,
+        enabled: true,
+        channel: 'EMAIL' as NotificationChannel,
+        is_paused: false,
+        paused_until: null,
+      }
+    );
+  };
+
+  const togglePrefEnabled = (type: NotificationType) => {
+    setNotifPrefs((prev) => {
+      const existing = prev.find((p) => p.notification_type === type);
+      if (existing) {
+        return prev.map((p) =>
+          p.notification_type === type ? { ...p, enabled: !p.enabled } : p
+        );
+      }
+      return [
+        ...prev,
+        {
+          lawyer_id: lawyer?.id ?? 0,
+          notification_type: type,
+          enabled: false,
+          channel: 'EMAIL' as NotificationChannel,
+          is_paused: false,
+          paused_until: null,
+        },
+      ];
+    });
+  };
+
+  const togglePrefPaused = (type: NotificationType) => {
+    setNotifPrefs((prev) => {
+      const existing = prev.find((p) => p.notification_type === type);
+      if (existing) {
+        return prev.map((p) =>
+          p.notification_type === type ? { ...p, is_paused: !p.is_paused } : p
+        );
+      }
+      return [
+        ...prev,
+        {
+          lawyer_id: lawyer?.id ?? 0,
+          notification_type: type,
+          enabled: true,
+          channel: 'EMAIL' as NotificationChannel,
+          is_paused: true,
+          paused_until: null,
+        },
+      ];
+    });
+  };
+
+  const handleSaveNotifPrefs = async () => {
+    if (!lawyer?.id) return;
+    setNotifPrefsSaving(true);
+    try {
+      const prefs = NOTIF_TYPES.map(({ value }) => {
+        const p = getPref(value);
+        return {
+          notification_type: p.notification_type,
+          enabled: p.enabled,
+          channel: p.channel,
+          is_paused: p.is_paused,
+          paused_until: p.paused_until,
+        };
+      });
+      const res = await api.notifications.preferences.update(lawyer.id, prefs);
+      if (res.success) {
+        toast.success('Notification preferences saved');
+        if (res.data && Array.isArray(res.data)) setNotifPrefs(res.data);
+      } else {
+        toast.error(res.message ?? 'Failed to save preferences');
+      }
+    } catch {
+      toast.error('Failed to save preferences');
+    } finally {
+      setNotifPrefsSaving(false);
+    }
+  };
+
   const handleExportHistory = async (format: 'csv' | 'pdf') => {
     if (!Number.isFinite(lawyerId)) return;
     const res = await api.lawyers.exportHistory(lawyerId, format);
@@ -808,6 +935,104 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           }
         />
       </div>
+
+      {/* ── Notification Preferences ────────────────────────────────── */}
+      <section className='flex flex-col gap-3'>
+        <button
+          type='button'
+          onClick={() => setNotifPrefsOpen(!notifPrefsOpen)}
+          className='inline-flex w-fit items-center gap-2 text-[15px] font-extrabold tracking-[-0.015em] text-slate-900'
+        >
+          <MdNotifications size={18} />
+          Notification Preferences
+          <span className='text-[12px] font-medium text-slate-400'>
+            {notifPrefsOpen ? '▾' : '▸'}
+          </span>
+        </button>
+
+        {notifPrefsOpen && (
+          notifPrefsLoading ? (
+            <div className='py-4 text-center text-[13px] text-slate-400'>
+              Loading preferences...
+            </div>
+          ) : (
+            <div className='overflow-hidden rounded-2xl border border-slate-200 bg-white'>
+              <div className='grid grid-cols-[1fr_80px_100px_80px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500'>
+                <div>Type</div>
+                <div className='text-center'>Active</div>
+                <div className='text-center'>Channel</div>
+                <div className='text-center'>Paused</div>
+              </div>
+              {NOTIF_TYPES.map(({ value, label }) => {
+                const pref = getPref(value);
+                return (
+                  <div
+                    key={value}
+                    className='grid grid-cols-[1fr_80px_100px_80px] items-center border-b border-slate-100 px-5 py-3 last:border-b-0'
+                  >
+                    <span className='text-[13px] font-medium text-slate-700'>
+                      {label}
+                    </span>
+                    <div className='flex justify-center'>
+                      <button
+                        type='button'
+                        onClick={() => togglePrefEnabled(value)}
+                        className={`h-6 w-10 rounded-full transition-colors ${
+                          pref.enabled ? 'bg-green-500' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                            pref.enabled ? 'translate-x-5' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    <div className='flex justify-center'>
+                      <select
+                        value={pref.channel}
+                        disabled
+                        className='h-7 w-20 rounded-md border border-slate-200 px-1.5 text-[11px] text-slate-600 outline-none disabled:bg-slate-50 disabled:text-slate-400'
+                      >
+                        {CHANNEL_OPTIONS.map((ch) => (
+                          <option key={ch.value} value={ch.value} disabled={ch.disabled}>
+                            {ch.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className='flex justify-center'>
+                      <button
+                        type='button'
+                        onClick={() => togglePrefPaused(value)}
+                        className={`h-6 w-10 rounded-full transition-colors ${
+                          pref.is_paused ? 'bg-orange-400' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                            pref.is_paused ? 'translate-x-5' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className='flex items-center justify-end border-t border-slate-200 px-5 py-3'>
+                <button
+                  type='button'
+                  onClick={handleSaveNotifPrefs}
+                  disabled={notifPrefsSaving}
+                  className='inline-flex h-[30px] items-center rounded-[9px] bg-slate-900 px-3.5 text-[12px] font-bold text-white hover:bg-slate-800 disabled:opacity-50'
+                >
+                  {notifPrefsSaving ? 'Saving...' : 'Save Preferences'}
+                </button>
+              </div>
+            </div>
+          )
+        )}
+      </section>
 
       {/* ─── Tabla de leads del lawyer ──────────────────────────────
           Fuente principal: GET /leads?assigned_to=<lawyerId>.
