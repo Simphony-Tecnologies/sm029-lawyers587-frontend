@@ -64,6 +64,13 @@ export const routesSidebar: dataItem[] = [
     group: 'Management',
   },
   {
+    name: 'Notifications',
+    route: '/notification-settings',
+    icon: MdNotifications,
+    rol: ['admin'],
+    group: 'Management',
+  },
+  {
     name: 'My Workflow',
     route: '/dash-lawyers',
     icon: MdDashboard,

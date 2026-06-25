@@ -31,6 +31,7 @@ export async function middleware(req: any) {
     '/lead-management',
     '/dashboard',
     '/spam-settings',
+    '/notification-settings',
   ];
   const protectedRoutesLawyer = ['/all-leads', '/select-lead', '/dash-lawyers'];
 
