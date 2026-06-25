@@ -339,3 +339,105 @@ export interface LawyerHistoryResponse {
   summary: LawyerHistorySummary;
   events: Paginated<AuditEvent>;
 }
+
+// ─── Notifications ──────────────────────────────────────────────────────────
+
+export type NotificationType =
+  | 'IMMEDIATE'
+  | 'SCHEDULED'
+  | 'DAILY_SUMMARY'
+  | 'WEEKLY_SUMMARY'
+  | 'CALENDAR_REMINDER';
+
+export type NotificationChannel = 'EMAIL' | 'SMS' | 'BOTH';
+
+export type NotificationStatus =
+  | 'PENDING'
+  | 'QUEUED'
+  | 'SENT'
+  | 'FAILED'
+  | 'DEDUPLICATED'
+  | 'SKIPPED_QUIET_HOURS'
+  | 'SKIPPED_PREFERENCE';
+
+export type NotificationEventType =
+  | 'LEAD_ASSIGNED'
+  | 'LEAD_UNASSIGNED'
+  | 'LEAD_EXPIRED'
+  | 'LEAD_EXPIRING_SOON'
+  | 'LEAD_STATUS_PROBLEMATIC'
+  | 'LEAD_POOL_NEW'
+  | 'LEAD_SPAM_FLAGGED'
+  | 'LEAD_PULLED'
+  | 'LEAD_RESTORED'
+  | 'LEAD_CLOSED'
+  | 'LEAD_DISABLED'
+  | 'BULK_COMPLETED'
+  | 'FOLLOW_UP_REMINDER'
+  | 'CALENDAR_REMINDER'
+  | 'DAILY_SUMMARY'
+  | 'WEEKLY_SUMMARY'
+  | 'TEST';
+
+export interface NotificationDTO {
+  id: number;
+  text: string;
+  is_active: boolean;
+  type: NotificationType;
+  event_type: NotificationEventType | null;
+  channel: NotificationChannel;
+  status: NotificationStatus;
+  entity_type: string | null;
+  entity_id: number | null;
+  scheduled_at: string | null;
+  sent_at: string | null;
+  retry_count: number;
+  error_message: string | null;
+  dedup_key: string | null;
+  lawyer_id: number;
+  created_at: string;
+  updated_at: string;
+  lawyer?: LawyerRef;
+}
+
+export interface NotificationPreferenceDTO {
+  id?: number;
+  lawyer_id: number;
+  notification_type: NotificationType;
+  enabled: boolean;
+  channel: NotificationChannel;
+  is_paused: boolean;
+  paused_until: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface GlobalNotifSettingsDTO {
+  quiet_hours_start: string;
+  quiet_hours_end: string;
+  retries: number;
+  backoff_ms: number;
+  dedup_minutes: number;
+  default_reminder_policy: string;
+  daily_summary_time: string;
+  weekly_summary_day: number;
+}
+
+export interface NotificationHistoryFilters {
+  lawyer_id?: number;
+  type?: NotificationType;
+  status?: NotificationStatus;
+  event_type?: NotificationEventType;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ScheduleNotificationDTO {
+  lawyer_id: number;
+  lead_id?: number;
+  type: 'SCHEDULED' | 'CALENDAR_REMINDER';
+  scheduled_at: string;
+  message: string;
+}
