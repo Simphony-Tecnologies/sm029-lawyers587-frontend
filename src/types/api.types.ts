@@ -441,3 +441,89 @@ export interface ScheduleNotificationDTO {
   scheduled_at: string;
   message: string;
 }
+
+// ─── Analytics / Metrics ─────────────────────────────────────────────────────
+// Contrato fiel al backend. El sobre GenericResponse<T> lo desenvuelve
+// apiRequest() → ApiResult<T>, por eso NO se tipa aquí.
+
+export interface MetricRange {
+  from: string; // ISO UTC
+  to: string; // ISO UTC
+  previous_from: string; // ISO UTC
+  previous_to: string; // ISO UTC
+}
+
+export type Trend = 'up' | 'down' | 'flat';
+
+// GET /leads/metrics/widgets
+export type WidgetKey = 'nuevos' | 'en_proceso' | 'contactados' | 'conversiones';
+
+export interface WidgetMetric {
+  count: number;
+  previous: number;
+  delta: number;
+  delta_pct: number | null; // null si previous=0 y count>0 (N/A)
+  trend: Trend;
+}
+
+export interface WidgetMetricsResponse {
+  range: MetricRange;
+  widgets: Record<WidgetKey, WidgetMetric>;
+}
+
+export interface MetricsDateFilters {
+  date_from?: string;
+  date_to?: string;
+}
+
+// GET /lawyers/metrics/performance
+export type PerformanceSortBy =
+  | 'conversion_rate'
+  | 'closed'
+  | 'taken'
+  | 'lost'
+  | 'active_assigned';
+
+export interface PerformanceDelta {
+  taken: number;
+  closed: number;
+  lost: number;
+  conversion_rate: number | null; // Δ en puntos %, null si algún período tenía taken=0
+  trend: Trend;
+}
+
+export interface LawyerPerformanceRow {
+  lawyer_id: number;
+  name: string;
+  email: string;
+  taken: number;
+  closed: number;
+  lost: number;
+  conversion_rate: number | null; // closed/taken %, null si taken=0
+  avg_response_hours: number | null; // asignación → 1ª acción; null si N/A
+  active_assigned: number; // snapshot ACTUAL (no depende del rango)
+  delta: PerformanceDelta;
+}
+
+export interface PerformanceTotals {
+  taken: number;
+  closed: number;
+  lost: number;
+  conversion_rate: number | null;
+  avg_response_hours: number | null;
+  active_assigned: number;
+}
+
+export interface LawyerPerformanceResponse {
+  range: MetricRange;
+  totals: PerformanceTotals;
+  lawyers: LawyerPerformanceRow[]; // ya ordenado por sort_by (desc)
+  total: number; // # de abogados antes de limit/offset
+}
+
+export interface PerformanceFilters extends MetricsDateFilters {
+  sort_by?: PerformanceSortBy;
+  lawyer_id?: number; // solo admin; backend lo ignora para lawyers
+  limit?: number;
+  offset?: number;
+}
