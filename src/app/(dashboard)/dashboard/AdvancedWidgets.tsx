@@ -24,13 +24,13 @@ type WidgetDef = {
   icon: JSX.Element;
 };
 
-// Los 4 widgets avanzados del backend (transiciones period-bounded + deltas).
-// Conviven con los 8 KPIs por status legacy — NO los reemplazan.
+// The 4 advanced backend widgets (period-bounded transitions + deltas).
+// They coexist with the 8 legacy status KPIs — they do NOT replace them.
 const WIDGET_DEFS: WidgetDef[] = [
-  { key: 'nuevos', label: 'Nuevos', tone: 'violet', icon: <MdAddCircleOutline size={16} /> },
-  { key: 'en_proceso', label: 'En proceso', tone: 'amber', icon: <MdTrendingUp size={16} /> },
-  { key: 'contactados', label: 'Contactados', tone: 'emerald', icon: <MdChatBubbleOutline size={16} /> },
-  { key: 'conversiones', label: 'Conversiones', tone: 'emerald', icon: <MdEmojiEvents size={16} /> },
+  { key: 'nuevos', label: 'New', tone: 'violet', icon: <MdAddCircleOutline size={16} /> },
+  { key: 'en_proceso', label: 'In Progress', tone: 'amber', icon: <MdTrendingUp size={16} /> },
+  { key: 'contactados', label: 'Contacted', tone: 'emerald', icon: <MdChatBubbleOutline size={16} /> },
+  { key: 'conversiones', label: 'Conversions', tone: 'emerald', icon: <MdEmojiEvents size={16} /> },
 ];
 
 interface AdvancedWidgetsProps {
@@ -52,7 +52,7 @@ export const AdvancedWidgets = ({ days }: AdvancedWidgetsProps) => {
       .then((res) => {
         if (!active) return;
         if (res.success && res.data) setData(res.data);
-        else setError(res.message || 'No se pudieron cargar los widgets');
+        else setError(res.message || 'Unable to load widgets');
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -70,7 +70,7 @@ export const AdvancedWidgets = ({ days }: AdvancedWidgetsProps) => {
     );
   }
 
-  const comparison = data ? formatComparisonLabel(data.range) : 'Cargando…';
+  const comparison = data ? formatComparisonLabel(data.range) : 'Loading…';
 
   return (
     <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>

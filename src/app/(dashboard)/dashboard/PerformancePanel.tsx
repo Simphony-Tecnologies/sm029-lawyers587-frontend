@@ -40,7 +40,7 @@ export const PerformancePanel = ({
       .then((res) => {
         if (!active) return;
         if (res.success && res.data) setData(res.data);
-        else setError(res.message || 'No se pudo cargar el desempeño');
+        else setError(res.message || 'Unable to load performance');
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -54,7 +54,7 @@ export const PerformancePanel = ({
     () => [
       {
         key: 'name',
-        label: 'Abogado',
+        label: 'Lawyer',
         sortable: true,
         accessor: (r) => r.name,
         render: (r) => (
@@ -66,7 +66,7 @@ export const PerformancePanel = ({
       },
       {
         key: 'taken',
-        label: 'Tomados',
+        label: 'Taken',
         align: 'right',
         sortable: true,
         accessor: (r) => r.taken,
@@ -74,7 +74,7 @@ export const PerformancePanel = ({
       },
       {
         key: 'closed',
-        label: 'Cerrados',
+        label: 'Closed',
         align: 'right',
         sortable: true,
         accessor: (r) => r.closed,
@@ -82,7 +82,7 @@ export const PerformancePanel = ({
       },
       {
         key: 'lost',
-        label: 'Perdidos',
+        label: 'Lost',
         align: 'right',
         sortable: true,
         accessor: (r) => r.lost,
@@ -90,7 +90,7 @@ export const PerformancePanel = ({
       },
       {
         key: 'conversion_rate',
-        label: 'Conversión',
+        label: 'Conversion',
         align: 'right',
         sortable: true,
         // null ordena al fondo (accessor -1); render sigue mostrando '—'.
@@ -107,7 +107,7 @@ export const PerformancePanel = ({
       },
       {
         key: 'avg_response_hours',
-        label: 'Resp. prom.',
+        label: 'Avg. Response',
         align: 'right',
         sortable: true,
         accessor: (r) => r.avg_response_hours ?? -1,
@@ -115,7 +115,7 @@ export const PerformancePanel = ({
       },
       {
         key: 'active_assigned',
-        label: 'Activos ahora',
+        label: 'Active Now',
         align: 'right',
         sortable: true,
         accessor: (r) => r.active_assigned,
@@ -136,10 +136,10 @@ export const PerformancePanel = ({
   return (
     <div className='flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5'>
       <div className='flex items-baseline justify-between'>
-        <h2 className='text-sm font-bold text-slate-800'>Desempeño por abogado</h2>
+        <h2 className='text-sm font-bold text-slate-800'>Lawyer performance</h2>
         {data ? (
           <span className='text-[11px] font-semibold text-slate-400'>
-            {data.total} abogado{data.total === 1 ? '' : 's'}
+            {data.total} lawyer{data.total === 1 ? '' : 's'}
           </span>
         ) : null}
       </div>
@@ -147,10 +147,10 @@ export const PerformancePanel = ({
         columns={columns}
         data={data?.lawyers ?? []}
         rowKey={(r) => r.lawyer_id}
-        totalLabel='abogados'
+        totalLabel='lawyers'
         initialSort={{ key: sortBy, direction: 'desc' }}
         emptyState={
-          loading ? 'Cargando desempeño…' : 'Sin datos de desempeño en el período'
+          loading ? 'Loading performance…' : 'No performance data for this period'
         }
         pagination={{ enabled: true, initialPageSize: 10 }}
       />
