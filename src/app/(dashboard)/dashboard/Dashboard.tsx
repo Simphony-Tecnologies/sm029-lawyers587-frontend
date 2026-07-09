@@ -268,7 +268,9 @@ const Dashboard = () => {
 
       <section className='flex flex-col gap-2.5'>
         <span className='text-[11px] font-bold uppercase tracking-wider text-slate-400'>
-          Analytics · selected period
+          {period.days === null
+            ? 'Analytics · last 30 days'
+            : 'Analytics · selected period'}
         </span>
         <AdvancedWidgets days={period.days} />
       </section>
