@@ -32,6 +32,8 @@ import {
   type PeriodKey,
   type PeriodOption,
 } from '@/components/ui';
+import { AdvancedWidgets } from './AdvancedWidgets';
+import { PerformancePanel } from './PerformancePanel';
 
 dayjs.extend(relativeTime);
 
@@ -264,6 +266,13 @@ const Dashboard = () => {
         }
       />
 
+      <section className='flex flex-col gap-2.5'>
+        <span className='text-[11px] font-bold uppercase tracking-wider text-slate-400'>
+          Analytics · período seleccionado
+        </span>
+        <AdvancedWidgets days={period.days} />
+      </section>
+
       <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>
         {KPI_DEFS.map((kpi, idx) => (
           <KpiCard
@@ -321,6 +330,8 @@ const Dashboard = () => {
           ))}
         </ul>
       </ActivityPanel>
+
+      <PerformancePanel days={period.days} />
     </div>
   );
 };
