@@ -26,8 +26,10 @@ export function trendToDirection(trend: Trend): 'up' | 'down' | 'neutral' {
 /** Variación % con signo. `null` (base 0 → N/A) → '—'. Nunca NaN/∞. */
 export function formatDeltaPct(pct: number | null): string {
   if (pct == null) return '—';
-  const sign = pct > 0 ? '+' : '';
-  return `${sign}${pct.toFixed(1)}%`;
+  // Redondear ANTES de elegir el signo evita "-0.0%" / "+0.0%" para |pct| < 0.05.
+  const rounded = Number(pct.toFixed(1));
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${rounded.toFixed(1)}%`;
 }
 
 /** Porcentaje simple (conversion_rate). `null` → '—'. */

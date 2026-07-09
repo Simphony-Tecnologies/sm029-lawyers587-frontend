@@ -34,7 +34,9 @@ export const PerformancePanel = ({
     setLoading(true);
     setError(null);
     api.lawyers.metrics
-      .performance({ ...periodToRange(days), sort_by: sortBy })
+      // limit alto: traemos todos los abogados de la firma para que el conteo
+      // del header (data.total) no diverja de las filas paginadas en cliente.
+      .performance({ ...periodToRange(days), sort_by: sortBy, limit: 100 })
       .then((res) => {
         if (!active) return;
         if (res.success && res.data) setData(res.data);
@@ -145,6 +147,8 @@ export const PerformancePanel = ({
         columns={columns}
         data={data?.lawyers ?? []}
         rowKey={(r) => r.lawyer_id}
+        totalLabel='abogados'
+        initialSort={{ key: sortBy, direction: 'desc' }}
         emptyState={
           loading ? 'Cargando desempeño…' : 'Sin datos de desempeño en el período'
         }
