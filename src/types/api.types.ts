@@ -66,6 +66,22 @@ export interface LawyerRef {
 
 // ─── Leads ───────────────────────────────────────────────────────────────────
 
+// Canal de adquisición derivado por el backend desde las señales de atribución
+// (utm/referrer/gclid). Debe coincidir 1:1 con el union del backend.
+export type Channel =
+  | 'google_ads'
+  | 'google_organic'
+  | 'bing_ads'
+  | 'search_organic'
+  | 'meta_ads'
+  | 'meta_social'
+  | 'social'
+  | 'email'
+  | 'referral'
+  | 'direct'
+  | 'import'
+  | 'unknown';
+
 export interface LeadDTO {
   id: number;
   code: string;
@@ -86,6 +102,14 @@ export interface LeadDTO {
   previous_status?: LeadStatus | null;
   spam_score?: number;
   spam_reasons?: string[] | null;
+  // Atribución de marketing: `channel` derivado por el backend + señales crudas.
+  // Opcionales (backwards-compatible con leads históricos sin captura).
+  channel?: Channel;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  referrer_url?: string | null;
+  gclid?: string | null;
 }
 
 export interface LeadFilters {
@@ -440,4 +464,90 @@ export interface ScheduleNotificationDTO {
   type: 'SCHEDULED' | 'CALENDAR_REMINDER';
   scheduled_at: string;
   message: string;
+}
+
+// ─── Analytics / Metrics ─────────────────────────────────────────────────────
+// Contrato fiel al backend. El sobre GenericResponse<T> lo desenvuelve
+// apiRequest() → ApiResult<T>, por eso NO se tipa aquí.
+
+export interface MetricRange {
+  from: string; // ISO UTC
+  to: string; // ISO UTC
+  previous_from: string; // ISO UTC
+  previous_to: string; // ISO UTC
+}
+
+export type Trend = 'up' | 'down' | 'flat';
+
+// GET /leads/metrics/widgets
+export type WidgetKey = 'nuevos' | 'en_proceso' | 'contactados' | 'conversiones';
+
+export interface WidgetMetric {
+  count: number;
+  previous: number;
+  delta: number;
+  delta_pct: number | null; // null si previous=0 y count>0 (N/A)
+  trend: Trend;
+}
+
+export interface WidgetMetricsResponse {
+  range: MetricRange;
+  widgets: Record<WidgetKey, WidgetMetric>;
+}
+
+export interface MetricsDateFilters {
+  date_from?: string;
+  date_to?: string;
+}
+
+// GET /lawyers/metrics/performance
+export type PerformanceSortBy =
+  | 'conversion_rate'
+  | 'closed'
+  | 'taken'
+  | 'lost'
+  | 'active_assigned';
+
+export interface PerformanceDelta {
+  taken: number;
+  closed: number;
+  lost: number;
+  conversion_rate: number | null; // Δ en puntos %, null si algún período tenía taken=0
+  trend: Trend;
+}
+
+export interface LawyerPerformanceRow {
+  lawyer_id: number;
+  name: string;
+  email: string;
+  taken: number;
+  closed: number;
+  lost: number;
+  conversion_rate: number | null; // closed/taken %, null si taken=0
+  avg_response_hours: number | null; // asignación → 1ª acción; null si N/A
+  active_assigned: number; // snapshot ACTUAL (no depende del rango)
+  delta: PerformanceDelta;
+}
+
+export interface PerformanceTotals {
+  taken: number;
+  closed: number;
+  lost: number;
+  conversion_rate: number | null;
+  avg_response_hours: number | null;
+  active_assigned: number;
+}
+
+export interface LawyerPerformanceResponse {
+  range: MetricRange;
+  totals: PerformanceTotals;
+  lawyers: LawyerPerformanceRow[]; // ya ordenado por sort_by (desc)
+  total: number; // # de abogados antes de limit/offset
+}
+
+export interface PerformanceFilters extends MetricsDateFilters {
+  sort_by?: PerformanceSortBy;
+  lawyer_id?: number; // solo admin; backend lo ignora para lawyers
+  limit?: number;
+  offset?: number;
 }

@@ -26,6 +26,7 @@ import {
   LeadInfoModal,
   PageHead,
   SearchField,
+  SourceBadge,
   StatusPill,
   ViewToggle,
   toneFromString,
@@ -54,6 +55,7 @@ type LeadRow = {
   comments: string;
   lawyer: string;
   status: string;
+  channel?: string;
   assigned_lawyer_id: number | null;
   // Spam / trash
   spam_score: number;
@@ -198,6 +200,7 @@ const LeadManagement = () => {
         return 'No assigned';
       })(),
       status: lead.status,
+      channel: lead.channel,
       assigned_lawyer_id: lead.assigned_lawyer_id ?? null,
       spam_score: lead.spam_score ?? 0,
       spam_reasons: lead.spam_reasons ?? null,
@@ -938,6 +941,13 @@ const LeadManagement = () => {
       sortable: true,
       accessor: (r) => r.status,
       render: (r) => <StatusPill variant={variantFromStatus(r.status)} />,
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      sortable: true,
+      accessor: (r) => r.channel ?? 'unknown',
+      render: (r) => <SourceBadge channel={r.channel} />,
     },
   ];
 

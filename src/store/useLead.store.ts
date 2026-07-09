@@ -41,6 +41,7 @@ const toRow = (lead: LeadDTO | any) => ({
   comments: lead.comments ?? '',
   lawyer: pickLawyerName(lead),
   status: lead.status,
+  channel: lead.channel ?? null,
   assigned_lawyer_id: lead.assigned_lawyer_id ?? null,
   // Spam / trash pass-through
   spam_score: lead.spam_score ?? 0,
