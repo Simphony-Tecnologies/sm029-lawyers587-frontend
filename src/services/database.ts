@@ -20,11 +20,14 @@ import type {
   LawyerFilters,
   LawyerHistoryResponse,
   LawyerListItem,
+  LawyerPerformanceResponse,
   LawyerStats,
   LeadComment,
   LeadDTO,
   LeadFilters,
+  MetricsDateFilters,
   Paginated,
+  PerformanceFilters,
   PoolFilters,
   PullLeadDTO,
   SuspiciousPattern,
@@ -35,6 +38,7 @@ import type {
   UpdateLawyerPasswordDTO,
   UpdateLawyerStatusDTO,
   UpdatePatternDTO,
+  WidgetMetricsResponse,
   GlobalNotifSettingsDTO,
   NotificationDTO,
   NotificationHistoryFilters,
@@ -885,6 +889,15 @@ export const api = {
         token,
         format === 'csv' ? 'text/csv' : 'application/pdf'
       ),
+
+    metrics: {
+      widgets: (filters?: MetricsDateFilters, token?: string) =>
+        apiRequest<WidgetMetricsResponse>(
+          `/leads/metrics/widgets${buildQuery(filters as Record<string, unknown>)}`,
+          { method: 'GET' },
+          token
+        ),
+    },
   },
 
   lawyers: {
@@ -941,6 +954,15 @@ export const api = {
         token,
         format === 'csv' ? 'text/csv' : 'application/pdf'
       ),
+
+    metrics: {
+      performance: (filters?: PerformanceFilters, token?: string) =>
+        apiRequest<LawyerPerformanceResponse>(
+          `/lawyers/metrics/performance${buildQuery(filters as Record<string, unknown>)}`,
+          { method: 'GET' },
+          token
+        ),
+    },
   },
 
   spam: {
