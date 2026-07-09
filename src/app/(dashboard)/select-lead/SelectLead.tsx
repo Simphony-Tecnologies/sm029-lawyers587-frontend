@@ -19,6 +19,7 @@ import {
   EmptyStateBox,
   KpiCard,
   PageHead,
+  SourceBadge,
   StatusPill,
   toneFromString,
   variantFromStatus,
@@ -37,6 +38,7 @@ type PoolRow = {
   service: string;
   status: LeadDTO['status'];
   entry_date: Date;
+  channel?: string;
 };
 
 const toRow = (lead: LeadDTO): PoolRow => ({
@@ -45,6 +47,7 @@ const toRow = (lead: LeadDTO): PoolRow => ({
   service: lead.service ?? '',
   status: lead.status,
   entry_date: new Date(lead.entry_date ?? lead.created_at),
+  channel: lead.channel,
 });
 
 const SelectLead = () => {
@@ -257,6 +260,13 @@ const SelectLead = () => {
       width: '200px',
       sortable: true,
       accessor: (r) => r.service,
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      sortable: true,
+      accessor: (r) => r.channel ?? 'unknown',
+      render: (r) => <SourceBadge channel={r.channel} />,
     },
     {
       key: 'entry_date',

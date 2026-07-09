@@ -11,6 +11,7 @@ export * from './MenuDivider';
 export * from './NavIcon';
 export * from './OnlineDot';
 export * from './PillDivider';
+export * from './SourceBadge';
 export * from './Sparkline';
 export * from './StatusPill';
 export * from './TrendPill';

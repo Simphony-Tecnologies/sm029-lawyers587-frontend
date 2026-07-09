@@ -38,6 +38,7 @@ import {
   LawyerIdentity,
   LeadInfoModal,
   SearchField,
+  SourceBadge,
   StatusPill,
   toneFromString,
   variantFromStatus,
@@ -66,6 +67,7 @@ type LeadRow = {
   comments: string;
   lawyer: string;
   status: string;
+  channel?: string;
 };
 
 type LawyerService = {
@@ -199,6 +201,13 @@ const LEAD_TABLE_COLUMNS: DataTableColumn<LeadRow>[] = [
     sortable: true,
     accessor: (r) => r.status,
     render: (r) => <StatusPill variant={variantFromStatus(r.status) as any} />,
+  },
+  {
+    key: 'source',
+    label: 'Source',
+    sortable: true,
+    accessor: (r) => r.channel ?? 'unknown',
+    render: (r) => <SourceBadge channel={r.channel} />,
   },
   {
     key: 'date_updated',
@@ -537,6 +546,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           lead.assigned_lawyer?.lastName ?? ''
         }`.trim() || '—',
       status: lead.status,
+      channel: lead.channel,
     }));
   }, [lawyerLeadsRaw]);
 

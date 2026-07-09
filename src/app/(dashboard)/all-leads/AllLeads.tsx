@@ -20,6 +20,7 @@ import {
   LeadInfoModal,
   PageHead,
   SearchField,
+  SourceBadge,
   StatusPill,
   toneFromString,
   variantFromStatus,
@@ -43,6 +44,7 @@ type LeadRow = {
   status: LeadStatus;
   date_updated: Date;
   date: Date;
+  channel?: string;
 };
 
 const STATUS_OPTIONS: LeadStatusOption[] = [
@@ -74,6 +76,7 @@ const toRow = (lead: LeadDTO): LeadRow => ({
   status: lead.status,
   date_updated: new Date(lead.updated_at ?? lead.created_at ?? lead.entry_date),
   date: new Date(lead.created_at ?? lead.entry_date),
+  channel: lead.channel,
 });
 
 const AllLeads = () => {
@@ -276,6 +279,13 @@ const AllLeads = () => {
       render: (r) => (
         <StatusPill variant={variantFromStatus(r.status) as any} />
       ),
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      sortable: true,
+      accessor: (r) => r.channel ?? 'unknown',
+      render: (r) => <SourceBadge channel={r.channel} />,
     },
     {
       // UX-L05: para leads ASSIGNED muestra countdown 48h con urgency

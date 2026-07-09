@@ -7,6 +7,7 @@ import {
   DataTable,
   PageHead,
   SearchField,
+  SourceBadge,
   StatusPill,
   toneFromString,
   variantFromStatus,
@@ -25,6 +26,7 @@ type LeadRow = {
   comments: string;
   lawyer: string;
   status: string;
+  channel?: string;
 };
 
 const LOST_STATUSES = new Set(['LOST', 'EXPIRED', 'DISABLED']);
@@ -180,6 +182,13 @@ const LostLeads = () => {
       sortable: true,
       accessor: (r) => r.status,
       render: (r) => <StatusPill variant={variantFromStatus(r.status)} />,
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      sortable: true,
+      accessor: (r) => r.channel ?? 'unknown',
+      render: (r) => <SourceBadge channel={r.channel} />,
     },
   ];
 

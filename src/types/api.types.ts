@@ -66,6 +66,22 @@ export interface LawyerRef {
 
 // ─── Leads ───────────────────────────────────────────────────────────────────
 
+// Canal de adquisición derivado por el backend desde las señales de atribución
+// (utm/referrer/gclid). Debe coincidir 1:1 con el union del backend.
+export type Channel =
+  | 'google_ads'
+  | 'google_organic'
+  | 'bing_ads'
+  | 'search_organic'
+  | 'meta_ads'
+  | 'meta_social'
+  | 'social'
+  | 'email'
+  | 'referral'
+  | 'direct'
+  | 'import'
+  | 'unknown';
+
 export interface LeadDTO {
   id: number;
   code: string;
@@ -86,6 +102,14 @@ export interface LeadDTO {
   previous_status?: LeadStatus | null;
   spam_score?: number;
   spam_reasons?: string[] | null;
+  // Atribución de marketing: `channel` derivado por el backend + señales crudas.
+  // Opcionales (backwards-compatible con leads históricos sin captura).
+  channel?: Channel;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  referrer_url?: string | null;
+  gclid?: string | null;
 }
 
 export interface LeadFilters {
