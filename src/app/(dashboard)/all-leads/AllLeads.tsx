@@ -400,7 +400,7 @@ const AllLeads = () => {
         title='My Leads'
         action={
           <span className='text-[13px] font-medium tabular-nums text-slate-400'>
-            {filtered.length} leads
+            {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
           </span>
         }
       />
