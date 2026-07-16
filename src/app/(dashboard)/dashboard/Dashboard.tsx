@@ -272,7 +272,10 @@ const Dashboard = () => {
             ? 'Analytics · last 30 days'
             : 'Analytics · selected period'}
         </span>
-        <AdvancedWidgets days={period.days} />
+        <AdvancedWidgets
+          days={period.days}
+          onOpenLeads={(statuses) => handleClickKpi(statuses as LeadStatus[])}
+        />
       </section>
 
       <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>
