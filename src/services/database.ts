@@ -44,6 +44,9 @@ import type {
   NotificationHistoryFilters,
   NotificationPreferenceDTO,
   ScheduleNotificationDTO,
+  SignupRequest,
+  SignupResponse,
+  SignupResult,
 } from '@/types/api.types';
 
 const readCookie = (name: string): string | undefined => {
@@ -140,6 +143,51 @@ export const database = {
         code: error.statusCode || 500,
         data: null,
         messages: error.message || 'An unexpected error occurred',
+      };
+    }
+  },
+
+  // Registro self-service (Activity 24). Público, multipart/form-data.
+  // Respuesta JSON cruda (NO GenericResponse): no se desenvuelve.
+  // NO se fija Content-Type: el browser pone el boundary del multipart.
+  // Los 400/409 se manejan en la pantalla, no en un interceptor global.
+  signup: async (payload: SignupRequest): Promise<SignupResult> => {
+    try {
+      const url = `${process.env.NEXT_PUBLIC_URL}/auth/signup`;
+      const fd = new FormData();
+      fd.append('email', payload.email);
+      fd.append('password', payload.password);
+      fd.append('firstName', payload.firstName);
+      fd.append('lastName', payload.lastName);
+      fd.append('phone', payload.phone);
+      fd.append('license_number', payload.license_number);
+      fd.append('law_firm', payload.law_firm);
+      fd.append('file', payload.file);
+
+      const response = await fetch(url, { method: 'POST', body: fd });
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        return {
+          success: false,
+          code: response.status,
+          data: null,
+          messages: body?.message ?? 'Signup failed',
+        };
+      }
+
+      return {
+        success: true,
+        code: response.status,
+        data: body as SignupResponse,
+        messages: body?.message ?? '',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        code: 0,
+        data: null,
+        messages: error?.message || 'An unexpected error occurred',
       };
     }
   },
