@@ -551,3 +551,54 @@ export interface PerformanceFilters extends MetricsDateFilters {
   limit?: number;
   offset?: number;
 }
+
+// ── Lawyer signup / verification / onboarding (Activity 24) ───────────────
+export type VerificationStatus = 'pending' | 'verified' | 'rejected';
+export type OnboardingStatus = 'pending' | 'completed' | 'skipped';
+
+// Campos que ahora trae el objeto `lawyer` de /auth/login (aditivo).
+export interface LawyerNewFields {
+  code: string; // ej. "LIC-2026-00042" — referencia visible, NO login
+  license_number: string | null;
+  license_document_url: string | null; // ruta privada — no es URL pública
+  verification_status: VerificationStatus;
+  verified_at: string | null; // ISO
+  rejection_reason: string | null;
+  onboarding_status: OnboardingStatus;
+}
+
+// POST /auth/signup — multipart/form-data (todos string + el File).
+export interface SignupRequest {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  license_number: string;
+  law_firm: string;
+  file: File; // el campo DEBE llamarse "file"
+}
+
+export interface SignupResponseLawyer {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  code: string; // LIC-2026-#####
+  law_firm: string; // ortografía canónica si se auto-vinculó
+  verification_status: 'pending';
+}
+
+export interface SignupResponse {
+  message: string;
+  lawyer: SignupResponseLawyer;
+}
+
+// Resultado del servicio signup. `messages` conserva el `message` crudo del
+// backend: string (409/400 archivo) o string[] (400 validación de campos).
+export interface SignupResult {
+  success: boolean;
+  code: number; // HTTP status; 0 = error de red
+  data: SignupResponse | null;
+  messages: string | string[];
+}

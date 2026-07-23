@@ -174,6 +174,15 @@ const Page = () => {
         >
           Forgot password
         </p>
+        <p className='text-gray-500'>
+          Are you a lawyer?{' '}
+          <Link
+            href='/signup'
+            className='font-semibold text-primary hover:underline'
+          >
+            Sign up
+          </Link>
+        </p>
         <div className='hidden lg:block absolute right-10 bottom-10 w-28 ml-auto'>
           <Image src={Logo} alt='Logo' className='   w-28 ml-auto ' />
         </div>
