@@ -47,6 +47,11 @@ import type {
   SignupRequest,
   SignupResponse,
   SignupResult,
+  VerificationQueueItem,
+  VerificationActionBody,
+  OnboardingState,
+  OnboardingAction,
+  OnboardingStatus,
 } from '@/types/api.types';
 
 const readCookie = (name: string): string | undefined => {
@@ -188,6 +193,165 @@ export const database = {
         code: 0,
         data: null,
         messages: error?.message || 'An unexpected error occurred',
+      };
+    }
+  },
+
+  // Cola de verificación (admin). JSON crudo (array directo o {data}).
+  getPendingVerifications: async (token?: string) => {
+    try {
+      const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/verification/pending`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: jsonHeaders(resolveToken(token)),
+        cache: 'no-store',
+      });
+      const body = await response.json().catch(() => []);
+      if (!response.ok) {
+        return {
+          success: false,
+          code: safeStatus(response),
+          data: [] as VerificationQueueItem[],
+          messages: body?.message ?? 'request failed',
+        };
+      }
+      const list = Array.isArray(body) ? body : unwrapList(body);
+      return {
+        success: true,
+        code: 200,
+        data: list as VerificationQueueItem[],
+        messages: '',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        code: 0,
+        data: [] as VerificationQueueItem[],
+        messages: error?.message ?? 'error connecting to database',
+      };
+    }
+  },
+
+  // Documento de licencia (blob privado). Devuelve un object URL para abrir en
+  // otra pestaña; el caller es responsable de URL.revokeObjectURL().
+  getLicenseDocumentUrl: async (id: number, token?: string) => {
+    try {
+      const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}/license-document`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: buildHeaders(resolveToken(token)),
+      });
+      if (!response.ok) {
+        return {
+          success: false,
+          code: safeStatus(response),
+          data: null as string | null,
+          messages: 'document not available',
+        };
+      }
+      const blob = await response.blob();
+      return {
+        success: true,
+        code: 200,
+        data: URL.createObjectURL(blob),
+        messages: '',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        code: 0,
+        data: null as string | null,
+        messages: error?.message ?? 'error connecting to database',
+      };
+    }
+  },
+
+  // Aprobar/rechazar (admin). PATCH /lawyers/:id/verification.
+  verifyLawyer: async (
+    id: number,
+    body: VerificationActionBody,
+    token?: string
+  ) => {
+    try {
+      const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}/verification`;
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: jsonHeaders(resolveToken(token)),
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      return {
+        success: response.ok,
+        code: data?.statusCode ?? response.status,
+        data,
+        messages: data?.message ?? '',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        code: 0,
+        data: null,
+        messages: error?.message ?? 'error connecting to database',
+      };
+    }
+  },
+
+  // Onboarding del usuario autenticado. JSON crudo.
+  getMyOnboarding: async (token?: string) => {
+    try {
+      const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/me/onboarding`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: jsonHeaders(resolveToken(token)),
+        cache: 'no-store',
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {
+          success: false,
+          code: safeStatus(response),
+          data: null as OnboardingState | null,
+          messages: body?.message ?? 'request failed',
+        };
+      }
+      return {
+        success: true,
+        code: 200,
+        data: body as OnboardingState,
+        messages: '',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        code: 0,
+        data: null as OnboardingState | null,
+        messages: error?.message ?? 'error connecting to database',
+      };
+    }
+  },
+
+  // Guardar la elección de onboarding. PATCH /lawyers/me/onboarding.
+  patchMyOnboarding: async (action: OnboardingAction, token?: string) => {
+    try {
+      const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/me/onboarding`;
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: jsonHeaders(resolveToken(token)),
+        body: JSON.stringify({ action }),
+      });
+      const data = await response.json().catch(() => ({}));
+      return {
+        success: response.ok,
+        code: data?.statusCode ?? response.status,
+        data: data as { status: OnboardingStatus },
+        messages: data?.message ?? '',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        code: 0,
+        data: null,
+        messages: error?.message ?? 'error connecting to database',
       };
     }
   },
