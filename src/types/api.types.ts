@@ -110,6 +110,10 @@ export interface LeadDTO {
   utm_campaign?: string | null;
   referrer_url?: string | null;
   gclid?: string | null;
+  // Activity 26 — origen de ingesta (chatbot vs formulario web). `source` (arriba,
+  // requerido) es el valor crudo; `source_label` lo deriva el backend SOLO en el
+  // LIST DTO (ausente en GET /leads/:id → derivar client-side con sourceLabel()).
+  source_label?: string;
 }
 
 export interface LeadFilters {
