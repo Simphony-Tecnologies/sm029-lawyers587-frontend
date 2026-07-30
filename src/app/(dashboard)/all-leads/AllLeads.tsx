@@ -29,7 +29,7 @@ import {
   type LeadInfoSubmitPayload,
   type LeadStatusOption,
 } from '@/components/ui';
-import { sourceLabel } from '@/lib/lead-source';
+import { sourceLabel, SOURCE_FILTER_OPTIONS } from '@/lib/lead-source';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
 import Loading from '../loading';
 
@@ -93,6 +93,7 @@ const AllLeads = () => {
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<string>('');
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -108,6 +109,7 @@ const AllLeads = () => {
     const res = await api.leads.list({
       assigned_to: Number(user.id),
       limit: 1000,
+      source: sourceFilter || undefined,
     });
     setLoading(false);
     if (!res.success || !res.data) {
@@ -127,7 +129,7 @@ const AllLeads = () => {
     void fetchAssigned();
     return () => setSelecArray([]); // clean up filter on unmount
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, sourceFilter]);
 
   const uniqueStatuses = useMemo(
     () => Array.from(new Set(rows.map((r) => r.status))),
@@ -442,6 +444,15 @@ const AllLeads = () => {
             />
           );
         })}
+        <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
+        {SOURCE_FILTER_OPTIONS.map((opt) => (
+          <FilterButton
+            key={opt.value || 'all-sources'}
+            label={opt.label}
+            active={sourceFilter === opt.value}
+            onClick={() => setSourceFilter(opt.value)}
+          />
+        ))}
       </div>
 
       <DataTable
