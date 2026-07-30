@@ -18,6 +18,7 @@ import {
   FilterButton,
   IconActionButton,
   LeadInfoModal,
+  OriginBadge,
   PageHead,
   SearchField,
   SourceBadge,
@@ -28,6 +29,7 @@ import {
   type LeadInfoSubmitPayload,
   type LeadStatusOption,
 } from '@/components/ui';
+import { sourceLabel } from '@/lib/lead-source';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
 import Loading from '../loading';
 
@@ -45,6 +47,8 @@ type LeadRow = {
   date_updated: Date;
   date: Date;
   channel?: string;
+  source?: string;
+  source_label?: string;
 };
 
 const STATUS_OPTIONS: LeadStatusOption[] = [
@@ -77,6 +81,8 @@ const toRow = (lead: LeadDTO): LeadRow => ({
   date_updated: new Date(lead.updated_at ?? lead.created_at ?? lead.entry_date),
   date: new Date(lead.created_at ?? lead.entry_date),
   channel: lead.channel,
+  source: lead.source,
+  source_label: lead.source_label,
 });
 
 const AllLeads = () => {
@@ -281,11 +287,18 @@ const AllLeads = () => {
       ),
     },
     {
-      key: 'source',
-      label: 'Source',
+      key: 'channel',
+      label: 'Channel',
       sortable: true,
       accessor: (r) => r.channel ?? 'unknown',
       render: (r) => <SourceBadge channel={r.channel} />,
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      sortable: true,
+      accessor: (r) => r.source_label || sourceLabel(r.source),
+      render: (r) => <OriginBadge source={r.source} label={r.source_label} />,
     },
     {
       // UX-L05: para leads ASSIGNED muestra countdown 48h con urgency

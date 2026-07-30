@@ -37,6 +37,7 @@ import {
   KpiCard,
   LawyerIdentity,
   LeadInfoModal,
+  OriginBadge,
   SearchField,
   SourceBadge,
   StatusPill,
@@ -48,6 +49,7 @@ import {
   type LeadStatusOption,
   type KpiTone,
 } from '@/components/ui';
+import { sourceLabel } from '@/lib/lead-source';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
 import ReLoading from '@/components/atoms/ReLoading';
 import Button from '@/components/atoms/Button';
@@ -68,6 +70,8 @@ type LeadRow = {
   lawyer: string;
   status: string;
   channel?: string;
+  source?: string;
+  source_label?: string;
 };
 
 type LawyerService = {
@@ -203,11 +207,18 @@ const LEAD_TABLE_COLUMNS: DataTableColumn<LeadRow>[] = [
     render: (r) => <StatusPill variant={variantFromStatus(r.status) as any} />,
   },
   {
-    key: 'source',
-    label: 'Source',
+    key: 'channel',
+    label: 'Channel',
     sortable: true,
     accessor: (r) => r.channel ?? 'unknown',
     render: (r) => <SourceBadge channel={r.channel} />,
+  },
+  {
+    key: 'source',
+    label: 'Source',
+    sortable: true,
+    accessor: (r) => r.source_label || sourceLabel(r.source),
+    render: (r) => <OriginBadge source={r.source} label={r.source_label} />,
   },
   {
     key: 'date_updated',
@@ -547,6 +558,8 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
         }`.trim() || '—',
       status: lead.status,
       channel: lead.channel,
+      source: lead.source,
+      source_label: lead.source_label,
     }));
   }, [lawyerLeadsRaw]);
 

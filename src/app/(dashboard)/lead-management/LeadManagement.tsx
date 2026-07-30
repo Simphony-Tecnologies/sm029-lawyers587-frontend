@@ -24,6 +24,7 @@ import {
   DataTable,
   FilterButton,
   LeadInfoModal,
+  OriginBadge,
   PageHead,
   SearchField,
   SourceBadge,
@@ -36,6 +37,7 @@ import {
   type DataTableColumn,
   type LeadInfoSubmitPayload,
 } from '@/components/ui';
+import { sourceLabel } from '@/lib/lead-source';
 import Modal from '@/components/organisms/Modal';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
 import ReLoading from '@/components/atoms/ReLoading';
@@ -56,6 +58,8 @@ type LeadRow = {
   lawyer: string;
   status: string;
   channel?: string;
+  source?: string;
+  source_label?: string;
   assigned_lawyer_id: number | null;
   // Spam / trash
   spam_score: number;
@@ -201,6 +205,8 @@ const LeadManagement = () => {
       })(),
       status: lead.status,
       channel: lead.channel,
+      source: lead.source,
+      source_label: lead.source_label,
       assigned_lawyer_id: lead.assigned_lawyer_id ?? null,
       spam_score: lead.spam_score ?? 0,
       spam_reasons: lead.spam_reasons ?? null,
@@ -943,11 +949,18 @@ const LeadManagement = () => {
       render: (r) => <StatusPill variant={variantFromStatus(r.status)} />,
     },
     {
-      key: 'source',
-      label: 'Source',
+      key: 'channel',
+      label: 'Channel',
       sortable: true,
       accessor: (r) => r.channel ?? 'unknown',
       render: (r) => <SourceBadge channel={r.channel} />,
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      sortable: true,
+      accessor: (r) => r.source_label || sourceLabel(r.source),
+      render: (r) => <OriginBadge source={r.source} label={r.source_label} />,
     },
   ];
 
