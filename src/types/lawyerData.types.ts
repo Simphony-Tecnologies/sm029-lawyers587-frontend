@@ -22,4 +22,9 @@ type LawyerData = {
   notes: string;
   status: 'Assignable' | 'Unassignable';
   profile_image_url: string;
+  verification_status?: 'pending' | 'verified' | 'rejected';
+  onboarding_status?: 'pending' | 'completed' | 'skipped';
+  license_document_url?: string | null;
+  verified_at?: string | null;
+  rejection_reason?: string | null;
 } | null;

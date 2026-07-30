@@ -18,6 +18,7 @@ import {
   FilterButton,
   IconActionButton,
   LeadInfoModal,
+  OriginBadge,
   PageHead,
   SearchField,
   SourceBadge,
@@ -28,6 +29,7 @@ import {
   type LeadInfoSubmitPayload,
   type LeadStatusOption,
 } from '@/components/ui';
+import { sourceLabel, SOURCE_FILTER_OPTIONS } from '@/lib/lead-source';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
 import Loading from '../loading';
 
@@ -45,6 +47,8 @@ type LeadRow = {
   date_updated: Date;
   date: Date;
   channel?: string;
+  source?: string;
+  source_label?: string;
 };
 
 const STATUS_OPTIONS: LeadStatusOption[] = [
@@ -77,6 +81,8 @@ const toRow = (lead: LeadDTO): LeadRow => ({
   date_updated: new Date(lead.updated_at ?? lead.created_at ?? lead.entry_date),
   date: new Date(lead.created_at ?? lead.entry_date),
   channel: lead.channel,
+  source: lead.source,
+  source_label: lead.source_label,
 });
 
 const AllLeads = () => {
@@ -87,6 +93,7 @@ const AllLeads = () => {
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<string>('');
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -102,6 +109,7 @@ const AllLeads = () => {
     const res = await api.leads.list({
       assigned_to: Number(user.id),
       limit: 1000,
+      source: sourceFilter || undefined,
     });
     setLoading(false);
     if (!res.success || !res.data) {
@@ -121,7 +129,7 @@ const AllLeads = () => {
     void fetchAssigned();
     return () => setSelecArray([]); // clean up filter on unmount
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, sourceFilter]);
 
   const uniqueStatuses = useMemo(
     () => Array.from(new Set(rows.map((r) => r.status))),
@@ -281,11 +289,18 @@ const AllLeads = () => {
       ),
     },
     {
-      key: 'source',
-      label: 'Source',
+      key: 'channel',
+      label: 'Channel',
       sortable: true,
       accessor: (r) => r.channel ?? 'unknown',
       render: (r) => <SourceBadge channel={r.channel} />,
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      sortable: true,
+      accessor: (r) => r.source_label || sourceLabel(r.source),
+      render: (r) => <OriginBadge source={r.source} label={r.source_label} />,
     },
     {
       // UX-L05: para leads ASSIGNED muestra countdown 48h con urgency
@@ -429,6 +444,15 @@ const AllLeads = () => {
             />
           );
         })}
+        <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
+        {SOURCE_FILTER_OPTIONS.map((opt) => (
+          <FilterButton
+            key={opt.value || 'all-sources'}
+            label={opt.label}
+            active={sourceFilter === opt.value}
+            onClick={() => setSourceFilter(opt.value)}
+          />
+        ))}
       </div>
 
       <DataTable

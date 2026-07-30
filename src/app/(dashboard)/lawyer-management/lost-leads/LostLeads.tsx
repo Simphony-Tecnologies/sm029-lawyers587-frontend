@@ -5,6 +5,7 @@ import { useLeadsStore } from '@/store/useLead.store';
 import {
   Avatar,
   DataTable,
+  OriginBadge,
   PageHead,
   SearchField,
   SourceBadge,
@@ -13,6 +14,7 @@ import {
   variantFromStatus,
   type DataTableColumn,
 } from '@/components/ui';
+import { sourceLabel } from '@/lib/lead-source';
 
 type LeadRow = {
   'lead id': number;
@@ -27,6 +29,8 @@ type LeadRow = {
   lawyer: string;
   status: string;
   channel?: string;
+  source?: string;
+  source_label?: string;
 };
 
 const LOST_STATUSES = new Set(['LOST', 'EXPIRED', 'DISABLED']);
@@ -184,11 +188,18 @@ const LostLeads = () => {
       render: (r) => <StatusPill variant={variantFromStatus(r.status)} />,
     },
     {
-      key: 'source',
-      label: 'Source',
+      key: 'channel',
+      label: 'Channel',
       sortable: true,
       accessor: (r) => r.channel ?? 'unknown',
       render: (r) => <SourceBadge channel={r.channel} />,
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      sortable: true,
+      accessor: (r) => r.source_label || sourceLabel(r.source),
+      render: (r) => <OriginBadge source={r.source} label={r.source_label} />,
     },
   ];
 

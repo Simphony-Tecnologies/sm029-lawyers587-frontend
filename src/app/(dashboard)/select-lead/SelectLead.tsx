@@ -18,6 +18,7 @@ import {
   DataTable,
   EmptyStateBox,
   KpiCard,
+  OriginBadge,
   PageHead,
   SourceBadge,
   StatusPill,
@@ -28,6 +29,7 @@ import {
   type DataTableSelection,
   type SelectionKey,
 } from '@/components/ui';
+import { sourceLabel } from '@/lib/lead-source';
 import Loading from '../loading';
 
 dayjs.extend(utc);
@@ -39,6 +41,8 @@ type PoolRow = {
   status: LeadDTO['status'];
   entry_date: Date;
   channel?: string;
+  source?: string;
+  source_label?: string;
 };
 
 const toRow = (lead: LeadDTO): PoolRow => ({
@@ -48,6 +52,8 @@ const toRow = (lead: LeadDTO): PoolRow => ({
   status: lead.status,
   entry_date: new Date(lead.entry_date ?? lead.created_at),
   channel: lead.channel,
+  source: lead.source,
+  source_label: lead.source_label,
 });
 
 const SelectLead = () => {
@@ -262,11 +268,18 @@ const SelectLead = () => {
       accessor: (r) => r.service,
     },
     {
-      key: 'source',
-      label: 'Source',
+      key: 'channel',
+      label: 'Channel',
       sortable: true,
       accessor: (r) => r.channel ?? 'unknown',
       render: (r) => <SourceBadge channel={r.channel} />,
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      sortable: true,
+      accessor: (r) => r.source_label || sourceLabel(r.source),
+      render: (r) => <OriginBadge source={r.source} label={r.source_label} />,
     },
     {
       key: 'entry_date',

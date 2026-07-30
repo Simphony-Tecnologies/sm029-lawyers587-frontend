@@ -110,6 +110,10 @@ export interface LeadDTO {
   utm_campaign?: string | null;
   referrer_url?: string | null;
   gclid?: string | null;
+  // Activity 26 — origen de ingesta (chatbot vs formulario web). `source` (arriba,
+  // requerido) es el valor crudo; `source_label` lo deriva el backend SOLO en el
+  // LIST DTO (ausente en GET /leads/:id → derivar client-side con sourceLabel()).
+  source_label?: string;
 }
 
 export interface LeadFilters {
@@ -602,3 +606,39 @@ export interface SignupResult {
   data: SignupResponse | null;
   messages: string | string[];
 }
+
+// ── Verification queue (admin) — GET /lawyers/verification/pending (JSON crudo)
+export interface VerificationQueueItem {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  code: string;
+  law_firm: string;
+  license_number: string | null;
+  license_document_url: string | null;
+  verification_status: VerificationStatus;
+  created_at: string;
+  role: { id: number; name: string };
+}
+
+export type VerificationAction = 'verify' | 'reject';
+
+export interface VerificationActionBody {
+  action: VerificationAction;
+  reason?: string; // requerido por el backend cuando action === 'reject'
+}
+
+// ── Onboarding — GET/PATCH /lawyers/me/onboarding (JSON crudo)
+export interface OnboardingVideo {
+  id: string;
+  embedUrl: string; // youtube.com/embed/<id>
+}
+
+export interface OnboardingState {
+  status: OnboardingStatus;
+  videos: OnboardingVideo[];
+}
+
+export type OnboardingAction = 'complete' | 'skip' | 'restart';
