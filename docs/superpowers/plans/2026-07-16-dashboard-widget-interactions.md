@@ -35,6 +35,7 @@
 
 ## File Structure
 
+
 - **Modify** `src/app/(dashboard)/dashboard/AdvancedWidgets.tsx` — add `statuses` to each widget def, add `onOpenLeads` prop, add `selectedKey` modal state, wire per-card `onClick`, render `ConfirmationDialog`.
 - **Modify** `src/app/(dashboard)/dashboard/Dashboard.tsx` — pass `onOpenLeads` to `<AdvancedWidgets>` (wraps existing `handleClickKpi`).
 
