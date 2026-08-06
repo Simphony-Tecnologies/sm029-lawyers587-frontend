@@ -24,6 +24,12 @@ export const routesSidebar: dataItem[] = [
     group: 'Management',
     children: [
       {
+        name: 'Verification',
+        route: '/lawyer-management/verification',
+        icon: MdChecklist,
+        rol: ['admin'],
+      },
+      {
         name: 'Lawyers',
         route: '/lawyer-management',
         icon: MdChecklist,
