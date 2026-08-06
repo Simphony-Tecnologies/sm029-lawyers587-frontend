@@ -6,6 +6,14 @@ import { useAuth } from '@/store/useAuth.store';
 import Modal from '@/components/organisms/Modal';
 import type { OnboardingVideo } from '@/types/api.types';
 
+// TODO(placeholder temporal): mientras el backend no configure videos en
+// GET /lawyers/me/onboarding, mostramos uno de ejemplo para no dejar el
+// onboarding vacío. Video: "Big Buck Bunny" (CC BY 3.0 · Blender Foundation),
+// libre de derechos. Quitar cuando el backend sirva videos reales.
+const ONBOARDING_PLACEHOLDER: OnboardingVideo[] = [
+  { id: 'placeholder', embedUrl: 'https://www.youtube.com/embed/aqz-KE-bpKQ' },
+];
+
 export const OnboardingModal = () => {
   const { user, setUser } = useAuth();
   const [open, setOpen] = useState(false);
@@ -21,12 +29,13 @@ export const OnboardingModal = () => {
       const res = await database.getMyOnboarding();
       if (!alive) return;
       const list = res.success && res.data ? res.data.videos : [];
-      // Sin videos configurados → no molestamos. NO auto-mutamos el backend
-      // desde el mount (no marcamos 'complete' aquí): un status-change en un
-      // efecto es exactamente lo que evitamos. El status queda intacto; cuando
-      // el backend tenga videos, se mostrarán en el próximo login.
-      if (list.length === 0) return;
-      setVideos(list);
+      // Si el backend no trae videos, caemos al placeholder temporal (arriba).
+      // NO auto-mutamos el backend desde el mount (no marcamos 'complete' aquí):
+      // un status-change en un efecto es justo lo que evitamos. La mutación solo
+      // ocurre por acción del usuario (Skip/Done).
+      const videos = list.length > 0 ? list : ONBOARDING_PLACEHOLDER;
+      if (videos.length === 0) return;
+      setVideos(videos);
       setOpen(true);
     })();
     return () => {
