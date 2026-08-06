@@ -34,17 +34,11 @@ const Page = () => {
 
     const login = await database.auth(email, password);
 
-    if (login.code === 401) {
-      setLoading(false);
-      return toast.error('error password');
-    }
-    if (login.code === 404) {
-      setLoading(false);
-      return toast.error('The email is not existing');
-    }
     if (!login.success) {
       setLoading(false);
-      return toast.error('Error in authenticating');
+      return toast.error(
+        login.messages || 'Unable to sign in. Check your credentials.'
+      );
     }
 
     if (!login.data.lawyer.is_active) {
