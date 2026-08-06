@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import { MdDescription, MdCheck, MdClose } from 'react-icons/md';
 import { database } from '@/services/database';
 import Modal from '@/components/organisms/Modal';
@@ -77,7 +77,6 @@ const Verification = () => {
 
   return (
     <div className='flex flex-col gap-6'>
-      <Toaster />
       <div>
         <h1 className='text-2xl font-extrabold text-slate-900'>
           Lawyer verification
