@@ -52,6 +52,16 @@ import type {
   OnboardingState,
   OnboardingAction,
   OnboardingStatus,
+  Firm,
+  FirmLawyer,
+  FirmSettings,
+  MyFirmResponse,
+  AddFirmLawyerBody,
+  SetFirmAdminsBody,
+  SetFirmAdminsResult,
+  FirmLeadsQuery,
+  MergeFirmsBody,
+  MergeFirmsResult,
 } from '@/types/api.types';
 
 const readCookie = (name: string): string | undefined => {
@@ -1277,6 +1287,59 @@ export const api = {
       apiRequest<NotificationDTO>(
         '/notifications/test',
         { method: 'POST', body: JSON.stringify(body || {}) },
+        token
+      ),
+  },
+
+  // ── Firm-level admin (Activity 25) ──────────────────────────────────────
+  // Rutas /firms/* sin prefijo global. Todos requieren JWT Bearer (lo inyecta
+  // resolveToken vía la cookie currentUser). El backend re-verifica rol/flags.
+  firms: {
+    // GET /firms/me — cualquier lawyer. `firm` puede ser null (pre-backfill).
+    me: (token?: string) =>
+      apiRequest<MyFirmResponse>('/firms/me', { method: 'GET' }, token),
+
+    // GET /firms/me/lawyers — firm admin. Array crudo (id DESC, sin password).
+    listLawyers: (token?: string) =>
+      apiRequest<FirmLawyer[]>('/firms/me/lawyers', { method: 'GET' }, token),
+
+    // POST /firms/me/lawyers — firm admin. Nace verified + active.
+    addLawyer: (body: AddFirmLawyerBody, token?: string) =>
+      apiRequest<FirmLawyer>(
+        '/firms/me/lawyers',
+        { method: 'POST', body: JSON.stringify(body) },
+        token
+      ),
+
+    // PATCH /firms/me/admins — grant/revoke firm admin. 403 al quitar el último.
+    setAdmin: (body: SetFirmAdminsBody, token?: string) =>
+      apiRequest<SetFirmAdminsResult>(
+        '/firms/me/admins',
+        { method: 'PATCH', body: JSON.stringify(body) },
+        token
+      ),
+
+    // PATCH /firms/me/settings — shallow-merge sobre el blob existente.
+    updateSettings: (body: Partial<FirmSettings>, token?: string) =>
+      apiRequest<Firm>(
+        '/firms/me/settings',
+        { method: 'PATCH', body: JSON.stringify(body) },
+        token
+      ),
+
+    // GET /firms/me/leads — firm admin. Paginado server-side (limit/offset/total).
+    leads: (query?: FirmLeadsQuery, token?: string) =>
+      apiRequest<Paginated<LeadDTO>>(
+        `/firms/me/leads${buildQuery(query as Record<string, unknown>)}`,
+        { method: 'GET' },
+        token
+      ),
+
+    // POST /firms/merge — admin GLOBAL (role.name === 'admin'), NO firm admin.
+    merge: (body: MergeFirmsBody, token?: string) =>
+      apiRequest<MergeFirmsResult>(
+        '/firms/merge',
+        { method: 'POST', body: JSON.stringify(body) },
         token
       ),
   },

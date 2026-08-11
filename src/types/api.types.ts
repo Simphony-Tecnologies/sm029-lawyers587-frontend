@@ -642,3 +642,88 @@ export interface OnboardingState {
 }
 
 export type OnboardingAction = 'complete' | 'skip' | 'restart';
+
+// ── Firm-level admin (Activity 25) — @Controller('firms'), JWT Bearer ─────────
+// Respuestas JSON crudas (sin wrapper GenericResponse); apiRequest() las
+// desenvuelve igual porque unwrapApi hace `body?.data ?? body`.
+
+export type FirmStatus = 'active' | 'merged';
+
+export interface FirmSettings {
+  notifications?: Record<string, unknown>;
+  templates?: Record<string, unknown>;
+}
+
+export interface Firm {
+  id: number;
+  name: string;
+  normalized_name: string;
+  settings: FirmSettings | null;
+  status: FirmStatus;
+  merged_into_firm_id: number | null;
+  created_at: string; // ISO
+  updated_at: string; // ISO
+}
+
+// Miembro de la firma: lawyer sin password, con role. Reutiliza los campos
+// nuevos de A25 sobre la referencia de lawyer.
+export interface FirmLawyer extends LawyerRef {
+  phone: string;
+  code: string;
+  is_active: boolean;
+  role_id: number;
+  role?: { id: number; name: string };
+  law_firm: string;
+  firm_id: number | null;
+  is_firm_admin: boolean;
+}
+
+export interface MyFirmResponse {
+  firm: Firm | null; // null si el lawyer no está ligado a una firma (pre-backfill)
+  member_count: number;
+  admins: number[]; // ids de lawyers con is_firm_admin=true
+}
+
+// POST /firms/me/lawyers — el firm admin avala; nace verified + active.
+export interface AddFirmLawyerBody {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  password: string; // min 6
+}
+
+// PATCH /firms/me/admins — grant/revoke. Nunca deja la firma sin admins.
+export interface SetFirmAdminsBody {
+  lawyerId: number;
+  is_admin: boolean;
+}
+
+export interface SetFirmAdminsResult {
+  lawyerId: number;
+  is_admin: boolean;
+}
+
+// GET /firms/me/leads — reutiliza el paginado/filtros de /leads (assigned-only).
+export interface FirmLeadsQuery {
+  search?: string;
+  status?: LeadStatus | string;
+  service?: string;
+  source?: string;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+// POST /firms/merge — admin GLOBAL (role.name === 'admin'), no firm admin.
+export interface MergeFirmsBody {
+  sourceFirmId: number;
+  targetFirmId: number;
+}
+
+export interface MergeFirmsResult {
+  merged: boolean;
+  sourceFirmId: number;
+  targetFirmId: number;
+}

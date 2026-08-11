@@ -1,5 +1,1 @@
-import { redirect } from 'next/navigation';
-
-export default function Page() {
-  redirect('/lawyer-management');
-}
+export { default } from './ReassignedLeads';

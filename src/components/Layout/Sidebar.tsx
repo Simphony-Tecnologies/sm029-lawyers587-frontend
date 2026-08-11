@@ -8,7 +8,7 @@ import { useMobileStatus } from '@/store/useMobileStatus.store';
 import { useSelectStatus } from '@/store/useSelectStatus';
 import { api, database } from '@/services/database';
 import { routesSidebar } from '@/routes/routes';
-import type { dataItem, NavGroup, rol } from '@/types/routes.interface';
+import type { dataItem, NavGate, NavGroup, rol } from '@/types/routes.interface';
 import { cn } from '@/lib/cn';
 import {
   Brand,
@@ -50,6 +50,16 @@ export default function Sidebar() {
   const role = (user?.role?.name as rol | undefined) ?? undefined;
   const pathName = decodeURIComponent(usePathname() ?? '');
 
+  // Gating fino de A25 sobre el rol: los flags vienen del lawyer del login.
+  const passesGate = (gate?: NavGate): boolean => {
+    if (!gate) return true;
+    if (gate === 'firm') return user?.firm_id != null;
+    if (gate === 'firm_admin') return user?.is_firm_admin === true;
+    if (gate === 'global_admin')
+      return String(user?.role?.name ?? '').toLowerCase() === 'admin';
+    return true;
+  };
+
   // Lawyer sidebar: open dropdown by default + fetch pool count
   const [poolCount, setPoolCount] = useState<number | null>(null);
   useEffect(() => {
@@ -69,11 +79,13 @@ export default function Sidebar() {
     };
     routesSidebar.forEach((item) => {
       if (!role || !item.rol.includes(role)) return;
+      if (!passesGate(item.gate)) return;
       const g = item.group ?? 'Management';
       map[g].push(item);
     });
     return map;
-  }, [role]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, user?.firm_id, user?.is_firm_admin]);
 
   const { selecArray, setSelecArray } = useSelectStatus();
 
@@ -212,6 +224,7 @@ export default function Sidebar() {
                     {expandable && expanded
                       ? item.children!.map((child) => {
                           if (role && !child.rol.includes(role)) return null;
+                          if (!passesGate(child.gate)) return null;
 
                           // Lawyer sub-items: status-filtered views of /all-leads.
                           // They use the store instead of actual routes.
