@@ -6,6 +6,7 @@ import {
   MdDomain,
   MdNotifications,
   MdShield,
+  MdSmartToy,
   MdWork,
 } from 'react-icons/md';
 
@@ -85,6 +86,14 @@ export const routesSidebar: dataItem[] = [
     name: 'Firms',
     route: '/firm-admin',
     icon: MdDomain,
+    rol: ['admin'],
+    gate: 'global_admin',
+    group: 'Management',
+  },
+  {
+    name: 'Chatbot',
+    route: '/chatbot-settings',
+    icon: MdSmartToy,
     rol: ['admin'],
     gate: 'global_admin',
     group: 'Management',

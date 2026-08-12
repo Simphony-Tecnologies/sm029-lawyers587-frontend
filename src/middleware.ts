@@ -33,6 +33,7 @@ export async function middleware(req: any) {
     '/spam-settings',
     '/notification-settings',
     '/firm-admin',
+    '/chatbot-settings',
   ];
   const protectedRoutesLawyer = [
     '/all-leads',

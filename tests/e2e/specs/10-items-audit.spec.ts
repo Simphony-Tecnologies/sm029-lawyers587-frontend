@@ -399,7 +399,7 @@ test.describe('[ITEM-09] Description column truncation', () => {
       // Should have multi-line clamping
       const hasClamp = await first.evaluate((el) => {
         const style = window.getComputedStyle(el);
-        return style.webkitLineClamp === '3' || (style as Record<string, string>)['line-clamp'] === '3';
+        return style.webkitLineClamp === '3' || style.getPropertyValue('line-clamp') === '3';
       });
       expect(hasClamp).toBe(true);
 

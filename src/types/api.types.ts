@@ -727,3 +727,31 @@ export interface MergeFirmsResult {
   sourceFirmId: number;
   targetFirmId: number;
 }
+
+// ── Chatbot settings (Activity 30) ───────────────────────────────────────────
+// GET/PATCH /chatbot/settings — admin GLOBAL (backend valida role.name === 'admin').
+// Singleton: fila única id=1, auto-sembrada con defaults en la 1ª lectura.
+export interface ChatbotSettings {
+  id: number;
+  enabled: boolean; // pausa/reanuda el bot site-wide
+  system_instructions: string | null; // prompt de sistema (≤ 20000)
+  services_context: string | null; // contexto de servicios (≤ 20000)
+  disclaimer: string | null; // aviso legal (≤ 4000)
+  model: string | null; // override de modelo (≤ 60)
+  confidence_threshold: number | null; // 0..1 (⚠️ hoy el backend lo lee del env, no de DB)
+  updated_at: string; // ISO datetime
+}
+
+// PATCH: solo los 6 campos editables. NO enviar id/updated_at ni props extra:
+// la validación global (whitelist + forbidNonWhitelisted) responde 400.
+export type ChatbotSettingsUpdate = Partial<
+  Pick<
+    ChatbotSettings,
+    | 'enabled'
+    | 'system_instructions'
+    | 'services_context'
+    | 'disclaimer'
+    | 'model'
+    | 'confidence_threshold'
+  >
+>;

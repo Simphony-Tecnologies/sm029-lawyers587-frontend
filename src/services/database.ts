@@ -62,6 +62,8 @@ import type {
   FirmLeadsQuery,
   MergeFirmsBody,
   MergeFirmsResult,
+  ChatbotSettings,
+  ChatbotSettingsUpdate,
 } from '@/types/api.types';
 
 const readCookie = (name: string): string | undefined => {
@@ -1289,6 +1291,22 @@ export const api = {
         { method: 'POST', body: JSON.stringify(body || {}) },
         token
       ),
+  },
+
+  // ── Chatbot settings (Activity 30) ──────────────────────────────────────
+  // Singleton /chatbot/settings. GET/PATCH exigen admin global (backend 403 si no).
+  chatbot: {
+    settings: {
+      get: (token?: string) =>
+        apiRequest<ChatbotSettings>('/chatbot/settings', { method: 'GET' }, token),
+      // PATCH: mandar SOLO campos editables (whitelist + forbidNonWhitelisted → 400).
+      update: (body: ChatbotSettingsUpdate, token?: string) =>
+        apiRequest<ChatbotSettings>(
+          '/chatbot/settings',
+          { method: 'PATCH', body: JSON.stringify(body) },
+          token
+        ),
+    },
   },
 
   // ── Firm-level admin (Activity 25) ──────────────────────────────────────
