@@ -16,3 +16,4 @@ export * from './SourceBadge';
 export * from './Sparkline';
 export * from './StatusPill';
 export * from './TrendPill';
+export * from './VerificationBadge';

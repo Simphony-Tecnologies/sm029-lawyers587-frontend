@@ -6,5 +6,6 @@ export * from './LawyerFormModal';
 export * from './LawyerPasswordModal';
 export * from './LeadInfoModal';
 export * from './MenuPanel';
+export * from './OnboardingModal';
 export * from './PillHeader';
 export * from './Sidebar';

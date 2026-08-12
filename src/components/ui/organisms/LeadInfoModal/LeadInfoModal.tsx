@@ -582,6 +582,18 @@ export const LeadInfoModal = ({
                         {statusOptions.length === 0 ? (
                           <option value=''>No options available</option>
                         ) : null}
+                        {/* El estado actual (NEW/EXPIRED/ASSIGNED) no figura entre
+                            los targets de "cambiar-a". Sin una opción que matchee
+                            `selectedStatus`, el <select> caía a la 1ª opción
+                            habilitada (mostraba "Flagged" en verde). Añadimos el
+                            estado actual como opción deshabilitada para que la caja
+                            refleje el estado real sin permitir "cambiar a sí mismo". */}
+                        {selectedStatus &&
+                        !statusOptions.some((opt) => opt.value === selectedStatus) ? (
+                          <option value={selectedStatus} disabled>
+                            {currentMeta.label} (current)
+                          </option>
+                        ) : null}
                         {statusOptions.map((opt) => (
                           <option key={opt.value} value={opt.value} disabled={opt.disabled}>
                             {opt.name}

@@ -32,8 +32,15 @@ export async function middleware(req: any) {
     '/dashboard',
     '/spam-settings',
     '/notification-settings',
+    '/firm-admin',
+    '/chatbot-settings',
   ];
-  const protectedRoutesLawyer = ['/all-leads', '/select-lead', '/dash-lawyers'];
+  const protectedRoutesLawyer = [
+    '/all-leads',
+    '/select-lead',
+    '/dash-lawyers',
+    '/my-firm',
+  ];
 
   if (role === 'admin' && currentUser && req.nextUrl.pathname === '/') {
     return NextResponse.redirect(new URL('/dashboard', req.url));

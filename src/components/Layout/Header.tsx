@@ -10,7 +10,12 @@ import {
   PopoverButton,
   PopoverPanel,
 } from '@headlessui/react';
-import { MdLogout, MdHelpOutline, MdChevronRight } from 'react-icons/md';
+import {
+  MdLogout,
+  MdHelpOutline,
+  MdChevronRight,
+  MdReplayCircleFilled,
+} from 'react-icons/md';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/store/useAuth.store';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -39,7 +44,7 @@ const buildInitials = (firstName?: string, lastName?: string) => {
 };
 
 const Header = () => {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const router = useRouter();
   // Notificaciones centralizadas en el hook. El bug previo era que la
   // rama admin (`GET /notifications`) estaba comentada y todos los users
@@ -83,6 +88,18 @@ const Header = () => {
     database.signout();
     router.push('/');
     location.reload();
+  };
+
+  // Acción del usuario (click), no un efecto: reinicia el onboarding y vuelve
+  // a poner el status en 'pending', lo que re-dispara el OnboardingModal.
+  const restartOnboarding = async () => {
+    const res = await database.patchMyOnboarding('restart');
+    if (res.success) {
+      setUser({ ...user, onboarding_status: 'pending' });
+      toast.success('Onboarding will replay');
+    } else {
+      toast.error(res.messages || 'Could not restart onboarding');
+    }
   };
 
   const displayName = locasUser?.firstName
@@ -240,6 +257,19 @@ const Header = () => {
                       </MenuItem>
                     )}
                   </HuiMenuItem>
+                  {user?.role?.name === 'lawyer' ? (
+                    <HuiMenuItem>
+                      {({ active }) => (
+                        <MenuItem
+                          icon={<MdReplayCircleFilled size={14} />}
+                          active={active}
+                          onClick={restartOnboarding}
+                        >
+                          Restart onboarding
+                        </MenuItem>
+                      )}
+                    </HuiMenuItem>
+                  ) : null}
                   <MenuDivider />
                   <HuiMenuItem>
                     {({ active }) => (

@@ -3,8 +3,10 @@ import {
   MdBusiness,
   MdChecklist,
   MdDashboard,
+  MdDomain,
   MdNotifications,
   MdShield,
+  MdSmartToy,
   MdWork,
 } from 'react-icons/md';
 
@@ -24,6 +26,12 @@ export const routesSidebar: dataItem[] = [
     group: 'Management',
     children: [
       {
+        name: 'Verification',
+        route: '/lawyer-management/verification',
+        icon: MdChecklist,
+        rol: ['admin'],
+      },
+      {
         name: 'Lawyers',
         route: '/lawyer-management',
         icon: MdChecklist,
@@ -41,12 +49,16 @@ export const routesSidebar: dataItem[] = [
         icon: MdChecklist,
         rol: ['admin'],
       },
-      {
-        name: 'Reassigned',
-        route: '/lawyer-management/reassigned-leads',
-        icon: MdChecklist,
-        rol: ['admin'],
-      },
+      // Reassigned: oculto del nav hasta que el backend lo soporte.
+      // No existe action_type 'reassign' ni endpoint global de auditoría para
+      // listar leads reasignados, y el DTO del lead no trae previous_lawyer_id.
+      // Descomentar cuando el backend exponga el endpoint. Ver docs/BARRIDO-UI-UX-ADMIN.md
+      // {
+      //   name: 'Reassigned',
+      //   route: '/lawyer-management/reassigned-leads',
+      //   icon: MdChecklist,
+      //   rol: ['admin'],
+      // },
     ],
   },
   {
@@ -71,6 +83,22 @@ export const routesSidebar: dataItem[] = [
     group: 'Management',
   },
   {
+    name: 'Firms',
+    route: '/firm-admin',
+    icon: MdDomain,
+    rol: ['admin'],
+    gate: 'global_admin',
+    group: 'Management',
+  },
+  {
+    name: 'Chatbot',
+    route: '/chatbot-settings',
+    icon: MdSmartToy,
+    rol: ['admin'],
+    gate: 'global_admin',
+    group: 'Management',
+  },
+  {
     name: 'My Workflow',
     route: '/dash-lawyers',
     icon: MdDashboard,
@@ -90,5 +118,34 @@ export const routesSidebar: dataItem[] = [
     icon: MdNotifications,
     rol: ['lawyer'],
     group: 'Management',
+  },
+  {
+    name: 'My Firm',
+    route: '/my-firm',
+    icon: MdDomain,
+    rol: ['lawyer'],
+    gate: 'firm',
+    group: 'Management',
+    children: [
+      { name: 'Overview', route: '/my-firm', rol: ['lawyer'], gate: 'firm' },
+      {
+        name: 'Members',
+        route: '/my-firm/members',
+        rol: ['lawyer'],
+        gate: 'firm_admin',
+      },
+      {
+        name: 'Settings',
+        route: '/my-firm/settings',
+        rol: ['lawyer'],
+        gate: 'firm_admin',
+      },
+      {
+        name: 'Firm Leads',
+        route: '/my-firm/leads',
+        rol: ['lawyer'],
+        gate: 'firm_admin',
+      },
+    ],
   },
 ];

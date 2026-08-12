@@ -27,4 +27,8 @@ type LawyerData = {
   license_document_url?: string | null;
   verified_at?: string | null;
   rejection_reason?: string | null;
+  // ── Firm-level admin (Activity 25) ── el login ya los incluye en `lawyer`.
+  // Opcionales: sesiones persistidas antes de A25 no los tienen (pre-backfill).
+  firm_id?: number | null;
+  is_firm_admin?: boolean;
 } | null;

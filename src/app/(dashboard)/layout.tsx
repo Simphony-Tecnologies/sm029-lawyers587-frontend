@@ -5,6 +5,7 @@ import Sidebar from '@/components/Layout/Sidebar';
 import { useLeadsStore } from '@/store/useLead.store';
 import { ReactNode, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
+import { OnboardingModal } from '@/components/ui/organisms/OnboardingModal';
 export default function Layout({ children }: { children: ReactNode }) {
   const { fetchLeads, dataLeads } = useLeadsStore();
   const review = !dataLeads;
@@ -17,6 +18,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <div>
       <Toaster />
+      <OnboardingModal />
       <div className='flex '>
         <div className='flex h-screen justify-start sticky '>
           <Sidebar />
