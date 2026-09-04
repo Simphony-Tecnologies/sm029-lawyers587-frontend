@@ -468,11 +468,10 @@ const LeadManagement = () => {
     const dataDelete = await database.deleteData(
       `${process.env.NEXT_PUBLIC_URL}/leads/${selectedLead['lead id']}`
     );
-    const deleteAssigned = await database.deleteData(
-      `${process.env.NEXT_PUBLIC_URL}/leads-assigned/lead/${selectedLead['lead id']}`
-    );
-    if (!dataDelete.success || !deleteAssigned.success) {
-      return toast.error('Error to delete lawyer');
+    // El backend limpia la asignación en cascada al borrar el lead (playbook §4);
+    // ya no hace falta el DELETE /leads-assigned/lead/:id por separado.
+    if (!dataDelete.success) {
+      return toast.error('Could not delete the lead. Please try again.');
     }
     toast.success('Success to delete');
     setIsOpenDelete(false);

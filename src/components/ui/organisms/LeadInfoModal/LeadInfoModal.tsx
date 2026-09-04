@@ -138,6 +138,9 @@ export const LeadInfoModal = ({
   const [assignSearch, setAssignSearch] = useState('');
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  // 404 en timeline = lead de otra firma o inexistente (aislamiento backend,
+  // playbook §2.2): mostrar "sin acceso", no una lista vacía silenciosa.
+  const [timelineError, setTimelineError] = useState<string | null>(null);
   const [timelineFilter, setTimelineFilter] = useState<'all' | 'audit' | 'comment'>('all');
   const [newComment, setNewComment] = useState('');
   const [newCommentType, setNewCommentType] = useState<NoteType>('internal');
@@ -167,6 +170,7 @@ export const LeadInfoModal = ({
   ) => {
     if (typeof leadId !== 'number' && Number.isNaN(Number(leadId))) return;
     setTimelineLoading(true);
+    setTimelineError(null);
     const res = await api.leads.timeline(Number(leadId), {
       type: filter,
       limit: 25,
@@ -174,6 +178,9 @@ export const LeadInfoModal = ({
     setTimelineLoading(false);
     if (!res.success || !res.data) {
       setTimeline([]);
+      if (res.code === 404) {
+        setTimelineError('This lead is not available or belongs to another firm.');
+      }
       return;
     }
     // Defensivo: backend a veces retorna { data: { data: [], total } },
@@ -190,6 +197,7 @@ export const LeadInfoModal = ({
   useEffect(() => {
     if (!open || !lead) {
       setTimeline([]);
+      setTimelineError(null);
       setTimelineFilter('all');
       return;
     }
@@ -868,7 +876,11 @@ export const LeadInfoModal = ({
                     onClick={() => setTimelineFilter('comment')} />
                   */}
                   <div className='flex max-h-[260px] flex-col divide-y divide-slate-100 overflow-y-auto rounded-[10px] border border-slate-200 bg-white'>
-                    {timeline.length === 0 && !timelineLoading ? (
+                    {timelineError && !timelineLoading ? (
+                      <div className='px-3.5 py-4 text-center text-[12px] font-medium text-red-500'>
+                        {timelineError}
+                      </div>
+                    ) : timeline.length === 0 && !timelineLoading ? (
                       <div className='px-3.5 py-4 text-center text-[12px] font-medium text-slate-400'>
                         No activity yet.
                       </div>
