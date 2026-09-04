@@ -207,7 +207,7 @@ export function DataTable<T>({
       )}
     >
       <div
-        className='min-h-0 flex-1 overflow-y-auto'
+        className='min-h-0 flex-1 overflow-auto'
         style={{ scrollbarGutter: 'stable' }}
       >
         <div

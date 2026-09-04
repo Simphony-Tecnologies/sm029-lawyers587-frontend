@@ -49,7 +49,7 @@ export const PipelineChart = ({ segments, className }: PipelineChartProps) => {
   return (
     <div
       className={cn(
-        'flex items-center gap-8 rounded-2xl border border-slate-200 bg-white px-6 py-5',
+        'flex flex-wrap items-center gap-x-8 gap-y-4 rounded-2xl border border-slate-200 bg-white px-6 py-5',
         className
       )}
     >
@@ -100,7 +100,7 @@ export const PipelineChart = ({ segments, className }: PipelineChartProps) => {
       </div>
 
       {/* Legend */}
-      <div className='flex flex-col gap-2.5'>
+      <div className='flex min-w-0 flex-col gap-2.5'>
         <span className='text-[13px] font-extrabold tracking-[-0.01em] text-slate-900'>
           Pipeline Overview
         </span>
