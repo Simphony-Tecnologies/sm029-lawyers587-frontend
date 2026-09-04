@@ -160,3 +160,4 @@ Ordenado por prioridad. El backend ya entrega todo lo necesario para estos.
 
 ### Bloqueado por decisión de producto (no codificar aún — §7)
 Rol dual admin · Send Back vs Lost · papelera recuperable · spam→blacklist auto · quién crea firmas · borrado con histórico · unicidad de email. Afectan FE y BE; esperar respuesta del cliente.
+\
