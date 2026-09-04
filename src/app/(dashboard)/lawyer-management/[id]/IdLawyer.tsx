@@ -416,6 +416,16 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
 
   const fetchLawyer = async () => {
     const res = await database.getLawyer(params.id);
+    if (!res.success) {
+      // 404 = abogado inexistente o de otra firma (aislamiento backend).
+      toast.error(
+        res.code === 404
+          ? 'Lawyer not found or not accessible.'
+          : res.messages || 'Could not load lawyer.'
+      );
+      setLawyer(null);
+      return;
+    }
     const dto = res?.data?.data ?? res?.data ?? null;
     setLawyer(dto);
   };
