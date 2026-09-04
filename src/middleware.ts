@@ -10,9 +10,10 @@ export async function middleware(req: any) {
   let role;
 
   if (currentUser) {
-    const decoded = jwtDecode(currentUser);
-
     try {
+      // jwtDecode va DENTRO del try: una cookie `currentUser` malformada no debe
+      // crashear el middleware (500) — se trata como sesión inválida y redirige.
+      const decoded = jwtDecode(currentUser);
       const res = await database.authIdRol(decoded.sub, currentUser);
 
       if (!res.success) {

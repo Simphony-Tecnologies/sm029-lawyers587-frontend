@@ -372,6 +372,8 @@ const LawyerManagement = () => {
     toast.success('Success to delete');
     setIsOpenDelete(false);
     fetchData();
+    // El abogado borrado libera sus leads al pool (playbook §2.3) → refrescar leads.
+    void useLeadsStore.getState().fetchLeads();
   };
   const ConfirmMultipleDelete = async () => {
     if (selectedIds.size <= 0) {
@@ -392,6 +394,8 @@ const LawyerManagement = () => {
     });
     await Promise.all(promises);
     setSelectedIds(new Set());
+    // Cada abogado borrado libera sus leads al pool (playbook §2.3) → refrescar leads.
+    void useLeadsStore.getState().fetchLeads();
   };
   const postImage = async () => {
     const formData = new FormData();
@@ -464,7 +468,18 @@ const LawyerManagement = () => {
     };
     const creating = await database.CreateLawyer(data);
     if (!creating.success) {
-      toast.error('Email exists or error to create lawyer');
+      const backendMsg = (creating.data as any)?.message;
+      const msg =
+        creating.code === 409
+          ? 'This email is already registered'
+          : creating.code === 403
+          ? 'You do not have permission to create lawyers'
+          : typeof backendMsg === 'string'
+          ? backendMsg
+          : Array.isArray(backendMsg)
+          ? backendMsg.join(', ')
+          : 'Could not create lawyer. Please try again.';
+      toast.error(msg);
       setLoadingModal(false);
       return;
     }
@@ -696,6 +711,8 @@ const LawyerManagement = () => {
     setStatusToggleTarget(null);
     setStatusToggleComment('');
     fetchData();
+    // Al desactivar, los leads del abogado vuelven al pool (playbook §2.3).
+    void useLeadsStore.getState().fetchLeads();
   };
   const handleRoute = async (index: number) => {
     const dataId = await database.getLawyer(withOutFormat[index].id);
