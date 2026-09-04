@@ -113,12 +113,36 @@ const unwrapEntity = (body: any): any => {
 
 const safeStatus = (resp: Response) => resp.status || 500;
 
+// ── Manejo global de 401 ────────────────────────────────────────────────────
+// Cuando el backend responde 401 (token ausente/expirado) limpiamos la sesión y
+// mandamos al login. Guardas: solo en cliente; nunca desde rutas públicas (un
+// 401 del propio login = password incorrecto, NO sesión expirada); y un único
+// redirect aunque lleguen varios 401 en paralelo.
+let authFailureHandled = false;
+const isPublicPath = (path: string) => path === '/' || path.startsWith('/signup');
+const handleAuthFailure = () => {
+  if (typeof window === 'undefined') return;
+  if (isPublicPath(window.location.pathname)) return;
+  if (authFailureHandled) return;
+  authFailureHandled = true;
+  destroyCookie(null, 'currentUser', { path: '/' });
+  window.location.href = '/';
+};
+
+// Wrapper de fetch que dispara el manejo global de 401. Toda llamada autenticada
+// del cliente pasa por aquí.
+const authedFetch = (input: string, init?: RequestInit): Promise<Response> =>
+  fetch(input, init).then((response) => {
+    if (response.status === 401) handleAuthFailure();
+    return response;
+  });
+
 export const database = {
   auth: async (email: string, password: string) => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/auth/login`;
 
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -181,7 +205,7 @@ export const database = {
       fd.append('law_firm', payload.law_firm);
       fd.append('file', payload.file);
 
-      const response = await fetch(url, { method: 'POST', body: fd });
+      const response = await authedFetch(url, { method: 'POST', body: fd });
       const body = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -213,7 +237,7 @@ export const database = {
   getPendingVerifications: async (token?: string) => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/verification/pending`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'GET',
         headers: jsonHeaders(resolveToken(token)),
         cache: 'no-store',
@@ -249,7 +273,7 @@ export const database = {
   getLicenseDocumentUrl: async (id: number, token?: string) => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}/license-document`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'GET',
         headers: buildHeaders(resolveToken(token)),
       });
@@ -286,7 +310,7 @@ export const database = {
   ) => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}/verification`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'PATCH',
         headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(body),
@@ -312,7 +336,7 @@ export const database = {
   getMyOnboarding: async (token?: string) => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/me/onboarding`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'GET',
         headers: jsonHeaders(resolveToken(token)),
         cache: 'no-store',
@@ -346,7 +370,7 @@ export const database = {
   patchMyOnboarding: async (action: OnboardingAction, token?: string) => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/me/onboarding`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'PATCH',
         headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify({ action }),
@@ -371,7 +395,7 @@ export const database = {
   resetPassword: async (token: string, newPassword: string) => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/auth/reset-password`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword }),
@@ -398,7 +422,7 @@ export const database = {
   requestPassword: async (email: string) => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/auth/request-password-reset`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -426,7 +450,7 @@ export const database = {
   authIdRol: async (id: any, token?: string) => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'GET',
         headers: jsonHeaders(resolveToken(token)),
         cache: 'no-store',
@@ -461,7 +485,7 @@ export const database = {
   getLawyer: async (id: any, token?: string) => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'GET',
         headers: jsonHeaders(resolveToken(token)),
         cache: 'no-store',
@@ -491,7 +515,7 @@ export const database = {
     token?: string
   ): Promise<ResponseEndpoint> => {
     try {
-      const response = await fetch(source, {
+      const response = await authedFetch(source, {
         headers: jsonHeaders(resolveToken(token)),
         cache: 'no-store',
       });
@@ -520,7 +544,7 @@ export const database = {
     token?: string
   ): Promise<ResponseEndpoint> => {
     try {
-      const response = await fetch(source, {
+      const response = await authedFetch(source, {
         headers: jsonHeaders(resolveToken(token)),
         cache: 'no-store',
       });
@@ -548,7 +572,7 @@ export const database = {
   getLeadsAssigned: async (token?: string): Promise<ResponseEndpoint> => {
     const url = `${process.env.NEXT_PUBLIC_URL}/leads-assigned`;
     try {
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         headers: jsonHeaders(resolveToken(token)),
         cache: 'no-store',
       });
@@ -575,7 +599,7 @@ export const database = {
   getSelectTypeLawyer: async (token?: string): Promise<ResponseEndpoint> => {
     const url = `${process.env.NEXT_PUBLIC_URL}/lawyers-services`;
     try {
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         headers: jsonHeaders(resolveToken(token)),
         cache: 'no-store',
       });
@@ -605,7 +629,7 @@ export const database = {
   ): Promise<ResponseEndpoint> => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'POST',
         headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
@@ -632,7 +656,7 @@ export const database = {
     token?: string
   ): Promise<ResponseEndpoint> => {
     try {
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'POST',
         headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
@@ -660,7 +684,7 @@ export const database = {
     token?: string
   ): Promise<ResponseEndpoint> => {
     try {
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'POST',
         headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
@@ -690,7 +714,7 @@ export const database = {
   ): Promise<ResponseEndpoint> => {
     const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/upload-profile-image`;
     try {
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'POST',
         headers: buildHeaders(resolveToken(token)),
         body: formData,
@@ -718,7 +742,7 @@ export const database = {
     token?: string
   ): Promise<ResponseEndpoint> => {
     try {
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'PUT',
         headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
@@ -746,7 +770,7 @@ export const database = {
     token?: string
   ): Promise<ResponseEndpoint> => {
     try {
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'PATCH',
         headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
@@ -775,7 +799,7 @@ export const database = {
   ): Promise<ResponseEndpoint> => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'PUT',
         headers: jsonHeaders(resolveToken(token)),
         body: JSON.stringify(sendData),
@@ -802,7 +826,7 @@ export const database = {
     token?: string
   ): Promise<ResponseEndpoint> => {
     try {
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'DELETE',
         headers: jsonHeaders(resolveToken(token)),
       });
@@ -830,7 +854,7 @@ export const database = {
   ): Promise<ResponseEndpoint> => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         method: 'DELETE',
         headers: jsonHeaders(resolveToken(token)),
       });
@@ -885,7 +909,7 @@ async function apiRequest<T>(
   token?: string
 ): Promise<ApiResult<T>> {
   try {
-    const response = await fetch(`${baseUrl()}${path}`, {
+    const response = await authedFetch(`${baseUrl()}${path}`, {
       ...init,
       headers: {
         ...jsonHeaders(resolveToken(token)),
@@ -911,7 +935,7 @@ async function apiBlob(
   accept?: string
 ): Promise<ApiResult<Blob>> {
   try {
-    const response = await fetch(`${baseUrl()}${path}`, {
+    const response = await authedFetch(`${baseUrl()}${path}`, {
       method: 'GET',
       headers: buildHeaders(resolveToken(token), accept ? { Accept: accept } : {}),
       cache: 'no-store',
