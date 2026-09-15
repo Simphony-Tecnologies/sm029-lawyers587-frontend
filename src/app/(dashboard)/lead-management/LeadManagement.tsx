@@ -140,7 +140,8 @@ const MAX_PREVIEW_NAMES = 3;
 const MAX_PREVIEW_IDS = 3;
 
 const LeadManagement = () => {
-  const { dataLeads, error, fetchLeads } = useLeadsStore();
+  const { dataLeads, error, fetchLeads, loading: leadsLoading } =
+    useLeadsStore();
   const { selecArray, setSelecArray } = useSelectStatus();
 
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -1164,14 +1165,29 @@ const LeadManagement = () => {
             ariaLabel: 'Select all leads on this page',
           }}
           emptyState={
-            <div className='flex flex-col items-center gap-1'>
-              <span className='text-[13px] font-semibold text-slate-700'>
-                No leads match your filters
-              </span>
-              <span className='text-[11px] text-slate-400'>
-                Adjust the search or status filters above
-              </span>
-            </div>
+            leadsLoading || dataLeads === null ? (
+              <div
+                className='flex w-full flex-col gap-2 py-2'
+                aria-busy='true'
+                aria-label='Loading leads'
+              >
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className='h-11 w-full animate-pulse rounded-lg bg-slate-100'
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className='flex flex-col items-center gap-1'>
+                <span className='text-[13px] font-semibold text-slate-700'>
+                  No leads match your filters
+                </span>
+                <span className='text-[11px] text-slate-400'>
+                  Adjust the search or status filters above
+                </span>
+              </div>
+            )
           }
         />
       )}

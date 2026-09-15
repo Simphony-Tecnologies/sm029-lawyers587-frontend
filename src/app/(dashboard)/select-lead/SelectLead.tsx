@@ -377,7 +377,11 @@ const SelectLead = () => {
       </div>
 
       <DataTable
-        columns={columns}
+        columns={
+          String(user?.role?.name ?? '').toLowerCase() === 'admin'
+            ? columns
+            : columns.filter((c) => c.key !== 'source')
+        }
         data={filteredPool}
         rowKey={(r) => r.id}
         selection={selection}
