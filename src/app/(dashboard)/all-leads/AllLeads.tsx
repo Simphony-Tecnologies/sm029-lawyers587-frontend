@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import toast from 'react-hot-toast';
@@ -8,8 +9,12 @@ import { api } from '@/services/database';
 import type { LeadDTO, LeadStatus } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
 import useLoadingStore from '@/store/useLoadingStore';
-import { useSelectStatus } from '@/store/useSelectStatus';
-import { statusSelectAll } from '@/constants/status';
+import { useAssignedLeads } from '@/store/useAssignedLeads.store';
+import {
+  LAWYER_LEAD_FILTERS,
+  statusFromSlug,
+  canViewLeadContact,
+} from '@/constants/leadFilters';
 import {
   Avatar,
   ConfirmationDialog,
@@ -88,11 +93,15 @@ const toRow = (lead: LeadDTO): LeadRow => ({
 const AllLeads = () => {
   const { user } = useAuth();
   const { setLoading, isLoading } = useLoadingStore();
-  const { selecArray, setSelecArray } = useSelectStatus();
+  const { count: assignedCount, setCount: setAssignedCount } = useAssignedLeads();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeSlug = searchParams.get('status') ?? 'all';
+  const activeStatus = statusFromSlug(activeSlug);
+  const isAdmin = String(user?.role?.name ?? '').toLowerCase() === 'admin';
 
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<string>('');
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
@@ -119,30 +128,19 @@ const AllLeads = () => {
     }
     const next = res.data.data.map(toRow);
     setRows(next);
-    // UX-L06: si hay leads ASSIGNED y aún no se fijó filtro, default a ASSIGNED
-    if (statusFilter === null && next.some((r) => r.status === 'ASSIGNED')) {
-      setStatusFilter('ASSIGNED');
-    }
+    // L587-02: mantener el conteo global de ASSIGNED en sync (badge sidebar + filter bar).
+    setAssignedCount(next.filter((r) => r.status === 'ASSIGNED').length);
   };
 
   useEffect(() => {
     void fetchAssigned();
-    return () => setSelecArray([]); // clean up filter on unmount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, sourceFilter]);
 
-  const uniqueStatuses = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.status))),
-    [rows]
-  );
-
   const filtered = useMemo<LeadRow[]>(() => {
     let list = rows;
-    if (selecArray.length > 0) {
-      const set = new Set(selecArray.map((s) => s.toLowerCase()));
-      list = list.filter((l) => set.has(l.status?.toLowerCase()));
-    } else if (statusFilter) {
-      list = list.filter((l) => l.status === statusFilter);
+    if (activeStatus) {
+      list = list.filter((l) => l.status === activeStatus);
     }
     const q = searchText.trim().toLowerCase();
     if (q) {
@@ -155,7 +153,7 @@ const AllLeads = () => {
       );
     }
     return list;
-  }, [rows, statusFilter, searchText, selecArray]);
+  }, [rows, activeStatus, searchText]);
 
   const handleOpenLead = (row: LeadRow) => {
     if (isLeadExpired(row)) {
@@ -166,9 +164,8 @@ const AllLeads = () => {
     setIsOpenLead(true);
   };
 
-  const handleStatusClick = (status: string | null) => {
-    setSelecArray([]);
-    setStatusFilter(status);
+  const goToFilter = (slug: string) => {
+    router.replace(slug === 'all' ? '/all-leads' : `/all-leads?status=${slug}`);
   };
 
   const handleSaveLead = async ({
@@ -258,7 +255,7 @@ const AllLeads = () => {
               {r.fullName || '—'}
             </span>
             <span className='truncate text-[11px] text-slate-400'>
-              {r.email}
+              {canViewLeadContact(r.status, isAdmin) ? r.email : '—'}
             </span>
           </div>
         </div>
@@ -269,7 +266,11 @@ const AllLeads = () => {
       label: 'Phone',
       width: '160px',
       sortable: true,
-      accessor: (r) => r.phone,
+      // L587-06 — el contacto solo se muestra al abogado en In Progress/
+      // Waiting/Retained. El accessor también se enmascara para no ordenar por
+      // valores ocultos.
+      accessor: (r) => (canViewLeadContact(r.status, isAdmin) ? r.phone : ''),
+      render: (r) => (canViewLeadContact(r.status, isAdmin) ? r.phone || '—' : '—'),
     },
     {
       key: 'service',
@@ -427,23 +428,19 @@ const AllLeads = () => {
           onChange={(e) => setSearchText(e.target.value)}
         />
         <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
-        <FilterButton
-          label='All'
-          active={!statusFilter && selecArray.length === 0}
-          onClick={() => handleStatusClick(null)}
-        />
-        {uniqueStatuses.map((s) => {
-          const niceLabel =
-            statusSelectAll.find((it) => it.value === s)?.name ?? s;
-          return (
-            <FilterButton
-              key={s}
-              label={niceLabel}
-              active={statusFilter === s}
-              onClick={() => handleStatusClick(s)}
-            />
-          );
-        })}
+        {LAWYER_LEAD_FILTERS.map((f) => (
+          <FilterButton
+            key={f.slug}
+            label={f.label}
+            active={activeSlug === f.slug}
+            count={
+              f.slug === 'assigned' && assignedCount > 0
+                ? assignedCount
+                : undefined
+            }
+            onClick={() => goToFilter(f.slug)}
+          />
+        ))}
         <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
         {SOURCE_FILTER_OPTIONS.map((opt) => (
           <FilterButton
@@ -456,7 +453,7 @@ const AllLeads = () => {
       </div>
 
       <DataTable
-        columns={columns}
+        columns={isAdmin ? columns : columns.filter((c) => c.key !== 'source')}
         data={filtered}
         rowKey={(r) => r.id}
         onRowClick={handleOpenLead}

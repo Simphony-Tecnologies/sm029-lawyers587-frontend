@@ -57,18 +57,10 @@ type KpiDef = {
   statuses: LeadStatus[];
 };
 
-// 8 KPIs alineados con el dashboard legacy (cliente lo pidió explícitamente).
-// Cada uno mapea a un status concreto del backend → click filtra esa cohorte
-// en /lead-management.
+// L587-08 — 7 KPIs. El card "New Leads" se removió por pedido del cliente
+// (métrica redundante). Cada uno mapea a un status del backend → click filtra
+// esa cohorte en /lead-management.
 const KPI_DEFS: KpiDef[] = [
-  {
-    key: 'new',
-    label: 'New Leads',
-    period: 'Last 24 hours',
-    tone: 'violet',
-    icon: <MdAddCircleOutline size={16} />,
-    statuses: ['NEW'],
-  },
   {
     key: 'pulled',
     label: 'Pulled Leads',
@@ -278,19 +270,41 @@ const Dashboard = () => {
         />
       </section>
 
-      <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>
-        {KPI_DEFS.map((kpi, idx) => (
-          <KpiCard
-            key={kpi.key}
-            label={kpi.label}
-            period={kpi.period}
-            value={counts[idx]}
-            tone={kpi.tone}
-            icon={kpi.icon}
-            spark={sparks[idx]}
-            onClick={() => handleClickKpi(kpi.statuses)}
-          />
-        ))}
+      {/* L587-08 — 7 KPIs repartidos 4 + 3 para ocupar el ancho completo sin
+          huecos (7 no divide en 4). Los índices se mantienen alineados con
+          counts/sparks (derivados posicionalmente de KPI_DEFS). */}
+      <div className='flex flex-col gap-3.5'>
+        <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>
+          {KPI_DEFS.slice(0, 4).map((kpi, idx) => (
+            <KpiCard
+              key={kpi.key}
+              label={kpi.label}
+              period={kpi.period}
+              value={counts[idx]}
+              tone={kpi.tone}
+              icon={kpi.icon}
+              spark={sparks[idx]}
+              onClick={() => handleClickKpi(kpi.statuses)}
+            />
+          ))}
+        </div>
+        <div className='grid gap-3.5 sm:grid-cols-3'>
+          {KPI_DEFS.slice(4).map((kpi, i) => {
+            const idx = i + 4;
+            return (
+              <KpiCard
+                key={kpi.key}
+                label={kpi.label}
+                period={kpi.period}
+                value={counts[idx]}
+                tone={kpi.tone}
+                icon={kpi.icon}
+                spark={sparks[idx]}
+                onClick={() => handleClickKpi(kpi.statuses)}
+              />
+            );
+          })}
+        </div>
       </div>
 
       <ActivityPanel

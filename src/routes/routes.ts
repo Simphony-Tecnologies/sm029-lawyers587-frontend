@@ -62,11 +62,29 @@ export const routesSidebar: dataItem[] = [
     ],
   },
   {
+    // L587-10 — "Leads" despliega el submenú de filtros del admin. Cada hijo
+    // abre /lead-management?status=<slug>; el orden es el canónico de
+    // ADMIN_LEAD_FILTERS.
     name: 'Leads',
     route: '/lead-management',
     icon: MdWork,
     rol: ['admin'],
     group: 'Management',
+    children: [
+      { name: 'All', route: '/lead-management?status=all', rol: ['admin'] },
+      { name: 'New', route: '/lead-management?status=new', rol: ['admin'] },
+      { name: 'Assigned', route: '/lead-management?status=assigned', rol: ['admin'] },
+      { name: 'In Progress', route: '/lead-management?status=in-progress', rol: ['admin'] },
+      { name: 'Waiting on Client', route: '/lead-management?status=waiting', rol: ['admin'] },
+      { name: 'Flagged', route: '/lead-management?status=flagged', rol: ['admin'] },
+      { name: 'Sent Back', route: '/lead-management?status=sent-back', rol: ['admin'] },
+      { name: 'Retained', route: '/lead-management?status=retained', rol: ['admin'] },
+      { name: 'Disabled', route: '/lead-management?status=disabled', rol: ['admin'] },
+      { name: 'Expired', route: '/lead-management?status=expired', rol: ['admin'] },
+      { name: 'Review', route: '/lead-management?status=review', rol: ['admin'] },
+      { name: 'Trash', route: '/lead-management?status=trash', rol: ['admin'] },
+      { name: 'Archived', route: '/lead-management?status=archived', rol: ['admin'] },
+    ],
   },
   {
     name: 'Spam Settings',
@@ -99,17 +117,28 @@ export const routesSidebar: dataItem[] = [
     group: 'Management',
   },
   {
-    name: 'My Workflow',
+    name: 'Dashboard',
     route: '/dash-lawyers',
     icon: MdDashboard,
     rol: ['lawyer'],
     group: 'Overview',
+  },
+  {
+    // L587-01 — "My Leads" despliega el submenú de filtros. Cada hijo abre
+    // /all-leads?status=<slug>; el orden es el canónico de LAWYER_LEAD_FILTERS.
+    name: 'My Leads',
+    route: '/all-leads',
+    icon: MdWork,
+    rol: ['lawyer'],
+    group: 'Overview',
     children: [
-      { name: 'Dashboard', route: '/dash-lawyers', rol: ['lawyer'] },
-      { name: 'My Active Leads', route: '/all-leads', rol: ['lawyer'] },
-      { name: 'Waiting on Client', route: '/all-leads/waiting', rol: ['lawyer'] },
-      { name: 'Flagged Leads', route: '/all-leads/flagged', rol: ['lawyer'] },
-      { name: 'Retained Leads', route: '/all-leads/retained', rol: ['lawyer'] },
+      { name: 'All', route: '/all-leads?status=all', rol: ['lawyer'] },
+      { name: 'Assigned (New)', route: '/all-leads?status=assigned', rol: ['lawyer'] },
+      { name: 'In Progress', route: '/all-leads?status=in-progress', rol: ['lawyer'] },
+      { name: 'Waiting on Client', route: '/all-leads?status=waiting', rol: ['lawyer'] },
+      { name: 'Flagged', route: '/all-leads?status=flagged', rol: ['lawyer'] },
+      { name: 'Retained', route: '/all-leads?status=retained', rol: ['lawyer'] },
+      { name: 'Disabled', route: '/all-leads?status=disabled', rol: ['lawyer'] },
     ],
   },
   {

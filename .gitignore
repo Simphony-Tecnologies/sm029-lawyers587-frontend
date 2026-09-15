@@ -51,3 +51,5 @@ new.md
 PROJECT_STATE.md
 PROJECT_SNAPSHOT.md
 
+
+tests/e2e/.auth/*.json

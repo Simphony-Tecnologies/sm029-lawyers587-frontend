@@ -1,11 +1,11 @@
 'use client';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Logo from '@/assets/Logo.svg';
 import { useAuth } from '@/store/useAuth.store';
 import { useMobileStatus } from '@/store/useMobileStatus.store';
-import { useSelectStatus } from '@/store/useSelectStatus';
+import { useAssignedLeads } from '@/store/useAssignedLeads.store';
 import { api, database } from '@/services/database';
 import { routesSidebar } from '@/routes/routes';
 import type { dataItem, NavGate, NavGroup, rol } from '@/types/routes.interface';
@@ -49,6 +49,9 @@ export default function Sidebar() {
 
   const role = (user?.role?.name as rol | undefined) ?? undefined;
   const pathName = decodeURIComponent(usePathname() ?? '');
+  const searchParams = useSearchParams();
+  const activeStatusSlug = searchParams.get('status') ?? 'all';
+  const { count: assignedCount, fetchCount } = useAssignedLeads();
 
   // Gating fino de A25 sobre el rol: los flags vienen del lawyer del login.
   const passesGate = (gate?: NavGate): boolean => {
@@ -64,13 +67,16 @@ export default function Sidebar() {
   const [poolCount, setPoolCount] = useState<number | null>(null);
   useEffect(() => {
     if (role !== 'lawyer') return;
-    setOpenDropdown('/dash-lawyers');
+    setOpenDropdown('/all-leads');
     api.leads.pool({ limit: 1 }).then((res) => {
       if (res.success && res.data) {
         setPoolCount(res.data.total ?? res.data.data?.length ?? 0);
       }
     });
-  }, [role]);
+    // L587-02: sembrar el conteo de ASSIGNED para el badge del submenú "My Leads".
+    if (user?.id) void fetchCount(Number(user.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, user?.id]);
 
   const grouped = useMemo(() => {
     const map: Record<NavGroup, dataItem[]> = {
@@ -87,18 +93,6 @@ export default function Sidebar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, user?.firm_id, user?.is_firm_admin]);
 
-  const { selecArray, setSelecArray } = useSelectStatus();
-
-  // Map lawyer sub-item routes → status filters for /all-leads.
-  // Empty array [] = clear filter (show all leads).
-  // null = disabled item (not clickable).
-  const LAWYER_STATUS_MAP: Record<string, string[] | null> = {
-    '/all-leads': [],  // show all assigned leads (no filter)
-    '/all-leads/flagged': ['PROBLEMATIC'],
-    '/all-leads/retained': ['CLOSED'],
-    '/all-leads/waiting': ['WAITING_ON_CLIENT'],
-  };
-
   const handleParentClick = (item: dataItem) => {
     if (item.children?.length) {
       setOpenDropdown((prev) => (prev === item.route ? null : item.route));
@@ -108,14 +102,6 @@ export default function Sidebar() {
   };
 
   const handleNavigate = () => setStatusMobile('hidden');
-
-  const handleLawyerSubItem = (child: dataItem) => {
-    const statuses = LAWYER_STATUS_MAP[child.route];
-    if (statuses === null) return; // disabled item
-    setSelecArray(statuses as any);
-    router.push('/all-leads');
-    setStatusMobile('hidden');
-  };
 
   const signOut = () => {
     database.signout();
@@ -226,56 +212,39 @@ export default function Sidebar() {
                           if (role && !child.rol.includes(role)) return null;
                           if (!passesGate(child.gate)) return null;
 
-                          // Lawyer sub-items: status-filtered views of /all-leads.
-                          // They use the store instead of actual routes.
-                          const isLawyerFilter = child.route in LAWYER_STATUS_MAP;
-                          if (isLawyerFilter) {
-                            const mapped = LAWYER_STATUS_MAP[child.route];
-                            const disabled = mapped === null;
-                            // Active when on /all-leads and the store filter matches this item's statuses
-                            const childActive =
-                              pathName === '/all-leads' &&
-                              mapped !== null &&
-                              (mapped.length === 0
-                                ? selecArray.length === 0
-                                : mapped.every((s) => (selecArray as string[]).includes(s)));
-                            return (
-                              <button
-                                key={child.route}
-                                type='button'
-                                disabled={disabled}
-                                onClick={() => handleLawyerSubItem(child)}
-                                className={cn(
-                                  'flex items-center gap-2.5 rounded-lg py-1.5 pl-10 pr-2.5 text-xs font-medium tracking-[-0.005em] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900',
-                                  childActive && 'font-semibold text-slate-900',
-                                  disabled && 'cursor-not-allowed opacity-40'
-                                )}
-                              >
-                                <span
-                                  aria-hidden
-                                  className={cn(
-                                    'h-1 w-1 shrink-0 rounded-full',
-                                    childActive ? 'bg-customRed' : 'bg-slate-300'
-                                  )}
-                                />
-                                <span className='truncate'>{child.name}</span>
-                                {disabled ? (
-                                  <span className='ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-400'>
-                                    Soon
-                                  </span>
-                                ) : null}
-                              </button>
-                            );
-                          }
+                          // Los hijos con ?status=<slug> en su route (L587-01
+                          // abogado, L587-10 admin): activo = base path + slug
+                          // coinciden con la URL. El resto (submenús admin/firma)
+                          // son links normales: activo = coincide el pathname.
+                          const qIdx = child.route.indexOf('?status=');
+                          const childSlug =
+                            qIdx >= 0 ? child.route.slice(qIdx + 8) : null;
+                          const childBasePath =
+                            qIdx >= 0 ? child.route.slice(0, qIdx) : child.route;
+                          const childActive =
+                            childSlug !== null
+                              ? pathName === childBasePath &&
+                                activeStatusSlug === childSlug
+                              : pathName === child.route;
 
-                          // Admin sub-items: regular route links.
-                          const childActive = pathName === child.route;
+                          // L587-02: badge de conteo en el filtro "Assigned (New)"
+                          // del abogado (no aplica al submenú admin).
+                          const badge =
+                            childBasePath === '/all-leads' &&
+                            childSlug === 'assigned' &&
+                            assignedCount > 0 ? (
+                              <span className='inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-customRed px-1.5 text-[10px] font-bold tabular-nums text-white'>
+                                {assignedCount}
+                              </span>
+                            ) : undefined;
+
                           return (
                             <NavSubItem
                               key={child.route}
                               href={child.route}
                               label={child.name}
                               active={childActive}
+                              badge={badge}
                               onClick={handleNavigate}
                             />
                           );
