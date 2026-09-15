@@ -397,6 +397,10 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
   const [searchText, setSearchText] = useState('');
+  // L587-12 — catálogo de service_types (id → nombre) para el desglose por área.
+  const [serviceTypes, setServiceTypes] = useState<
+    { id: number; name: string }[]
+  >([]);
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
   const [loading, setLoading] = useState(false);
@@ -428,6 +432,15 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     }
     const dto = res?.data?.data ?? res?.data ?? null;
     setLawyer(dto);
+  };
+
+  const fetchServiceTypes = async () => {
+    const res = await database.getData(
+      `${process.env.NEXT_PUBLIC_URL}/service_types`
+    );
+    if (!res.success) return;
+    const list = Array.isArray(res.data) ? res.data : res.data?.data ?? [];
+    setServiceTypes(list);
   };
 
   // v2: traemos directamente los leads asignados al lawyer desde
@@ -537,6 +550,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   useEffect(() => {
     fetchLawyer();
     fetchLawyerLeads();
+    void fetchServiceTypes();
     if (!dataLeads) fetchLeads();
     fetchHistory('all');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -607,6 +621,32 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
       0
     );
   }, [lawyer]);
+
+  // L587-12 — desglose por área: capacidad (max_leads) vs leads activos.
+  // El match asignados↔área es por NOMBRE (el lead trae `service` como string,
+  // no service_type_id) — frágil si difieren las etiquetas del backend.
+  const capacityByArea = useMemo(() => {
+    const svcs = lawyer?.lawyersServices ?? [];
+    const nameById = new Map<number, string>(
+      serviceTypes.map((t) => [Number(t.id), t.name])
+    );
+    return svcs.map((s) => {
+      const name =
+        nameById.get(Number(s.service_type_id)) ?? `Area ${s.service_type_id}`;
+      const assigned = lawyerLeads.filter(
+        (l) =>
+          ACTIVE_STATUSES.has(l.status) &&
+          String(l.service ?? '').trim().toLowerCase() ===
+            name.trim().toLowerCase()
+      ).length;
+      return {
+        id: s.service_type_id,
+        name,
+        capacity: s.max_leads ?? 0,
+        assigned,
+      };
+    });
+  }, [lawyer, serviceTypes, lawyerLeads]);
 
   const stats = useMemo(() => {
     const total = lawyerLeads.length;
@@ -968,6 +1008,44 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           }
         />
       </div>
+
+      {/* L587-12 — capacidad por área vs leads activos asignados. */}
+      {capacityByArea.length > 0 ? (
+        <section className='flex flex-col gap-2'>
+          <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
+            Capacity by area
+          </span>
+          <div className='flex flex-col overflow-hidden rounded-[11px] border border-slate-200 bg-white'>
+            {capacityByArea.map((a, i) => {
+              const full = a.capacity > 0 && a.assigned >= a.capacity;
+              return (
+                <div
+                  key={a.id}
+                  className={`flex items-center justify-between gap-3 px-4 py-2.5 ${
+                    i < capacityByArea.length - 1
+                      ? 'border-b border-slate-100'
+                      : ''
+                  }`}
+                >
+                  <span className='min-w-0 truncate text-[13px] font-semibold text-slate-800'>
+                    {a.name}
+                  </span>
+                  <span
+                    className={`text-[12px] font-bold tabular-nums ${
+                      full ? 'text-customRed' : 'text-slate-500'
+                    }`}
+                  >
+                    {a.assigned} / {a.capacity || '—'}
+                    <span className='ml-1 font-medium text-slate-400'>
+                      {full ? 'at capacity' : 'assigned'}
+                    </span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {/* ── Notification Preferences ────────────────────────────────── */}
       <section className='flex flex-col gap-3'>

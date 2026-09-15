@@ -484,14 +484,16 @@ const LawyerManagement = () => {
       return;
     }
     // Multi-area: crear N registros en /lawyers-services, uno por
-    // service_type_id seleccionado. Mismo max_leads para todas las áreas
-    // (decisión UX validada con cliente — refactor si requiere granular).
+    // service_type_id seleccionado, con la capacidad por área (L587-12;
+    // fallback al escalar legacy si el mapa no trae el área).
     const newLawyerId = creating.data?.data?.id;
     const targetIds: number[] = Array.isArray(payload.specialtyIds)
       ? payload.specialtyIds.map((v: any) => Number(v)).filter(Number.isFinite)
       : payload.specialtyId
       ? [Number(payload.specialtyId)]
       : [];
+    const capFor = (id: number): number =>
+      Number(payload.maxLeadsByArea?.[id] ?? payload.max_leads);
     if (newLawyerId && targetIds.length > 0) {
       await Promise.all(
         targetIds.map((stId) =>
@@ -500,7 +502,7 @@ const LawyerManagement = () => {
             {
               lawyer_id: newLawyerId,
               service_type_id: stId,
-              max_leads: payload.max_leads,
+              max_leads: capFor(stId),
             }
           )
         )
@@ -570,7 +572,9 @@ const LawyerManagement = () => {
       const stId = Number(svc.service_type_id);
       if (Number.isFinite(stId)) currentByServiceId.set(stId, svc);
     }
-    const nextMax = Number(payload.max_leads);
+    // L587-12 — capacidad por área (fallback al escalar legacy).
+    const capFor = (id: number): number =>
+      Number(payload.maxLeadsByArea?.[id] ?? payload.max_leads);
 
     // Eliminar áreas que ya no están seleccionadas.
     const toDelete = ownServices.filter(
@@ -578,11 +582,14 @@ const LawyerManagement = () => {
     );
     // Agregar áreas nuevas.
     const toAdd = targetIds.filter((id) => !currentByServiceId.has(id));
-    // Actualizar max_leads en áreas que persisten y cambiaron.
+    // Actualizar max_leads en áreas que persisten y cambiaron (por área).
     const toUpdate = targetIds
       .filter((id) => currentByServiceId.has(id))
       .map((id) => currentByServiceId.get(id))
-      .filter((svc: any) => Number(svc.max_leads) !== nextMax);
+      .filter(
+        (svc: any) =>
+          Number(svc.max_leads) !== capFor(Number(svc.service_type_id))
+      );
 
     await Promise.all([
       ...toDelete.map((svc: any) =>
@@ -596,14 +603,14 @@ const LawyerManagement = () => {
           {
             lawyer_id: dataIndex.id,
             service_type_id: stId,
-            max_leads: nextMax,
+            max_leads: capFor(stId),
           }
         )
       ),
       ...toUpdate.map((svc: any) =>
         database.patchData(
           `${process.env.NEXT_PUBLIC_URL}/lawyers-services/${svc.id}`,
-          { max_leads: nextMax }
+          { max_leads: capFor(Number(svc.service_type_id)) }
         )
       ),
     ]);
@@ -993,6 +1000,15 @@ const LawyerManagement = () => {
         .filter((n: number) => Number.isFinite(n)),
       extraSpecialtiesCount: Math.max(0, services.length - 1),
       max_leads: first ? Number(first.max_leads) : 0,
+      // L587-12 — capacidad por área para pre-cargar cada input en edición.
+      maxLeadsByArea: services.reduce(
+        (acc: Record<number, number>, s: any) => {
+          const id = Number(s.service_type_id);
+          if (Number.isFinite(id)) acc[id] = Number(s.max_leads);
+          return acc;
+        },
+        {}
+      ),
       stats: lawyerStats,
       status: derivedStatus,
       statusHint: hint,

@@ -31,9 +31,14 @@ import {
 } from './leadStatusMeta';
 import dayjs from 'dayjs';
 import { api } from '@/services/database';
+import { useAuth } from '@/store/useAuth.store';
+import { canViewLeadContact } from '@/constants/leadFilters';
 import type { NoteType, TimelineEntry } from '@/types/api.types';
 
 const REASON_MAX = 500;
+// L587-05 — texto mostrado en lugar del contacto mientras el lead no llega a
+// In Progress / Waiting on Client / Retained.
+const CONTACT_HIDDEN_LABEL = 'Available once In Progress';
 
 export interface LeadInfoLead {
   id: number | string;
@@ -146,6 +151,7 @@ export const LeadInfoModal = ({
   const [newCommentType, setNewCommentType] = useState<NoteType>('internal');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const { user } = useAuth();
 
   // Reset internal state when the modal opens with a new lead.
   // `comment` (razón de auditoría) siempre arranca vacío — sólo se llena
@@ -242,6 +248,12 @@ export const LeadInfoModal = ({
   const isTrashedLead = leadStatusUpper === 'TRASHED';
   const isArchivedLead = leadStatusUpper === 'ARCHIVED';
   const isSpecialStatus = isReviewLead || isTrashedLead;
+
+  // L587-05 — el contacto se revela solo en In Progress/Waiting/Retained.
+  // Gating sobre selectedStatus (dropdown en vivo) → aparece al cambiar de
+  // estado sin cerrar el card. El admin siempre lo ve.
+  const isAdmin = String(user?.role?.name ?? '').toLowerCase() === 'admin';
+  const contactVisible = canViewLeadContact(selectedStatus, isAdmin);
 
   const canAssign =
     !!onAssign &&
@@ -599,7 +611,8 @@ export const LeadInfoModal = ({
                         {selectedStatus &&
                         !statusOptions.some((opt) => opt.value === selectedStatus) ? (
                           <option value={selectedStatus} disabled>
-                            {currentMeta.label} (current)
+                            {currentMeta.label}{' '}
+                            {leadStatusUpper === 'ASSIGNED' ? '(new)' : '(current)'}
                           </option>
                         ) : null}
                         {statusOptions.map((opt) => (
@@ -775,13 +788,15 @@ export const LeadInfoModal = ({
                     <DetailRow
                       icon={<MdEmail size={11} />}
                       label='Email'
-                      value={lead?.email}
+                      value={contactVisible ? lead?.email : CONTACT_HIDDEN_LABEL}
+                      muted={!contactVisible}
                       locked
                     />
                     <DetailRow
                       icon={<MdPhone size={11} />}
                       label='Phone'
-                      value={lead?.phone}
+                      value={contactVisible ? lead?.phone : CONTACT_HIDDEN_LABEL}
+                      muted={!contactVisible}
                       locked
                     />
                     <DetailRow
@@ -1002,6 +1017,7 @@ interface DetailRowProps {
   locked?: boolean;
   multiline?: boolean;
   isLast?: boolean;
+  muted?: boolean;
 }
 
 const DetailRow = ({
@@ -1011,6 +1027,7 @@ const DetailRow = ({
   locked = false,
   multiline = false,
   isLast = false,
+  muted = false,
 }: DetailRowProps) => {
   const display = value === undefined || value === null || value === '' ? '—' : value;
   return (
@@ -1034,7 +1051,8 @@ const DetailRow = ({
           'min-w-0 text-xs tracking-[-0.005em]',
           multiline
             ? 'whitespace-pre-wrap break-words font-medium leading-[1.5] text-slate-700'
-            : 'truncate font-semibold text-slate-900'
+            : 'truncate font-semibold text-slate-900',
+          muted && 'font-medium italic text-slate-400'
         )}
       >
         {display}

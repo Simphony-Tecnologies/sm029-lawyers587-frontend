@@ -112,6 +112,27 @@ const DashboardLawyers = () => {
       )
     : 0;
 
+  // L587-12 — desglose por área para el propio abogado: capacidad (max_leads)
+  // vs leads activos asignados. Mismo criterio que el perfil admin (IdLawyer)
+  // para que ambas vistas muestren el mismo número. Match por nombre de área
+  // (el lead trae `service` como string, no service_type_id).
+  const capacityByArea = useMemo(() => {
+    const svcs = Array.isArray(maxLeadsAssigned)
+      ? maxLeadsAssigned.filter(Boolean)
+      : [];
+    const ACTIVE = new Set(['ASSIGNED', 'IN PROGRESS', 'WAITING_ON_CLIENT']);
+    return svcs.map((s: any) => {
+      const name = s?.name ?? `Area ${s?.id}`;
+      const assigned = leads.filter(
+        (l) =>
+          ACTIVE.has(l.status) &&
+          String(l.service ?? '').trim().toLowerCase() ===
+            String(name).trim().toLowerCase()
+      ).length;
+      return { id: s?.id, name, capacity: s?.max_leads ?? 0, assigned };
+    });
+  }, [maxLeadsAssigned, leads]);
+
   const fetchAssignedLeads = async () => {
     if (!user?.id) return;
     setLoading(true);
@@ -277,6 +298,44 @@ const DashboardLawyers = () => {
         })}
         <PipelineChart segments={pipelineSegments} />
       </div>
+
+      {/* L587-12 — capacidad por área vs leads activos, visible para el abogado. */}
+      {capacityByArea.length > 0 ? (
+        <section className='flex flex-col gap-2'>
+          <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
+            Capacity by area
+          </span>
+          <div className='flex flex-col overflow-hidden rounded-[11px] border border-slate-200 bg-white'>
+            {capacityByArea.map((a: any, i: number) => {
+              const full = a.capacity > 0 && a.assigned >= a.capacity;
+              return (
+                <div
+                  key={`${a.id}-${i}`}
+                  className={`flex items-center justify-between gap-3 px-4 py-2.5 ${
+                    i < capacityByArea.length - 1
+                      ? 'border-b border-slate-100'
+                      : ''
+                  }`}
+                >
+                  <span className='min-w-0 truncate text-[13px] font-semibold text-slate-800'>
+                    {a.name}
+                  </span>
+                  <span
+                    className={`text-[12px] font-bold tabular-nums ${
+                      full ? 'text-customRed' : 'text-slate-500'
+                    }`}
+                  >
+                    {a.assigned} / {a.capacity || '—'}
+                    <span className='ml-1 font-medium text-slate-400'>
+                      {full ? 'at capacity' : 'assigned'}
+                    </span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <ActivityPanel
         eyebrow='Your work'

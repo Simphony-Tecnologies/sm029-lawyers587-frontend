@@ -10,7 +10,11 @@ import type { LeadDTO, LeadStatus } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
 import useLoadingStore from '@/store/useLoadingStore';
 import { useAssignedLeads } from '@/store/useAssignedLeads.store';
-import { LAWYER_LEAD_FILTERS, statusFromSlug } from '@/constants/leadFilters';
+import {
+  LAWYER_LEAD_FILTERS,
+  statusFromSlug,
+  canViewLeadContact,
+} from '@/constants/leadFilters';
 import {
   Avatar,
   ConfirmationDialog,
@@ -251,7 +255,7 @@ const AllLeads = () => {
               {r.fullName || '—'}
             </span>
             <span className='truncate text-[11px] text-slate-400'>
-              {r.email}
+              {canViewLeadContact(r.status, isAdmin) ? r.email : '—'}
             </span>
           </div>
         </div>
@@ -262,7 +266,11 @@ const AllLeads = () => {
       label: 'Phone',
       width: '160px',
       sortable: true,
-      accessor: (r) => r.phone,
+      // L587-06 — el contacto solo se muestra al abogado en In Progress/
+      // Waiting/Retained. El accessor también se enmascara para no ordenar por
+      // valores ocultos.
+      accessor: (r) => (canViewLeadContact(r.status, isAdmin) ? r.phone : ''),
+      render: (r) => (canViewLeadContact(r.status, isAdmin) ? r.phone || '—' : '—'),
     },
     {
       key: 'service',

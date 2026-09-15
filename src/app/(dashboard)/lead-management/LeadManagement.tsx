@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import toast from 'react-hot-toast';
@@ -17,6 +18,7 @@ import { useSelectStatus } from '@/store/useSelectStatus';
 import { api, database, downloadBlob } from '@/services/database';
 import type { LeadStatus } from '@/types/api.types';
 import { statusSelectAll } from '@/constants/status';
+import { adminStatusFromSlug, adminSlugFromStatus } from '@/constants/leadFilters';
 import {
   Avatar,
   BulkActionBar,
@@ -144,9 +146,17 @@ const LeadManagement = () => {
     useLeadsStore();
   const { selecArray, setSelecArray } = useSelectStatus();
 
+  // L587-10 — la URL (?status=<slug>) es la fuente de verdad del filtro cuando
+  // el parámetro está presente (submenú del sidebar, filter bar, reload).
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeSlug = searchParams.get('status');
+
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  // L587-09 — ventana de tiempo (horas) para leads NEW en la vista admin.
+  const [newWindowHours, setNewWindowHours] = useState<24 | 36 | 48>(24);
 
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [isOpenDelete, setIsOpenDelete] = useState(false);
@@ -223,6 +233,12 @@ const LeadManagement = () => {
       .filter((s) => s !== 'ARCHIVED' && s !== 'REVIEW' && s !== 'TRASHED');
   }, [dataLeads]);
 
+  // L587-09 — el filtro NEW puede activarse por chip (statusFilter) o por
+  // navegación desde el KPI "New Leads" (selecArray=['NEW']).
+  const isNewFilterActive =
+    statusFilter === 'NEW' ||
+    (selecArray.length === 1 && selecArray[0]?.toUpperCase() === 'NEW');
+
   const filtered = useMemo<LeadRow[]>(() => {
     // When a dedicated tab is active, use its own dataset.
     if (isDedicatedTab(statusFilter) && dedicatedData !== null) {
@@ -250,6 +266,18 @@ const LeadManagement = () => {
       list = list.filter((l) => l.status !== 'ARCHIVED');
     }
 
+    // L587-09 — ventana 24/36/48h sobre created_at cuando el filtro es NEW.
+    if (isNewFilterActive) {
+      const cutoff = Date.now() - newWindowHours * 36e5;
+      list = list.filter((l) => {
+        const t =
+          l.date instanceof Date
+            ? l.date.getTime()
+            : new Date(l.date as any).getTime();
+        return !Number.isNaN(t) && t >= cutoff;
+      });
+    }
+
     const q = searchText.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -263,17 +291,37 @@ const LeadManagement = () => {
     }
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataLeads, selecArray, statusFilter, searchText, dedicatedData]);
+  }, [
+    dataLeads,
+    selecArray,
+    statusFilter,
+    searchText,
+    dedicatedData,
+    isNewFilterActive,
+    newWindowHours,
+  ]);
 
+  // L587-10 — clicks en la filter bar navegan por URL; el effect de sync aplica
+  // el estado. Unidireccional: URL → estado (evita doble-fetch en tabs dedicadas).
   const handleStatusClick = (status: string | null) => {
+    const slug = adminSlugFromStatus(status);
+    router.replace(`/lead-management?status=${slug}`);
+  };
+
+  // Sincroniza el filtro desde la URL. Solo actúa cuando ?status está presente,
+  // para no pisar el flujo Dashboard→KPI (setSelecArray sin parámetro).
+  useEffect(() => {
+    if (activeSlug === null) return;
+    const token = adminStatusFromSlug(activeSlug);
     setSelecArray([]);
-    setStatusFilter(status);
-    if (status && isDedicatedTab(status)) {
-      void fetchDedicated(status);
+    setStatusFilter(token);
+    if (token && isDedicatedTab(token)) {
+      void fetchDedicated(token);
     } else {
       setDedicatedData(null);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSlug]);
 
   const openLead = (row: LeadRow) => {
     setSelectedLead(row);
@@ -1123,6 +1171,24 @@ const LeadManagement = () => {
           active={statusFilter === 'ARCHIVED'}
           onClick={() => handleStatusClick('ARCHIVED')}
         />
+
+        {/* L587-09 — ventana de tiempo para leads NEW (solo con filtro NEW). */}
+        {isNewFilterActive ? (
+          <>
+            <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
+            <span className='text-[11px] font-semibold text-slate-400'>
+              New within
+            </span>
+            {([24, 36, 48] as const).map((h) => (
+              <FilterButton
+                key={h}
+                label={`${h}h`}
+                active={newWindowHours === h}
+                onClick={() => setNewWindowHours(h)}
+              />
+            ))}
+          </>
+        ) : null}
 
         <div className='ml-auto flex items-center gap-2'>
           <ViewToggle

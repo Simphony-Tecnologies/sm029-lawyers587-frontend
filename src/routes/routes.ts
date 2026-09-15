@@ -62,11 +62,29 @@ export const routesSidebar: dataItem[] = [
     ],
   },
   {
+    // L587-10 — "Leads" despliega el submenú de filtros del admin. Cada hijo
+    // abre /lead-management?status=<slug>; el orden es el canónico de
+    // ADMIN_LEAD_FILTERS.
     name: 'Leads',
     route: '/lead-management',
     icon: MdWork,
     rol: ['admin'],
     group: 'Management',
+    children: [
+      { name: 'All', route: '/lead-management?status=all', rol: ['admin'] },
+      { name: 'New', route: '/lead-management?status=new', rol: ['admin'] },
+      { name: 'Assigned', route: '/lead-management?status=assigned', rol: ['admin'] },
+      { name: 'In Progress', route: '/lead-management?status=in-progress', rol: ['admin'] },
+      { name: 'Waiting on Client', route: '/lead-management?status=waiting', rol: ['admin'] },
+      { name: 'Flagged', route: '/lead-management?status=flagged', rol: ['admin'] },
+      { name: 'Sent Back', route: '/lead-management?status=sent-back', rol: ['admin'] },
+      { name: 'Retained', route: '/lead-management?status=retained', rol: ['admin'] },
+      { name: 'Disabled', route: '/lead-management?status=disabled', rol: ['admin'] },
+      { name: 'Expired', route: '/lead-management?status=expired', rol: ['admin'] },
+      { name: 'Review', route: '/lead-management?status=review', rol: ['admin'] },
+      { name: 'Trash', route: '/lead-management?status=trash', rol: ['admin'] },
+      { name: 'Archived', route: '/lead-management?status=archived', rol: ['admin'] },
+    ],
   },
   {
     name: 'Spam Settings',

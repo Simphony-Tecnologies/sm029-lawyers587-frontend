@@ -61,6 +61,8 @@ export interface LawyerFormInitialData {
   specialtyIds?: Array<number | string>;
   extraSpecialtiesCount?: number;
   max_leads?: number;
+  /** L587-12 — capacidad por área: service_type_id -> nº de leads permitidos. */
+  maxLeadsByArea?: Record<number, number>;
   /** When edit mode: pre-computed stats + status used for the activity block */
   stats?: LawyerFormStats;
   status?: LawyerStatusKey;
@@ -80,7 +82,10 @@ export interface LawyerFormPayload {
   /** Multi-area: array de service_type_ids seleccionados. Cliente pidió
    *  recuperar esta funcionalidad que existía antes. */
   specialtyIds: number[];
+  /** Legacy escalar (= capacidad de la 1ª área). Se mantiene por compat. */
   max_leads: number;
+  /** L587-12 — capacidad por área: service_type_id -> nº de leads permitidos. */
+  maxLeadsByArea: Record<number, number>;
   /** Only used in 'new' mode */
   password?: string;
   /** New file selected via the avatar uploader */
@@ -150,7 +155,10 @@ export const LawyerFormModal = ({
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [maxLeads, setMaxLeads] = useState('');
+  // L587-12 — capacidad por área (service_type_id -> string del input).
+  const [maxLeadsByArea, setMaxLeadsByArea] = useState<Record<number, string>>(
+    {}
+  );
   const [lawFirm, setLawFirm] = useState('');
   const [notes, setNotes] = useState('');
   const [password, setPassword] = useState('');
@@ -167,11 +175,36 @@ export const LawyerFormModal = ({
     setLastName(initial?.lastName ?? '');
     setEmail(initial?.email ?? '');
     setPhone(initial?.phone ?? '');
-    setMaxLeads(
-      initial?.max_leads !== undefined && initial.max_leads !== null
-        ? String(initial.max_leads)
-        : ''
-    );
+    // L587-12 — sembrar capacidad por área: initial.maxLeadsByArea (preferido)
+    // o el escalar legacy max_leads aplicado a cada área inicial.
+    const seededAreaIds = Array.isArray(initial?.specialtyIds)
+      ? (initial!.specialtyIds || [])
+          .map((v) => Number(v))
+          .filter((n) => Number.isFinite(n))
+      : initial?.specialtyId !== undefined && initial?.specialtyId !== null
+      ? [Number(initial.specialtyId)]
+      : [];
+    if (initial?.maxLeadsByArea) {
+      setMaxLeadsByArea(
+        Object.fromEntries(
+          Object.entries(initial.maxLeadsByArea).map(([k, v]) => [
+            Number(k),
+            String(v),
+          ])
+        )
+      );
+    } else if (
+      initial?.max_leads !== undefined &&
+      initial?.max_leads !== null
+    ) {
+      setMaxLeadsByArea(
+        Object.fromEntries(
+          seededAreaIds.map((id) => [id, String(initial!.max_leads)])
+        )
+      );
+    } else {
+      setMaxLeadsByArea({});
+    }
     setLawFirm(initial?.name_of_law_firm ?? '');
     setNotes(initial?.notes ?? '');
     setPassword('');
@@ -241,10 +274,16 @@ export const LawyerFormModal = ({
   // con max_leads=0 → backend rechaza CADA assign con "max exceeded"
   // porque cualquier lead lo supera. (Bug reportado en producción).
   const ids = Array.from(specialtyIds);
-  const parsedMaxLeads = Number(maxLeads);
+  // L587-12 — cada área seleccionada exige un entero >= 1.
   const maxLeadsInvalid =
     ids.length > 0 &&
-    (!Number.isFinite(parsedMaxLeads) || parsedMaxLeads < 1);
+    ids.some((id) => {
+      const raw = maxLeadsByArea[id];
+      const n = Number(raw);
+      return raw === undefined || raw === '' || !Number.isFinite(n) || n < 1;
+    });
+  const areaLabel = (id: number) =>
+    specialties.find((s) => Number(s.value) === id)?.label ?? `Area ${id}`;
 
   const handleSubmit = async () => {
     if (loading) return;
@@ -260,17 +299,29 @@ export const LawyerFormModal = ({
       specialtyId: ids[0] ?? null,
       // multi-area: array completo.
       specialtyIds: ids,
-      max_leads: parsedMaxLeads,
+      // L587-12 — capacidad por área + escalar legacy (1ª área) por compat.
+      maxLeadsByArea: Object.fromEntries(
+        ids.map((id) => [id, Number(maxLeadsByArea[id])])
+      ),
+      max_leads: ids.length ? Number(maxLeadsByArea[ids[0]]) : 0,
       password: isEdit ? undefined : password,
       imageFile,
     });
   };
 
   const toggleSpecialty = (id: number) => {
+    const wasSelected = specialtyIds.has(id);
     setSpecialtyIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+    // L587-12 — mantener el mapa de capacidad en sync con las áreas.
+    setMaxLeadsByArea((prev) => {
+      const next = { ...prev };
+      if (wasSelected) delete next[id];
+      else if (next[id] === undefined) next[id] = '';
       return next;
     });
   };
@@ -418,20 +469,43 @@ export const LawyerFormModal = ({
                         : 'No. Leads Allowed (per area)'
                     }
                   >
-                    <Input
-                      type='number'
-                      min={1}
-                      value={maxLeads}
-                      onChange={(e) => setMaxLeads(e.target.value)}
-                      placeholder='10'
-                      disabled={loading}
-                    />
-                    {maxLeadsInvalid ? (
-                      <span className='mt-1 block text-[11px] font-semibold text-customRed'>
-                        Required. Must be at least 1 — otherwise no leads
-                        can be assigned to this lawyer.
+                    {/* L587-12 — un input de capacidad por cada área seleccionada. */}
+                    {ids.length === 0 ? (
+                      <span className='text-[12px] text-slate-400'>
+                        Select at least one area to set its lead capacity.
                       </span>
-                    ) : null}
+                    ) : (
+                      <div className='flex flex-col gap-2'>
+                        {ids.map((id) => (
+                          <div key={id} className='flex items-center gap-2'>
+                            <span className='min-w-0 flex-1 truncate text-[12px] font-semibold text-slate-600'>
+                              {areaLabel(id)}
+                            </span>
+                            <div className='w-24 shrink-0'>
+                              <Input
+                                type='number'
+                                min={1}
+                                value={maxLeadsByArea[id] ?? ''}
+                                onChange={(e) =>
+                                  setMaxLeadsByArea((prev) => ({
+                                    ...prev,
+                                    [id]: e.target.value,
+                                  }))
+                                }
+                                placeholder='10'
+                                disabled={loading}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        {maxLeadsInvalid ? (
+                          <span className='block text-[11px] font-semibold text-customRed'>
+                            Required per area. Each must be at least 1 —
+                            otherwise no leads can be assigned for that area.
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
                   </Field>
                 </FormRow>
 

@@ -212,22 +212,27 @@ export default function Sidebar() {
                           if (role && !child.rol.includes(role)) return null;
                           if (!passesGate(child.gate)) return null;
 
-                          // Los hijos de "My Leads" llevan ?status=<slug> en su
-                          // route (L587-01): activo = el slug coincide con la URL.
-                          // El resto (submenús admin/firma) son links normales:
-                          // activo = coincide el pathname.
+                          // Los hijos con ?status=<slug> en su route (L587-01
+                          // abogado, L587-10 admin): activo = base path + slug
+                          // coinciden con la URL. El resto (submenús admin/firma)
+                          // son links normales: activo = coincide el pathname.
                           const qIdx = child.route.indexOf('?status=');
                           const childSlug =
                             qIdx >= 0 ? child.route.slice(qIdx + 8) : null;
+                          const childBasePath =
+                            qIdx >= 0 ? child.route.slice(0, qIdx) : child.route;
                           const childActive =
                             childSlug !== null
-                              ? pathName === '/all-leads' &&
+                              ? pathName === childBasePath &&
                                 activeStatusSlug === childSlug
                               : pathName === child.route;
 
-                          // L587-02: badge de conteo en el filtro "Assigned (New)".
+                          // L587-02: badge de conteo en el filtro "Assigned (New)"
+                          // del abogado (no aplica al submenú admin).
                           const badge =
-                            childSlug === 'assigned' && assignedCount > 0 ? (
+                            childBasePath === '/all-leads' &&
+                            childSlug === 'assigned' &&
+                            assignedCount > 0 ? (
                               <span className='inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-customRed px-1.5 text-[10px] font-bold tabular-nums text-white'>
                                 {assignedCount}
                               </span>
