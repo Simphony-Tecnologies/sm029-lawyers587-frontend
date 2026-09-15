@@ -42,6 +42,10 @@ const WIDGET_DEFS: WidgetDef[] = [
   { key: 'conversiones', label: 'Conversions', tone: 'emerald', icon: <MdEmojiEvents size={16} />, statuses: ['CLOSED'] },
 ];
 
+// L587-08 — la tarjeta "New" se oculta por ahora en el dashboard admin
+// (pedido del cliente). Para restaurarla, quitar 'nuevos' de este set.
+const HIDDEN_WIDGETS = new Set<WidgetKey>(['nuevos']);
+
 interface AdvancedWidgetsProps {
   /** Ventana relativa del PeriodSelect. `null` = all time → backend default 30d. */
   days: number | null;
@@ -114,8 +118,8 @@ export const AdvancedWidgets = ({ days, onOpenLeads }: AdvancedWidgetsProps) => 
 
   return (
     <>
-      <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>
-        {WIDGET_DEFS.map((def) => {
+      <div className='grid gap-3.5 sm:grid-cols-3'>
+        {WIDGET_DEFS.filter((def) => !HIDDEN_WIDGETS.has(def.key)).map((def) => {
           const w = data?.widgets[def.key];
           const handleClick =
             def.key === 'nuevos'
