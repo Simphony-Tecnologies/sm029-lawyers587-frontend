@@ -6,21 +6,21 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import {
   MdAddCircleOutline,
   MdCheckCircleOutline,
-  MdChatBubbleOutline,
+  MdFlag,
   MdHighlightOff,
-  MdHourglassEmpty,
-  MdInfoOutline,
+  MdMoveToInbox,
   MdOutbox,
   MdPersonAddAlt1,
   MdPersonRemove,
   MdReplay,
+  MdSchedule,
   MdSwapHoriz,
+  MdTrendingUp,
   MdLogin as MdLoginIcon,
   MdEdit,
   MdBlock,
 } from 'react-icons/md';
 import { useLeadsStore } from '@/store/useLead.store';
-import { useSelectStatus } from '@/store/useSelectStatus';
 import { api } from '@/services/database';
 import type { ActionType, AuditEvent, LawyerListItem } from '@/types/api.types';
 import {
@@ -28,154 +28,86 @@ import {
   KpiCard,
   PageHead,
   PeriodSelect,
+  SectionHead,
   type KpiTone,
   type PeriodKey,
   type PeriodOption,
 } from '@/components/ui';
-import { AdvancedWidgets } from './AdvancedWidgets';
+import {
+  PERIOD_PHRASE,
+  PERIOD_QUEUES,
+  WORK_QUEUES,
+  periodStart,
+  rowMatchesQueue,
+  type LeadQueueDef,
+  type LeadQueueKey,
+} from '@/constants/leadQueues';
 import { PerformancePanel } from './PerformancePanel';
 
 dayjs.extend(relativeTime);
 
-type LeadStatus =
-  | 'NEW'
-  | 'ASSIGNED'
-  | 'IN PROGRESS'
-  | 'PROBLEMATIC'
-  | 'LOST'
-  | 'SEND_BACK'
-  | 'CLOSED'
-  | 'EXPIRED'
-  | 'DISABLED';
-
-type KpiDef = {
-  key: string;
-  label: string;
-  period: string;
-  tone: KpiTone;
-  icon: JSX.Element;
-  statuses: LeadStatus[];
+// Tonos distintos en cards vecinas del grid (3 columnas).
+const QUEUE_VISUAL: Record<LeadQueueKey, { tone: KpiTone; icon: JSX.Element }> = {
+  new: { tone: 'sky', icon: <MdAddCircleOutline size={14} /> },
+  assigned: { tone: 'violet', icon: <MdOutbox size={14} /> },
+  'in-progress': { tone: 'emerald', icon: <MdTrendingUp size={14} /> },
+  waiting: { tone: 'amber', icon: <MdSchedule size={14} /> },
+  returned: { tone: 'slate', icon: <MdReplay size={14} /> },
+  flagged: { tone: 'coral', icon: <MdFlag size={14} /> },
+  received: { tone: 'violet', icon: <MdMoveToInbox size={14} /> },
+  retained: { tone: 'emerald', icon: <MdCheckCircleOutline size={14} /> },
 };
-
-// L587-08 — 7 KPIs. El card "New Leads" se removió por pedido del cliente
-// (métrica redundante). Cada uno mapea a un status del backend → click filtra
-// esa cohorte en /lead-management.
-const KPI_DEFS: KpiDef[] = [
-  {
-    key: 'pulled',
-    label: 'Pulled Leads',
-    period: 'Active',
-    tone: 'violet',
-    icon: <MdOutbox size={16} />,
-    statuses: ['ASSIGNED'],
-  },
-  {
-    key: 'in_progress',
-    label: 'In Progress',
-    period: 'Active',
-    tone: 'emerald',
-    icon: <MdCheckCircleOutline size={16} />,
-    statuses: ['IN PROGRESS'],
-  },
-  {
-    key: 'problematic',
-    label: 'Flagged',
-    period: 'Pending review',
-    tone: 'amber',
-    icon: <MdInfoOutline size={16} />,
-    statuses: ['PROBLEMATIC'],
-  },
-  {
-    key: 'sent_back',
-    label: 'Sent Back Leads (REVIEW)',
-    period: 'Pending review',
-    tone: 'coral',
-    icon: <MdReplay size={16} />,
-    statuses: ['LOST', 'SEND_BACK'],
-  },
-  {
-    key: 'retained',
-    label: 'Retained',
-    period: 'Total',
-    tone: 'emerald',
-    icon: <MdCheckCircleOutline size={16} />,
-    statuses: ['CLOSED'],
-  },
-  {
-    key: 'expired',
-    label: 'Expired',
-    period: 'Total',
-    tone: 'coral',
-    icon: <MdHourglassEmpty size={16} />,
-    statuses: ['EXPIRED'],
-  },
-  {
-    key: 'disabled',
-    label: 'Disabled',
-    period: 'Total',
-    tone: 'slate',
-    icon: <MdBlock size={16} />,
-    statuses: ['DISABLED'],
-  },
-];
 
 const Dashboard = () => {
   const { dataLeads, fetchLeads } = useLeadsStore();
-  const { setSelecArray } = useSelectStatus();
   const router = useRouter();
   const pathname = usePathname();
 
-  const [period, setPeriod] = useState<{ key: PeriodKey; days: number | null }>(
-    { key: 'all', days: null }
+  // Solo afecta a las dos cards de "Results for this period".
+  const [resultsPeriod, setResultsPeriod] = useState<PeriodKey>('today');
+  // El ranking de abogados conserva su propio período.
+  const [perfPeriod, setPerfPeriod] = useState<{
+    key: PeriodKey;
+    days: number | null;
+  }>({ key: 'all', days: null });
+
+  // Mismo dataset y mismo predicado que Lead Management (?queue=), así cada
+  // card abre exactamente los registros que cuenta.
+  const workCounts = useMemo(() => {
+    if (!Array.isArray(dataLeads)) return WORK_QUEUES.map(() => null);
+    return WORK_QUEUES.map(
+      (queue) =>
+        (dataLeads as any[]).filter((row) => rowMatchesQueue(queue, row, null))
+          .length
+    );
+  }, [dataLeads]);
+
+  // Inicio del período usado por el conteo; viaja en la URL al abrir la lista
+  // para que ambos usen el mismo instante aunque el dashboard lleve horas abierto.
+  const resultsSince = useMemo(
+    () => periodStart(resultsPeriod),
+    // dataLeads: recalcula al refrescar los datos (p. ej. al volver al dashboard).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [resultsPeriod, dataLeads]
   );
 
-  // Leads filtrados por la ventana temporal seleccionada en PeriodSelect.
-  const leadsInPeriod = useMemo(() => {
-    if (!Array.isArray(dataLeads)) return [];
-    if (period.days == null) return dataLeads as any[];
-    const cutoff = Date.now() - period.days * 86_400_000;
-    return (dataLeads as any[]).filter((lead: any) => {
-      const ts = new Date(lead.date_updated ?? lead.date).getTime();
-      return ts >= cutoff;
-    });
-  }, [dataLeads, period.days]);
-
-  const counts = useMemo(() => {
-    return KPI_DEFS.map(({ statuses }) =>
-      leadsInPeriod.filter((lead: any) =>
-        statuses.includes(lead.status)
-      ).length
+  const periodCounts = useMemo(() => {
+    if (!Array.isArray(dataLeads)) return PERIOD_QUEUES.map(() => null);
+    const since = resultsSince;
+    return PERIOD_QUEUES.map(
+      (queue) =>
+        (dataLeads as any[]).filter((row) => rowMatchesQueue(queue, row, since))
+          .length
     );
-  }, [leadsInPeriod]);
+  }, [dataLeads, resultsSince]);
 
-  // Sparkline por KPI: cuenta de leads agrupados por día dentro de la
-  // ventana del PeriodSelect. Backend NO expone series temporales, lo
-  // derivamos desde dataLeads.date_updated. Reemplazable cuando exista
-  // /leads/stats?bucket=day o similar.
-  const sparks = useMemo(() => {
-    const days = period.days ?? 14;
-    const buckets = Math.min(Math.max(days, 5), 30);
-    const now = Date.now();
-    const bucketSize = Math.max(1, Math.round((days * 86_400_000) / buckets));
-    return KPI_DEFS.map(({ statuses }) => {
-      const filtered = leadsInPeriod.filter((lead: any) =>
-        statuses.includes(lead.status)
-      );
-      const arr = new Array(buckets).fill(0);
-      for (const lead of filtered) {
-        const ts = new Date(lead.date_updated ?? lead.date).getTime();
-        const offset = now - ts;
-        const idx = buckets - 1 - Math.floor(offset / bucketSize);
-        if (idx >= 0 && idx < buckets) arr[idx] += 1;
-      }
-      return arr;
-    });
-  }, [leadsInPeriod, period.days]);
-
-  const handleClickKpi = (statuses: LeadStatus[]) => {
-    // useSelectStatus tiene un union legacy más estrecho; cast hasta migrar.
-    setSelecArray(statuses as any);
-    router.push('/lead-management');
+  const openQueue = (queue: LeadQueueDef) => {
+    let params = `queue=${queue.key}`;
+    if (queue.periodField) {
+      params += `&period=${resultsPeriod}`;
+      if (resultsSince) params += `&since=${encodeURIComponent(resultsSince.toISOString())}`;
+    }
+    router.push(`/lead-management?${params}`);
   };
 
   // Audit log real combinado de los top lawyers activos.
@@ -224,18 +156,8 @@ const Dashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Filtrar por período seleccionado.
-  const recentInPeriod = useMemo(() => {
-    if (period.days == null) return recentEvents;
-    const cutoff = Date.now() - period.days * 86_400_000;
-    return recentEvents.filter(
-      (ev) => new Date(ev.timestamp).getTime() >= cutoff
-    );
-  }, [recentEvents, period.days]);
-
   const handleActivityClick = () => {
-    setSelecArray([]);
-    router.push('/lead-management');
+    router.push('/lead-management?status=all');
   };
 
   useEffect(() => {
@@ -244,84 +166,73 @@ const Dashboard = () => {
   }, [pathname]);
 
   return (
-    <div className='flex flex-col gap-5'>
-      <PageHead
-        eyebrow='Overview'
-        title='Dashboard'
-        action={
-          <PeriodSelect
-            value={period.key}
-            onChange={(opt: PeriodOption) =>
-              setPeriod({ key: opt.key, days: opt.days })
-            }
-          />
-        }
-      />
+    <div className='flex flex-col gap-6'>
+      <PageHead eyebrow='Overview' title='Dashboard' />
 
-      <section className='flex flex-col gap-2.5'>
-        <span className='text-[11px] font-bold uppercase tracking-wider text-slate-400'>
-          {period.days === null
-            ? 'Analytics · last 30 days'
-            : 'Analytics · selected period'}
-        </span>
-        <AdvancedWidgets
-          days={period.days}
-          onOpenLeads={(statuses) => handleClickKpi(statuses as LeadStatus[])}
+      <section className='flex flex-col gap-3'>
+        <SectionHead
+          title='Work right now'
+          subtitle='All open leads, including older leads that still need attention.'
         />
-      </section>
-
-      {/* L587-08 — 7 KPIs repartidos 4 + 3 para ocupar el ancho completo sin
-          huecos (7 no divide en 4). Los índices se mantienen alineados con
-          counts/sparks (derivados posicionalmente de KPI_DEFS). */}
-      <div className='flex flex-col gap-3.5'>
-        <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>
-          {KPI_DEFS.slice(0, 4).map((kpi, idx) => (
+        <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3'>
+          {WORK_QUEUES.map((queue, idx) => (
             <KpiCard
-              key={kpi.key}
-              label={kpi.label}
-              period={kpi.period}
-              value={counts[idx]}
-              tone={kpi.tone}
-              icon={kpi.icon}
-              spark={sparks[idx]}
-              onClick={() => handleClickKpi(kpi.statuses)}
+              key={queue.key}
+              label={queue.label}
+              hint={queue.hint}
+              info={queue.info}
+              value={workCounts[idx] ?? '—'}
+              tone={QUEUE_VISUAL[queue.key].tone}
+              icon={QUEUE_VISUAL[queue.key].icon}
+              onClick={() => openQueue(queue)}
             />
           ))}
         </div>
-        <div className='grid gap-3.5 sm:grid-cols-3'>
-          {KPI_DEFS.slice(4).map((kpi, i) => {
-            const idx = i + 4;
-            return (
-              <KpiCard
-                key={kpi.key}
-                label={kpi.label}
-                period={kpi.period}
-                value={counts[idx]}
-                tone={kpi.tone}
-                icon={kpi.icon}
-                spark={sparks[idx]}
-                onClick={() => handleClickKpi(kpi.statuses)}
-              />
-            );
-          })}
+      </section>
+
+      <section className='flex flex-col gap-3'>
+        <SectionHead
+          title='Results for this period'
+          subtitle='The date selection changes only the two cards below.'
+          action={
+            <PeriodSelect
+              ariaLabel='Results period'
+              value={resultsPeriod}
+              onChange={(opt: PeriodOption) => setResultsPeriod(opt.key)}
+            />
+          }
+        />
+        <div className='grid gap-3.5 sm:grid-cols-2'>
+          {PERIOD_QUEUES.map((queue, idx) => (
+            <KpiCard
+              key={queue.key}
+              label={queue.label}
+              hint={`${queue.hint} ${PERIOD_PHRASE[resultsPeriod]}`}
+              info={queue.info}
+              value={periodCounts[idx] ?? '—'}
+              tone={QUEUE_VISUAL[queue.key].tone}
+              icon={QUEUE_VISUAL[queue.key].icon}
+              onClick={() => openQueue(queue)}
+            />
+          ))}
         </div>
-      </div>
+      </section>
 
       <ActivityPanel
         eyebrow='Audit log'
         title='Recent activity'
-        empty={recentInPeriod.length === 0}
+        empty={recentEvents.length === 0}
         emptyText={
           recentLoading
             ? 'Loading recent activity…'
             : 'No recent activity yet'
         }
         onViewAll={
-          recentInPeriod.length > 0 ? handleActivityClick : undefined
+          recentEvents.length > 0 ? handleActivityClick : undefined
         }
       >
         <ul className='flex flex-col divide-y divide-slate-100'>
-          {recentInPeriod.map((ev) => (
+          {recentEvents.map((ev) => (
             <li key={`${ev.entity_type}-${ev.entity_id}-${ev.id}`}>
               <button
                 type='button'
@@ -350,7 +261,18 @@ const Dashboard = () => {
         </ul>
       </ActivityPanel>
 
-      <PerformancePanel days={period.days} />
+      <PerformancePanel
+        days={perfPeriod.days}
+        action={
+          <PeriodSelect
+            ariaLabel='Performance period'
+            value={perfPeriod.key}
+            onChange={(opt: PeriodOption) =>
+              setPerfPeriod({ key: opt.key, days: opt.days })
+            }
+          />
+        }
+      />
     </div>
   );
 };

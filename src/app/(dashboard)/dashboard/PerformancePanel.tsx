@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api } from '@/services/database';
 import type {
   LawyerPerformanceResponse,
@@ -19,11 +19,14 @@ interface PerformancePanelProps {
   /** Ventana relativa del PeriodSelect. `null` = all time → backend default 30d. */
   days: number | null;
   sortBy?: PerformanceSortBy;
+  /** Control opcional en el header (p. ej. el PeriodSelect propio del panel). */
+  action?: ReactNode;
 }
 
 export const PerformancePanel = ({
   days,
   sortBy = 'conversion_rate',
+  action,
 }: PerformancePanelProps) => {
   const [data, setData] = useState<LawyerPerformanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -125,35 +128,35 @@ export const PerformancePanel = ({
     []
   );
 
-  if (error) {
-    return (
-      <div className='rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500'>
-        {error}
-      </div>
-    );
-  }
-
   return (
     <div className='flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5'>
-      <div className='flex items-baseline justify-between'>
-        <h2 className='text-sm font-bold text-slate-800'>Lawyer performance</h2>
-        {data ? (
-          <span className='text-[11px] font-semibold text-slate-400'>
-            {data.total} lawyer{data.total === 1 ? '' : 's'}
-          </span>
-        ) : null}
+      <div className='flex items-center justify-between gap-3'>
+        <div className='flex items-baseline gap-2'>
+          <h2 className='text-sm font-bold text-slate-800'>Lawyer performance</h2>
+          {data && !error ? (
+            <span className='text-[11px] font-semibold text-slate-400'>
+              {data.total} lawyer{data.total === 1 ? '' : 's'}
+            </span>
+          ) : null}
+        </div>
+        {/* El selector sigue visible si la carga falla, para poder cambiar de período. */}
+        {action ? <div className='shrink-0'>{action}</div> : null}
       </div>
-      <DataTable<LawyerPerformanceRow>
-        columns={columns}
-        data={data?.lawyers ?? []}
-        rowKey={(r) => r.lawyer_id}
-        totalLabel='lawyers'
-        initialSort={{ key: sortBy, direction: 'desc' }}
-        emptyState={
-          loading ? 'Loading performance…' : 'No performance data for this period'
-        }
-        pagination={{ enabled: true, initialPageSize: 10 }}
-      />
+      {error ? (
+        <p className='text-sm text-slate-500'>{error}</p>
+      ) : (
+        <DataTable<LawyerPerformanceRow>
+          columns={columns}
+          data={data?.lawyers ?? []}
+          rowKey={(r) => r.lawyer_id}
+          totalLabel='lawyers'
+          initialSort={{ key: sortBy, direction: 'desc' }}
+          emptyState={
+            loading ? 'Loading performance…' : 'No performance data for this period'
+          }
+          pagination={{ enabled: true, initialPageSize: 10 }}
+        />
+      )}
     </div>
   );
 };

@@ -18,6 +18,7 @@ const statusPillStyles = cva(
         disabled: 'bg-slate-100 text-slate-500',
         review: 'bg-amber-50 text-amber-700',
         trashed: 'bg-red-50 text-red-700',
+        archived: 'bg-slate-100 text-slate-500',
       },
     },
     defaultVariants: {
@@ -37,7 +38,8 @@ export type StatusPillVariant =
   | 'expired'
   | 'disabled'
   | 'review'
-  | 'trashed';
+  | 'trashed'
+  | 'archived';
 
 export interface StatusPillProps
   extends HTMLAttributes<HTMLSpanElement>,
@@ -55,6 +57,7 @@ const LABELS: Record<StatusPillVariant, string> = {
   disabled: 'Disabled',
   review: 'Review',
   trashed: 'Trashed',
+  archived: 'Archived',
 };
 
 const RAW_TO_VARIANT: Record<string, StatusPillVariant> = {
@@ -65,6 +68,10 @@ const RAW_TO_VARIANT: Record<string, StatusPillVariant> = {
   PROBLEMATIC: 'problematic',
   CLOSED: 'closed',
   LOST: 'lost',
+  // SEND_BACK y ARCHIVED caían al fallback 'closed' y se pintaban "Retained".
+  // SEND_BACK comparte etiqueta con LOST ("Sent back") hasta la decisión C1.
+  SEND_BACK: 'lost',
+  ARCHIVED: 'archived',
   EXPIRED: 'expired',
   DISABLED: 'disabled',
   REVIEW: 'review',

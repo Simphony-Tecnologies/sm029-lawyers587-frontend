@@ -50,7 +50,10 @@ export default function Sidebar() {
   const role = (user?.role?.name as rol | undefined) ?? undefined;
   const pathName = decodeURIComponent(usePathname() ?? '');
   const searchParams = useSearchParams();
-  const activeStatusSlug = searchParams.get('status') ?? 'all';
+  // Con ?queue= (colas del dashboard) ningún filtro de status está activo.
+  const activeStatusSlug = searchParams.get('queue')
+    ? null
+    : searchParams.get('status') ?? 'all';
   const { count: assignedCount, fetchCount } = useAssignedLeads();
 
   // Gating fino de A25 sobre el rol: los flags vienen del lawyer del login.
