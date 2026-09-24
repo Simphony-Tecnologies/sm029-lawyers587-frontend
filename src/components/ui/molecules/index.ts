@@ -23,6 +23,7 @@ export * from './PillBell';
 export * from './PillProfile';
 export * from './RowsPerPageSelect';
 export * from './SearchField';
+export * from './SectionHead';
 export * from './SidebarToggle';
 export * from './SignOutItem';
 export * from './StatCard';

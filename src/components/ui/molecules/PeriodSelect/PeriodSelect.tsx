@@ -33,6 +33,8 @@ export interface PeriodSelectProps {
   className?: string;
   /** Legacy: si no se pasa value/onChange el botón se renderiza estático con este label. */
   label?: string;
+  /** Qué controla el selector (p. ej. "Results period"); se anuncia junto al valor. */
+  ariaLabel?: string;
   children?: ReactNode;
 }
 
@@ -42,6 +44,7 @@ export const PeriodSelect = ({
   options = DEFAULT_PERIODS,
   className,
   label,
+  ariaLabel,
 }: PeriodSelectProps) => {
   // Modo estático: si no hay onChange, se renderiza como botón decorativo
   // (preserva uso legacy donde solo se pasaba `label`).
@@ -65,7 +68,9 @@ export const PeriodSelect = ({
 
   return (
     <Menu as='div' className={cn('relative', className)}>
-      <MenuButton className='inline-flex h-9 items-center gap-2 rounded-[9px] border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-customRed/40'>
+      <MenuButton
+        aria-label={ariaLabel ? `${ariaLabel}: ${current.label}` : undefined}
+        className='inline-flex h-9 items-center gap-2 rounded-[9px] border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-customRed/40'>
         {current.label}
         <MdKeyboardArrowDown size={14} className='text-slate-400' />
       </MenuButton>

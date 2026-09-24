@@ -12,13 +12,14 @@ import {
   MdSchedule,
   MdSwapHoriz,
   MdFlag,
+  MdTrendingUp,
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import { api, database } from '@/services/database';
-import type { LeadDTO, LeadStatus } from '@/types/api.types';
+import type { LeadDTO } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
 import useLoadingStore from '@/store/useLoadingStore';
-import { useSelectStatus } from '@/store/useSelectStatus';
+import { statusFromSlug } from '@/constants/leadFilters';
 import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
 import {
   ActivityPanel,
@@ -26,6 +27,7 @@ import {
   KpiCard,
   PageHead,
   PipelineChart,
+  SectionHead,
   StatusPill,
   toneFromString,
   variantFromStatus,
@@ -35,54 +37,64 @@ import {
 
 dayjs.extend(relativeTime);
 
-type KpiDef = {
-  key: string;
+type LawyerCardDef = {
+  /** Slug de LAWYER_LEAD_FILTERS: la card cuenta ese status y abre /all-leads?status=<slug>. */
+  slug: string;
   label: string;
-  sub: string;
+  hint: string;
+  info: string;
   tone: KpiTone;
   icon: JSX.Element;
-  statuses: LeadStatus[];
 };
 
-// Row 1: primary KPIs (2 cols) — Active + Retained
-const KPI_ROW_1: KpiDef[] = [
+// Mismas definiciones que "Work right now" del dashboard admin, vistas desde el
+// abogado. Cada card abre My Leads filtrado exactamente por lo que cuenta.
+const WORK_CARDS: LawyerCardDef[] = [
   {
-    key: 'active',
-    label: 'Active Leads',
-    sub: 'Active right now',
+    slug: 'assigned',
+    label: 'Assigned',
+    hint: 'Not started yet',
+    info: 'Leads assigned to you that you have not started. The assignment expires 48h after it was made.',
     tone: 'violet',
     icon: <MdOutbox size={14} />,
-    statuses: ['ASSIGNED', 'IN PROGRESS'],
   },
   {
-    key: 'retained',
-    label: 'Retained',
-    sub: 'Closed successfully',
+    slug: 'in-progress',
+    label: 'In Progress',
+    hint: 'You have started',
+    info: 'Leads you are working on. Waiting on Client is counted separately.',
     tone: 'emerald',
-    icon: <MdCheckCircleOutline size={14} />,
-    statuses: ['CLOSED'],
+    icon: <MdTrendingUp size={14} />,
+  },
+  {
+    slug: 'waiting',
+    label: 'Waiting on Client',
+    hint: 'Reply or documents needed',
+    info: 'Leads waiting for a client response or information.',
+    tone: 'amber',
+    icon: <MdSchedule size={14} />,
+  },
+  {
+    slug: 'flagged',
+    label: 'Flagged',
+    hint: 'Problem needs review',
+    info: 'Leads with an unresolved issue.',
+    tone: 'coral',
+    icon: <MdFlag size={14} />,
   },
 ];
 
-// Row 2: secondary KPIs (alongside Pipeline Chart)
-const KPI_ROW_2: KpiDef[] = [
-  {
-    key: 'waiting',
-    label: 'Waiting on Client',
-    sub: 'Pending response',
-    tone: 'amber',
-    icon: <MdSchedule size={14} />,
-    statuses: ['WAITING_ON_CLIENT'],
-  },
-  {
-    key: 'flagged',
-    label: 'Flagged Leads',
-    sub: 'Need attention',
-    tone: 'coral',
-    icon: <MdFlag size={14} />,
-    statuses: ['PROBLEMATIC'],
-  },
-];
+const RETAINED_CARD: LawyerCardDef = {
+  slug: 'retained',
+  label: 'Retained',
+  hint: 'Closed successfully',
+  info: 'All leads you have retained as clients.',
+  tone: 'emerald',
+  icon: <MdCheckCircleOutline size={14} />,
+};
+
+// Leads que ocupan capacidad (mismo criterio que el desglose por área).
+const ACTIVE_STATUSES = new Set(['ASSIGNED', 'IN PROGRESS', 'WAITING_ON_CLIENT']);
 
 const ACTION_TONE_BY_STATUS: Record<string, { bg: string; fg: string; icon: JSX.Element }> = {
   NEW: { bg: 'bg-violet-100', fg: 'text-violet-600', icon: <MdAddCircleOutline size={14} /> },
@@ -100,7 +112,7 @@ const DashboardLawyers = () => {
   const [dataServiceType, setDataServiceType] = useState<any[]>([]);
   const [maxLeadsAssigned, setMaxLeadsAssigned] = useState<any>(null);
   const [userId, setUserId] = useState<any>(null);
-  const { setSelecArray } = useSelectStatus();
+  const [leadsLoaded, setLeadsLoaded] = useState(false);
   const { setLoading } = useLoadingStore();
   const { user } = useAuth();
   const router = useRouter();
@@ -120,12 +132,11 @@ const DashboardLawyers = () => {
     const svcs = Array.isArray(maxLeadsAssigned)
       ? maxLeadsAssigned.filter(Boolean)
       : [];
-    const ACTIVE = new Set(['ASSIGNED', 'IN PROGRESS', 'WAITING_ON_CLIENT']);
     return svcs.map((s: any) => {
       const name = s?.name ?? `Area ${s?.id}`;
       const assigned = leads.filter(
         (l) =>
-          ACTIVE.has(l.status) &&
+          ACTIVE_STATUSES.has(l.status) &&
           String(l.service ?? '').trim().toLowerCase() ===
             String(name).trim().toLowerCase()
       ).length;
@@ -142,11 +153,13 @@ const DashboardLawyers = () => {
     ]);
     setLoading(false);
     if (!leadsRes.success || !leadsRes.data) {
+      // Sin datos, las cards quedan en '—' (no 0, que parecería "sin trabajo").
       toast.error(leadsRes.message || 'Could not load assigned leads');
       setLeads([]);
       return;
     }
     setLeads(leadsRes.data.data);
+    setLeadsLoaded(true);
     const dto = lawyerRes?.data?.data ?? lawyerRes?.data ?? null;
     setUserId(dto);
   };
@@ -172,36 +185,19 @@ const DashboardLawyers = () => {
     );
   }, [userId, dataServiceType]);
 
-  const ALL_KPIS = useMemo(() => [...KPI_ROW_1, ...KPI_ROW_2], []);
+  const countFor = (slug: string): number | string => {
+    if (!leadsLoaded) return '—';
+    const status = statusFromSlug(slug);
+    return leads.filter((l) => l.status === status).length;
+  };
 
-  // Conteos por KPI desde los leads asignados.
-  const counts = useMemo(() => {
-    return ALL_KPIS.map(({ statuses }) =>
-      leads.filter((l) => (statuses as string[]).includes(l.status)).length
-    );
-  }, [leads, ALL_KPIS]);
+  const activeCount = useMemo(
+    () => leads.filter((l) => ACTIVE_STATUSES.has(l.status)).length,
+    [leads]
+  );
 
-  // Sparkline por KPI: bucket por día en los últimos 14 días.
-  const sparks = useMemo(() => {
-    const buckets = 14;
-    const now = Date.now();
-    const bucketSize = 86_400_000; // 1 día
-    return ALL_KPIS.map(({ statuses }) => {
-      const filtered = leads.filter((l) => (statuses as string[]).includes(l.status));
-      const arr = new Array(buckets).fill(0);
-      for (const lead of filtered) {
-        const ts = new Date(lead.updated_at ?? lead.created_at).getTime();
-        const offset = now - ts;
-        const idx = buckets - 1 - Math.floor(offset / bucketSize);
-        if (idx >= 0 && idx < buckets) arr[idx] += 1;
-      }
-      return arr;
-    });
-  }, [leads, ALL_KPIS]);
-
-  const handleClickKpi = (statuses: LeadStatus[]) => {
-    setSelecArray(statuses as any);
-    router.push('/all-leads');
+  const openFilter = (slug: string) => {
+    router.push(`/all-leads?status=${slug}`);
   };
 
   // UX-L02: actividad reciente — 8 leads más recientes del lawyer.
@@ -258,46 +254,47 @@ const DashboardLawyers = () => {
         title={displayName}
         subtitle={
           capacityTotal > 0
-            ? `${leads.length} active of ${capacityTotal} capacity`
-            : `${leads.length} active leads`
+            ? `${activeCount} active of ${capacityTotal} capacity`
+            : `${activeCount} active leads`
         }
       />
 
-      {/* Row 1: Active + Retained (2 cols) */}
-      <div className='grid gap-3.5 sm:grid-cols-2'>
-        {KPI_ROW_1.map((kpi, idx) => (
-          <KpiCard
-            key={kpi.key}
-            label={kpi.label}
-            period={kpi.sub}
-            value={counts[idx]}
-            tone={kpi.tone}
-            icon={kpi.icon}
-            spark={sparks[idx]}
-            onClick={() => handleClickKpi(kpi.statuses)}
-          />
-        ))}
-      </div>
-
-      {/* Row 2: Waiting + Flagged + Pipeline Chart (3 cols) */}
-      <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3'>
-        {KPI_ROW_2.map((kpi) => {
-          const i = ALL_KPIS.findIndex((k) => k.key === kpi.key);
-          return (
+      <section className='flex flex-col gap-3'>
+        <SectionHead
+          title='Work right now'
+          subtitle='Your open leads, including older ones that still need attention.'
+        />
+        <div className='grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4'>
+          {WORK_CARDS.map((card) => (
             <KpiCard
-              key={kpi.key}
-              label={kpi.label}
-              period={kpi.sub}
-              value={counts[i]}
-              tone={kpi.tone}
-              icon={kpi.icon}
-              spark={sparks[i]}
-              onClick={() => handleClickKpi(kpi.statuses)}
+              key={card.slug}
+              label={card.label}
+              hint={card.hint}
+              info={card.info}
+              value={countFor(card.slug)}
+              tone={card.tone}
+              icon={card.icon}
+              onClick={() => openFilter(card.slug)}
             />
-          );
-        })}
-        <PipelineChart segments={pipelineSegments} />
-      </div>
+          ))}
+        </div>
+      </section>
+
+      <section className='flex flex-col gap-3'>
+        <SectionHead title='Your results' subtitle='All time.' />
+        <div className='grid gap-3.5 sm:grid-cols-2'>
+          <KpiCard
+            label={RETAINED_CARD.label}
+            hint={RETAINED_CARD.hint}
+            info={RETAINED_CARD.info}
+            value={countFor(RETAINED_CARD.slug)}
+            tone={RETAINED_CARD.tone}
+            icon={RETAINED_CARD.icon}
+            onClick={() => openFilter(RETAINED_CARD.slug)}
+          />
+          <PipelineChart segments={pipelineSegments} />
+        </div>
+      </section>
 
       {/* L587-12 — capacidad por área vs leads activos, visible para el abogado. */}
       {capacityByArea.length > 0 ? (

@@ -3,9 +3,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import toast from 'react-hot-toast';
 import {
   MdArchive,
+  MdClose,
   MdDeleteOutline,
   MdFileDownload,
   MdGridView,
@@ -19,6 +21,19 @@ import { api, database, downloadBlob } from '@/services/database';
 import type { LeadStatus } from '@/types/api.types';
 import { statusSelectAll } from '@/constants/status';
 import { adminStatusFromSlug, adminSlugFromStatus } from '@/constants/leadFilters';
+import {
+  PERIOD_PHRASE,
+  findLeadQueue,
+  isPeriodKey,
+  parseSince,
+  periodStart,
+  rowMatchesQueue,
+  type LeadQueueKey,
+} from '@/constants/leadQueues';
+import {
+  useLeadQueueContext,
+  type QueueContextLead,
+} from '@/hooks/useLeadQueueContext';
 import {
   Avatar,
   BulkActionBar,
@@ -46,6 +61,7 @@ import ReLoading from '@/components/atoms/ReLoading';
 import Button from '@/components/atoms/Button';
 
 dayjs.extend(utc);
+dayjs.extend(relativeTime);
 
 type LeadRow = {
   'lead id': number;
@@ -72,6 +88,14 @@ type LeadRow = {
 
 const formatId = (id: number | string) => String(id).padStart(5, '0');
 const formatDate = (d: Date | string) => dayjs(d).format('MMM DD, YYYY');
+const ASSIGNMENT_WINDOW_HOURS = 48;
+
+const toContextLead = (r: LeadRow): QueueContextLead => ({
+  id: Number(r['lead id']),
+  status: r.status,
+  lawyer: r.lawyer && !/no assigned/i.test(r.lawyer) ? r.lawyer : null,
+  updatedAt: r.date_updated,
+});
 const initialsOf = (name: string) =>
   name
     .split(' ')
@@ -151,6 +175,12 @@ const LeadManagement = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeSlug = searchParams.get('status');
+  // Dashboard — ?queue=<key>[&period=<key>] abre exactamente los registros que
+  // cuenta la card (mismo predicado y mismo orden, ver constants/leadQueues).
+  const activeQueue = findLeadQueue(searchParams.get('queue'));
+  const periodParam = searchParams.get('period');
+  const queuePeriod = isPeriodKey(periodParam) ? periodParam : 'all';
+  const sinceParam = searchParams.get('since');
 
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
@@ -235,9 +265,38 @@ const LeadManagement = () => {
 
   // L587-09 — el filtro NEW puede activarse por chip (statusFilter) o por
   // navegación desde el KPI "New Leads" (selecArray=['NEW']).
+  // Las colas del dashboard cuentan todos los NEW (sin ventana), así que la
+  // ventana no aplica cuando hay ?queue=.
   const isNewFilterActive =
-    statusFilter === 'NEW' ||
-    (selecArray.length === 1 && selecArray[0]?.toUpperCase() === 'NEW');
+    !activeQueue &&
+    (statusFilter === 'NEW' ||
+      (selecArray.length === 1 && selecArray[0]?.toUpperCase() === 'NEW'));
+
+  const queueRows = useMemo<LeadRow[] | null>(() => {
+    if (!activeQueue || !Array.isArray(dataLeads)) return null;
+    // Mismo instante que usó la card (?since=); si falta, se recalcula.
+    const since = activeQueue.periodField
+      ? parseSince(sinceParam) ?? periodStart(queuePeriod)
+      : null;
+    return (dataLeads as LeadRow[]).filter((l) =>
+      rowMatchesQueue(activeQueue, l, since)
+    );
+  }, [activeQueue, queuePeriod, sinceParam, dataLeads]);
+
+  // Returned: la lista de abogados resuelve el nombre de asignaciones masivas.
+  useEffect(() => {
+    if (activeQueue?.key === 'returned') void ensureLawyersLoaded();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeQueue]);
+
+  const queueContextLeads = useMemo(
+    () => (activeQueue?.context && queueRows ? queueRows.map(toContextLead) : []),
+    [activeQueue, queueRows]
+  );
+  const queueContext = useLeadQueueContext(
+    activeQueue?.context,
+    queueContextLeads
+  );
 
   const filtered = useMemo<LeadRow[]>(() => {
     // When a dedicated tab is active, use its own dataset.
@@ -257,7 +316,9 @@ const LeadManagement = () => {
     if (!dataLeads) return [];
     let list = dataLeads as LeadRow[];
 
-    if (selecArray.length > 0) {
+    if (queueRows) {
+      list = queueRows;
+    } else if (selecArray.length > 0) {
       const set = new Set(selecArray.map((s) => s.toLowerCase()));
       list = list.filter((l) => set.has(l.status?.toLowerCase()));
     } else if (statusFilter) {
@@ -299,6 +360,7 @@ const LeadManagement = () => {
     dedicatedData,
     isNewFilterActive,
     newWindowHours,
+    queueRows,
   ]);
 
   // L587-10 — clicks en la filter bar navegan por URL; el effect de sync aplica
@@ -311,6 +373,12 @@ const LeadManagement = () => {
   // Sincroniza el filtro desde la URL. Solo actúa cuando ?status está presente,
   // para no pisar el flujo Dashboard→KPI (setSelecArray sin parámetro).
   useEffect(() => {
+    if (activeQueue) {
+      setSelecArray([]);
+      setStatusFilter(null);
+      setDedicatedData(null);
+      return;
+    }
     if (activeSlug === null) return;
     const token = adminStatusFromSlug(activeSlug);
     setSelecArray([]);
@@ -321,14 +389,14 @@ const LeadManagement = () => {
       setDedicatedData(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSlug]);
+  }, [activeSlug, activeQueue]);
 
   const openLead = (row: LeadRow) => {
     setSelectedLead(row);
     setIsOpenLead(true);
     // Issue #2: si el lead no está asignado, pre-cargamos lawyers para
     // que el picker inline esté disponible sin click extra.
-    if (row.status === 'NEW' || row.status === 'EXPIRED') {
+    if (row.status === 'NEW' || row.status === 'EXPIRED' || row.status === 'SEND_BACK') {
       void ensureLawyersLoaded();
     }
   };
@@ -680,6 +748,35 @@ const LeadManagement = () => {
   };
 
   const handleExportLeads = async () => {
+    // Vista de cola del dashboard: se exportan exactamente las filas visibles.
+    if (activeQueue) {
+      const cell = (v: unknown) => {
+        const text = v instanceof Date ? dayjs(v).format('YYYY-MM-DD HH:mm') : String(v ?? '');
+        // Prefijo ' ante =,+,-,@ (fórmulas de hoja de cálculo), salvo teléfonos.
+        const risky = /^[=+\-@]/.test(text) && !/^\+?[\d\s().-]+$/.test(text);
+        return `"${(risky ? `'${text}` : text).replace(/"/g, '""')}"`;
+      };
+      const header = ['ID', 'Created', 'Lead', 'Email', 'Phone', 'Service', 'Status', 'Lawyer', 'Last update'];
+      if (activeQueue.context) header.push('Reason', 'Since', activeQueue.context === 'returned' ? 'Previous lawyer' : 'Flagged by');
+      const lines = filtered.map((r) => {
+        const base: unknown[] = [
+          r['lead id'], r.date, r['lead name'], r.email, r['phone number'],
+          r.service, r.status, /no assigned/i.test(r.lawyer) ? '' : r.lawyer, r.date_updated,
+        ];
+        if (activeQueue.context) {
+          const ctx = contextOf(r);
+          base.push(ctx?.reason ?? '', ctx?.at ?? '', ctx?.by ?? '');
+        }
+        return base.map(cell).join(',');
+      });
+      const csv = [header.map(cell).join(','), ...lines].join('\r\n');
+      downloadBlob(
+        new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }),
+        `leads-${activeQueue.key}-${dayjs().format('YYYY-MM-DD')}.csv`
+      );
+      toast.success('Leads CSV downloaded');
+      return;
+    }
     const filters: Record<string, unknown> = {};
     if (searchText.trim()) filters.search = searchText.trim();
     if (statusFilter) filters.status = statusFilter;
@@ -1012,6 +1109,160 @@ const LeadManagement = () => {
     },
   ];
 
+  // ── Columnas de las colas del dashboard (?queue=) ──
+  // id → nombre para las asignaciones masivas, que en el audit log solo guardan
+  // el id: abogados del listado + lista de abogados (se carga en Returned).
+  const lawyerNames = new Map<number, string>();
+  for (const l of lawyers) lawyerNames.set(Number(l.id), l.name);
+  if (Array.isArray(dataLeads)) {
+    for (const l of dataLeads as LeadRow[]) {
+      if (l.assigned_lawyer_id && l.lawyer && !/no assigned/i.test(l.lawyer)) {
+        lawyerNames.set(Number(l.assigned_lawyer_id), l.lawyer);
+      }
+    }
+  }
+  const contextOf = (r: LeadRow) => {
+    const ctx = queueContext.getContext(toContextLead(r));
+    if (!ctx || ctx.by || !ctx.byId) return ctx;
+    return { ...ctx, by: lawyerNames.get(ctx.byId) ?? null };
+  };
+  const pendingText = queueContext.loading ? 'Loading…' : '—';
+  const timeColumn = (
+    label: string,
+    accessor: (r: LeadRow) => Date,
+    render: (d: Date) => JSX.Element
+  ): DataTableColumn<LeadRow> => ({
+    key: 'queue_time',
+    label,
+    width: '130px',
+    sortable: true,
+    accessor,
+    render: (r) => render(accessor(r)),
+  });
+  const relativeCell = (d: Date) => (
+    <span className='flex flex-col gap-0.5'>
+      <span className='text-[11px] font-semibold text-slate-700'>
+        {dayjs(d).fromNow()}
+      </span>
+      <span className='text-[10px] tabular-nums text-slate-400'>
+        {dayjs(d).format('MMM DD, HH:mm')}
+      </span>
+    </span>
+  );
+  const reasonColumn = (label: string): DataTableColumn<LeadRow> => ({
+    key: 'queue_reason',
+    label,
+    width: 'minmax(200px, 1fr)',
+    render: (r) => {
+      const ctx = contextOf(r);
+      const reason = ctx?.reason;
+      return (
+        <span
+          title={reason ?? undefined}
+          className={`block truncate pr-3 text-xs ${
+            reason ? 'text-slate-700' : 'italic text-slate-400'
+          }`}
+        >
+          {reason ?? (ctx ? 'No reason recorded' : pendingText)}
+        </span>
+      );
+    },
+  });
+  const eventTime = (r: LeadRow) => contextOf(r)?.at ?? r.date_updated;
+
+  const QUEUE_COLUMNS: Partial<Record<LeadQueueKey, DataTableColumn<LeadRow>[]>> = {
+    assigned: [
+      timeColumn(
+        'Expires',
+        (r) => r.date_updated,
+        (d) => {
+          const deadline = dayjs(d).add(ASSIGNMENT_WINDOW_HOURS, 'hour');
+          const overdue = deadline.isBefore(dayjs());
+          return (
+            <span className='flex flex-col gap-0.5'>
+              <span
+                className={`text-[11px] font-semibold ${
+                  overdue ? 'text-customRed' : 'text-slate-700'
+                }`}
+              >
+                {overdue ? 'Overdue' : deadline.fromNow()}
+              </span>
+              <span className='text-[10px] tabular-nums text-slate-400'>
+                {deadline.format('MMM DD, HH:mm')}
+              </span>
+            </span>
+          );
+        }
+      ),
+    ],
+    // updated_at: el BE lo actualiza en cada cambio del lead (no con las notas).
+    'in-progress': [timeColumn('Last update', (r) => r.date_updated, relativeCell)],
+    waiting: [timeColumn('Last update', (r) => r.date_updated, relativeCell)],
+    returned: [
+      timeColumn('Returned', eventTime, relativeCell),
+      reasonColumn('Return reason'),
+      {
+        key: 'queue_by',
+        label: 'Previous lawyer',
+        width: '160px',
+        sortable: true,
+        accessor: (r) => contextOf(r)?.by ?? '',
+        render: (r) => {
+          const ctx = contextOf(r);
+          const name = ctx?.by;
+          return name ? (
+            <div className='flex min-w-0 items-center gap-2'>
+              <Avatar size='xs' tone={toneFromString(name)} initials={initialsOf(name)} />
+              <span className='truncate text-xs font-semibold text-slate-700'>{name}</span>
+            </div>
+          ) : (
+            <span className='text-[11px] font-medium italic text-slate-400'>
+              {ctx ? 'Unknown' : pendingText}
+            </span>
+          );
+        },
+      },
+    ],
+    flagged: [timeColumn('Flagged on', eventTime, relativeCell), reasonColumn('Flag reason')],
+    retained: [timeColumn('Retained', (r) => r.date_updated, relativeCell)],
+  };
+
+  // Vista de cola: se ocultan columnas para que la de tiempo / razón quede
+  // visible sin scroll horizontal.
+  const WITH_TIME = ['channel', 'source', 'description lead', 'phone number'];
+  const WITH_REASON = [...WITH_TIME, 'phone number', 'date'];
+  const QUEUE_HIDDEN_COLUMNS: Record<LeadQueueKey, string[]> = {
+    new: ['channel', 'source'],
+    received: ['channel', 'source'],
+    assigned: WITH_TIME,
+    'in-progress': WITH_TIME,
+    waiting: WITH_TIME,
+    retained: WITH_TIME,
+    flagged: WITH_REASON,
+    // El lead ya no tiene abogado asignado: lo reemplaza "Previous lawyer".
+    returned: [...WITH_REASON, 'lawyer'],
+  };
+
+  let tableColumns = columns;
+  if (activeQueue) {
+    const hidden = new Set(QUEUE_HIDDEN_COLUMNS[activeQueue.key]);
+    const visible = columns.filter((c) => !hidden.has(c.key));
+    // Las columnas de la cola van justo después del lead: son las que explican
+    // el orden y el motivo, y tienen que verse sin scroll horizontal.
+    const at = visible.findIndex((c) => c.key === 'lead name') + 1;
+    tableColumns = [
+      ...visible.slice(0, at),
+      ...(QUEUE_COLUMNS[activeQueue.key] ?? []),
+      ...visible.slice(at),
+    ];
+  }
+  const tableSort = activeQueue
+    ? {
+        key: activeQueue.sort.field === 'created' ? 'date' : 'queue_time',
+        direction: activeQueue.sort.direction,
+      }
+    : { key: 'date', direction: 'desc' as const };
+
   if (loading) return <ReLoading />;
 
   return (
@@ -1053,7 +1304,8 @@ const LeadManagement = () => {
               selectedLead.status === 'LOST'
             ? STATUS_OPTIONS_DISABLED
             : selectedLead.status === 'NEW' ||
-              selectedLead.status === 'EXPIRED'
+              selectedLead.status === 'EXPIRED' ||
+              selectedLead.status === 'SEND_BACK'
             ? STATUS_OPTIONS_NEW
             : STATUS_OPTIONS_SELECT
         }
@@ -1140,7 +1392,7 @@ const LeadManagement = () => {
         <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
         <FilterButton
           label='All'
-          active={!statusFilter && selecArray.length === 0}
+          active={!statusFilter && selecArray.length === 0 && !activeQueue}
           onClick={() => handleStatusClick(null)}
         />
         {uniqueStatuses.map((s) => {
@@ -1202,6 +1454,29 @@ const LeadManagement = () => {
         </div>
       </div>
 
+      {activeQueue ? (
+        <div className='flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5'>
+          <span className='text-[12px] font-bold text-slate-800'>
+            {activeQueue.label}
+            {activeQueue.periodField ? ` · ${PERIOD_PHRASE[queuePeriod]}` : ''}
+          </span>
+          <span className='text-[11px] font-medium text-slate-500'>
+            {activeQueue.info}
+          </span>
+          <span className='text-[11px] font-semibold text-slate-400'>
+            Default order: {activeQueue.sort.label}
+          </span>
+          <button
+            type='button'
+            onClick={() => handleStatusClick(null)}
+            className='ml-auto inline-flex items-center gap-1 rounded bg-transparent text-[11px] font-bold text-slate-600 transition-colors hover:text-customRed focus:outline-none focus-visible:ring-2 focus-visible:ring-customRed/40'
+          >
+            <MdClose size={12} />
+            Clear
+          </button>
+        </div>
+      ) : null}
+
       {/* Table or error */}
       {error ? (
         <div className='flex items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-5 py-10 text-center'>
@@ -1216,13 +1491,15 @@ const LeadManagement = () => {
         </div>
       ) : (
         <DataTable<LeadRow>
-          columns={columns}
+          // Remonta por cola para aplicar su orden inicial.
+          key={activeQueue ? `queue-${activeQueue.key}-${queuePeriod}` : 'leads'}
+          columns={tableColumns}
           data={filtered}
           rowKey={(row) => row['lead id']}
           onRowClick={openLead}
           pagination={{ enabled: true, initialPageSize: 10 }}
           totalLabel='leads'
-          initialSort={{ key: 'date', direction: 'desc' }}
+          initialSort={tableSort}
           selection={{
             getRowKey: (row) => Number(row['lead id']),
             selectedKeys: selectedIds,
@@ -1247,10 +1524,18 @@ const LeadManagement = () => {
             ) : (
               <div className='flex flex-col items-center gap-1'>
                 <span className='text-[13px] font-semibold text-slate-700'>
-                  No leads match your filters
+                  {!activeQueue || searchText.trim()
+                    ? 'No leads match your filters'
+                    : activeQueue.periodField
+                    ? `No leads ${activeQueue.hint.toLowerCase()} ${PERIOD_PHRASE[queuePeriod]}`
+                    : 'No leads in this list'}
                 </span>
                 <span className='text-[11px] text-slate-400'>
-                  Adjust the search or status filters above
+                  {!activeQueue || searchText.trim()
+                    ? 'Adjust the search or status filters above'
+                    : activeQueue.periodField
+                    ? 'Try a longer period on the dashboard'
+                    : 'Nothing needs attention here right now'}
                 </span>
               </div>
             )

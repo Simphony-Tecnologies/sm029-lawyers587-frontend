@@ -74,6 +74,14 @@ const ASSIGNED_FRESHNESS_HOURS = 48;
 // Frontend never blocks based on local timestamp calculation.
 const isLeadExpired = (_lead: LeadRow) => false;
 
+// Filtros que abren las cards "Work right now" del dashboard del abogado.
+const URGENT_FIRST_STATUSES = new Set<LeadStatus>([
+  'ASSIGNED',
+  'IN PROGRESS',
+  'WAITING_ON_CLIENT',
+  'PROBLEMATIC',
+]);
+
 const toRow = (lead: LeadDTO): LeadRow => ({
   id: lead.id,
   fullName: lead.fullName ?? '',
@@ -457,7 +465,14 @@ const AllLeads = () => {
         data={filtered}
         rowKey={(r) => r.id}
         onRowClick={handleOpenLead}
-        initialSort={{ key: 'expires', direction: 'desc' }}
+        // Remonta por filtro para aplicar su orden: en las colas de trabajo lo más
+        // urgente primero (deadline más cercano / más tiempo sin actividad).
+        key={activeSlug}
+        initialSort={{
+          key: 'expires',
+          direction:
+            activeStatus && URGENT_FIRST_STATUSES.has(activeStatus) ? 'asc' : 'desc',
+        }}
         pagination={{
           enabled: true,
           initialPageSize: 20,
@@ -465,11 +480,19 @@ const AllLeads = () => {
         }}
         totalLabel='leads'
         emptyState={
-          <EmptyStateBox
-            icon={<MdOutlineCases size={18} />}
-            title='No assigned leads yet'
-            description="Here you will see your selected leads. Go to the 'Select Lead' section to get started."
-          />
+          rows.length > 0 ? (
+            <EmptyStateBox
+              icon={<MdOutlineCases size={18} />}
+              title='No leads match this filter'
+              description='Try another status or source, or clear the search.'
+            />
+          ) : (
+            <EmptyStateBox
+              icon={<MdOutlineCases size={18} />}
+              title='No assigned leads yet'
+              description="Here you will see your selected leads. Go to the 'Select Lead' section to get started."
+            />
+          )
         }
       />
 

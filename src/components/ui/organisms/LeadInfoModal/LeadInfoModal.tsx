@@ -259,7 +259,10 @@ export const LeadInfoModal = ({
     !!onAssign &&
     Array.isArray(assignableLawyers) &&
     !isSpecialStatus &&
-    (leadStatusUpper === 'NEW' || leadStatusUpper === 'EXPIRED');
+    // SEND_BACK vuelve al pool y el BE lo acepta en assign (cola "Returned to Admin").
+    (leadStatusUpper === 'NEW' ||
+      leadStatusUpper === 'EXPIRED' ||
+      leadStatusUpper === 'SEND_BACK');
 
   const filteredLawyers = useMemo(() => {
     if (!assignableLawyers) return [];
