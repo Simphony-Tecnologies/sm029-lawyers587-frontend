@@ -12,6 +12,7 @@ export * from './NavIcon';
 export * from './OnlineDot';
 export * from './OriginBadge';
 export * from './PillDivider';
+export * from './ScoreBadge';
 export * from './SourceBadge';
 export * from './Sparkline';
 export * from './StatusPill';

@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -15,12 +15,28 @@ import {
   MdSwapHoriz,
   MdViewList,
 } from 'react-icons/md';
-import { useLeadsStore } from '@/store/useLead.store';
+import { toLeadRow, useLeadsStore } from '@/store/useLead.store';
 import { useSelectStatus } from '@/store/useSelectStatus';
 import { api, database, downloadBlob } from '@/services/database';
-import type { LeadStatus } from '@/types/api.types';
+import type { FirmListItem, LeadStatus } from '@/types/api.types';
 import { statusSelectAll } from '@/constants/status';
 import { adminStatusFromSlug, adminSlugFromStatus } from '@/constants/leadFilters';
+import {
+  EMPTY_ADVANCED_FILTERS,
+  SCORE_OPTIONS,
+  UNASSIGNED_VALUE,
+  countAdvancedFilters,
+  formatFilterDay,
+  isPossibleSpam,
+  matchesAdvancedFilters,
+  parseAdvancedFilters,
+  readListParam,
+  scoreSortValue,
+  urgencyBucket,
+  writeAdvancedFilters,
+  type AdvancedFilterRow,
+  type LeadAdvancedFilters,
+} from '@/constants/leadAdvancedFilters';
 import {
   PERIOD_PHRASE,
   findLeadQueue,
@@ -34,27 +50,37 @@ import {
   useLeadQueueContext,
   type QueueContextLead,
 } from '@/hooks/useLeadQueueContext';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import {
+  ActiveFilterChips,
   Avatar,
+  Badge,
   BulkActionBar,
   ConfirmationDialog,
   DataTable,
   FilterButton,
+  LeadFiltersPanel,
   LeadInfoModal,
   OriginBadge,
   PageHead,
+  ScoreBadge,
   SearchField,
   SourceBadge,
   StatusPill,
   ViewToggle,
+  channelKey,
+  channelLabel,
   toneFromString,
   variantFromStatus,
+  type ActiveFilterChip,
   type BulkAction,
   type ConfirmationField,
   type DataTableColumn,
   type LeadInfoSubmitPayload,
+  type MultiSelectOption,
 } from '@/components/ui';
-import { sourceLabel } from '@/lib/lead-source';
+import { sourceFilterValue, sourceLabel } from '@/lib/lead-source';
+import { buildCsvBlob } from '@/lib/csv';
 import Modal from '@/components/organisms/Modal';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
 import ReLoading from '@/components/atoms/ReLoading';
@@ -65,6 +91,7 @@ dayjs.extend(relativeTime);
 
 type LeadRow = {
   'lead id': number;
+  code?: string;
   date: Date;
   date_updated: Date;
   'lead name': string;
@@ -75,16 +102,56 @@ type LeadRow = {
   comments: string;
   lawyer: string;
   status: string;
-  channel?: string;
-  source?: string;
-  source_label?: string;
+  channel?: string | null;
+  source?: string | null;
+  source_label?: string | null;
   assigned_lawyer_id: number | null;
   // Spam / trash
   spam_score: number;
   spam_reasons: string[] | null;
   trashed_at: string | null;
   previous_status: string | null;
+  // Fase 1 — score (urgencia IA), pull date y firma del abogado asignado.
+  ai_urgency?: number | null;
+  pull_date?: string | null;
+  firm_id?: number | null;
 };
+
+const LEAD_MANAGEMENT_PATH = '/lead-management';
+const LEAD_NOT_AVAILABLE = 'This lead is not available or belongs to another firm.';
+
+// Fila → campos que usan los filtros avanzados (constants/leadAdvancedFilters).
+const toFilterRow = (r: LeadRow): AdvancedFilterRow => ({
+  service: r.service,
+  assignedId: r.assigned_lawyer_id ?? null,
+  firmId: r.firm_id ?? null,
+  source: sourceFilterValue(r.source, r.source_label),
+  channel: channelKey(r.channel),
+  entryDate: r.date,
+  pullDate: r.pull_date ?? null,
+  ai_urgency: r.ai_urgency ?? null,
+  spam_score: r.spam_score,
+});
+
+const scoreText = (r: { ai_urgency?: number | null; spam_score?: number | null }) => {
+  const bucket = urgencyBucket(r.ai_urgency);
+  return [
+    bucket ? SCORE_OPTIONS.find((o) => o.value === bucket)?.label : null,
+    isPossibleSpam(r.spam_score) ? 'Possible spam' : null,
+  ]
+    .filter(Boolean)
+    .join('; ');
+};
+
+const formatDay = (iso?: string | null) =>
+  iso ? dayjs(iso).format('MMM D, YYYY') : null;
+
+const dateRangeText = (from: string, to: string) =>
+  from && to
+    ? `${formatFilterDay(from)} – ${formatFilterDay(to)}`
+    : from
+    ? `From ${formatFilterDay(from)}`
+    : `To ${formatFilterDay(to)}`;
 
 const formatId = (id: number | string) => String(id).padStart(5, '0');
 const formatDate = (d: Date | string) => dayjs(d).format('MMM DD, YYYY');
@@ -172,18 +239,33 @@ const LeadManagement = () => {
 
   // L587-10 — la URL (?status=<slug>) es la fuente de verdad del filtro cuando
   // el parámetro está presente (submenú del sidebar, filter bar, reload).
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const activeSlug = searchParams.get('status');
+  // L587-10 / Fase 1 — la URL es la fuente de verdad: ?status (uno o varios),
+  // ?queue, filtros avanzados, ?search y ?lead. Estado optimista: ver hook.
+  const { params, updateParams, getQuery } = useUrlQueryState(LEAD_MANAGEMENT_PATH);
+  const statusSlugs = useMemo(() => readListParam(params, 'status'), [params]);
+  const statusKey = statusSlugs.join(',');
+  const hasStatusParam = params.has('status');
   // Dashboard — ?queue=<key>[&period=<key>] abre exactamente los registros que
   // cuenta la card (mismo predicado y mismo orden, ver constants/leadQueues).
-  const activeQueue = findLeadQueue(searchParams.get('queue'));
-  const periodParam = searchParams.get('period');
+  const activeQueue = findLeadQueue(params.get('queue'));
+  const periodParam = params.get('period');
   const queuePeriod = isPeriodKey(periodParam) ? periodParam : 'all';
-  const sinceParam = searchParams.get('since');
+  const sinceParam = params.get('since');
+  const advanced = useMemo(() => parseAdvancedFilters(params), [params]);
+  const hasAdvanced = countAdvancedFilters(advanced) > 0;
+  const urlSearch = params.get('search') ?? '';
+  const leadParam = params.get('lead');
 
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [searchText, setSearchText] = useState('');
+  // Status activos: uno (chip / sidebar) o varios (panel). Vacío = All.
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const statusFilter = statusFilters.length === 1 ? statusFilters[0] : null;
+  const [searchText, setSearchText] = useState(urlSearch);
+  const lastSearchRef = useRef(urlSearch);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [serviceTypes, setServiceTypes] = useState<string[]>([]);
+  const [firms, setFirms] = useState<FirmListItem[]>([]);
+  // Nombre de cualquier firma (incluidas las fusionadas) para el export.
+  const [firmNames, setFirmNames] = useState<Map<number, string>>(new Map());
   const [view, setView] = useState<'grid' | 'list'>('grid');
   // L587-09 — ventana de tiempo (horas) para leads NEW en la vista admin.
   const [newWindowHours, setNewWindowHours] = useState<24 | 36 | 48>(24);
@@ -229,32 +311,7 @@ const LeadManagement = () => {
       setDedicatedData([]);
       return;
     }
-    const toRowLocal = (lead: any): LeadRow => ({
-      'lead id': lead.id,
-      date: new Date(lead.created_at ?? lead.entry_date),
-      date_updated: new Date(lead.updated_at ?? lead.created_at ?? lead.entry_date),
-      'lead name': lead.fullName ?? lead.full_name ?? '',
-      email: lead.email ?? '',
-      'phone number': lead.phone ?? lead.phone_number ?? lead.number ?? '',
-      service: lead.service ?? lead.lawyer_type ?? '',
-      'description lead': lead.description ?? '',
-      comments: lead.comments ?? '',
-      lawyer: (() => {
-        const dto = lead.assigned_lawyer;
-        if (dto?.firstName || dto?.lastName) return `${dto.firstName ?? ''} ${dto.lastName ?? ''}`.trim();
-        return 'No assigned';
-      })(),
-      status: lead.status,
-      channel: lead.channel,
-      source: lead.source,
-      source_label: lead.source_label,
-      assigned_lawyer_id: lead.assigned_lawyer_id ?? null,
-      spam_score: lead.spam_score ?? 0,
-      spam_reasons: lead.spam_reasons ?? null,
-      trashed_at: lead.trashed_at ?? null,
-      previous_status: lead.previous_status ?? null,
-    });
-    setDedicatedData(res.data.data.map(toRowLocal));
+    setDedicatedData(res.data.data.map((lead) => toLeadRow(lead) as LeadRow));
   };
 
   const uniqueStatuses = useMemo<string[]>(() => {
@@ -266,9 +323,12 @@ const LeadManagement = () => {
   // L587-09 — el filtro NEW puede activarse por chip (statusFilter) o por
   // navegación desde el KPI "New Leads" (selecArray=['NEW']).
   // Las colas del dashboard cuentan todos los NEW (sin ventana), así que la
-  // ventana no aplica cuando hay ?queue=.
+  // ventana no aplica cuando hay ?queue=. Tampoco con un rango de Entry date
+  // en el panel: es el mismo concepto (fecha de entrada) y manda el rango.
   const isNewFilterActive =
     !activeQueue &&
+    !advanced.entryFrom &&
+    !advanced.entryTo &&
     (statusFilter === 'NEW' ||
       (selecArray.length === 1 && selecArray[0]?.toUpperCase() === 'NEW'));
 
@@ -298,19 +358,33 @@ const LeadManagement = () => {
     queueContextLeads
   );
 
-  const filtered = useMemo<LeadRow[]>(() => {
-    // When a dedicated tab is active, use its own dataset.
-    if (isDedicatedTab(statusFilter) && dedicatedData !== null) {
-      const q = searchText.trim().toLowerCase();
-      if (!q) return dedicatedData;
-      return dedicatedData.filter(
+  // Búsqueda (nombre, email, teléfono, status, ID y código LD-000xx) + filtros
+  // avanzados; se aplican sobre cualquier dataset (lista, cola o pestaña dedicada).
+  const applySearchAndAdvanced = (list: LeadRow[]): LeadRow[] => {
+    let out = list;
+    const q = searchText.trim().toLowerCase();
+    if (q) {
+      out = out.filter(
         (l) =>
           l['lead name']?.toLowerCase().includes(q) ||
           l.email?.toLowerCase().includes(q) ||
           l['phone number']?.toLowerCase().includes(q) ||
           l.status?.toLowerCase().includes(q) ||
-          String(l['lead id']).includes(q)
+          String(l['lead id']).includes(q) ||
+          formatId(l['lead id']).includes(q) ||
+          (l.code ?? '').toLowerCase().includes(q)
       );
+    }
+    if (hasAdvanced) {
+      out = out.filter((l) => matchesAdvancedFilters(toFilterRow(l), advanced));
+    }
+    return out;
+  };
+
+  const filtered = useMemo<LeadRow[]>(() => {
+    // When a dedicated tab is active, use its own dataset.
+    if (isDedicatedTab(statusFilter) && dedicatedData !== null) {
+      return applySearchAndAdvanced(dedicatedData);
     }
 
     if (!dataLeads) return [];
@@ -321,8 +395,9 @@ const LeadManagement = () => {
     } else if (selecArray.length > 0) {
       const set = new Set(selecArray.map((s) => s.toLowerCase()));
       list = list.filter((l) => set.has(l.status?.toLowerCase()));
-    } else if (statusFilter) {
-      list = list.filter((l) => l.status === statusFilter);
+    } else if (statusFilters.length > 0) {
+      const set = new Set(statusFilters);
+      list = list.filter((l) => set.has(l.status));
     } else {
       list = list.filter((l) => l.status !== 'ARCHIVED');
     }
@@ -339,59 +414,109 @@ const LeadManagement = () => {
       });
     }
 
-    const q = searchText.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (l) =>
-          l['lead name']?.toLowerCase().includes(q) ||
-          l.email?.toLowerCase().includes(q) ||
-          l['phone number']?.toLowerCase().includes(q) ||
-          l.status?.toLowerCase().includes(q) ||
-          String(l['lead id']).includes(q)
-      );
-    }
-    return list;
+    return applySearchAndAdvanced(list);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dataLeads,
     selecArray,
-    statusFilter,
+    statusFilters,
     searchText,
     dedicatedData,
     isNewFilterActive,
     newWindowHours,
     queueRows,
+    advanced,
+    hasAdvanced,
   ]);
 
   // L587-10 — clicks en la filter bar navegan por URL; el effect de sync aplica
   // el estado. Unidireccional: URL → estado (evita doble-fetch en tabs dedicadas).
+  // Fase 1: se conservan los filtros avanzados y la búsqueda; se sale de la cola.
   const handleStatusClick = (status: string | null) => {
     const slug = adminSlugFromStatus(status);
-    router.replace(`/lead-management?status=${slug}`);
+    updateParams((p) => {
+      p.delete('queue');
+      p.delete('period');
+      p.delete('since');
+      p.set('status', slug);
+    });
   };
+
+  // Panel de filtros: status múltiple, sincronizado con los chips.
+  const handlePanelStatus = (next: string[]) => {
+    updateParams((p) => {
+      p.delete('queue');
+      p.delete('period');
+      p.delete('since');
+      p.delete('status');
+      if (next.length === 0) p.set('status', 'all');
+      else next.forEach((st) => p.append('status', adminSlugFromStatus(st)));
+    });
+  };
+
+  const setAdvanced = (next: LeadAdvancedFilters) =>
+    updateParams((p) => writeAdvancedFilters(p, next));
+
+  // Búsqueda ↔ URL (?search=): la URL manda al cargar / volver atrás; al
+  // escribir se actualiza con un pequeño retardo para no navegar en cada tecla.
+  useEffect(() => {
+    if (urlSearch === lastSearchRef.current) return;
+    lastSearchRef.current = urlSearch;
+    setSearchText(urlSearch);
+  }, [urlSearch]);
+  useEffect(() => {
+    const q = searchText.trim();
+    if (q === lastSearchRef.current) return;
+    const t = setTimeout(() => {
+      lastSearchRef.current = q;
+      updateParams((p) => (q ? p.set('search', q) : p.delete('search')));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [searchText, updateParams]);
 
   // Sincroniza el filtro desde la URL. Solo actúa cuando ?status está presente,
   // para no pisar el flujo Dashboard→KPI (setSelecArray sin parámetro).
   useEffect(() => {
     if (activeQueue) {
       setSelecArray([]);
-      setStatusFilter(null);
+      setStatusFilters([]);
       setDedicatedData(null);
       return;
     }
-    if (activeSlug === null) return;
-    const token = adminStatusFromSlug(activeSlug);
+    if (!hasStatusParam) return;
+    const tokens = statusSlugs
+      .map((slug) => adminStatusFromSlug(slug))
+      .filter((t): t is LeadStatus => !!t);
+    const regular = tokens.filter((t) => !isDedicatedTab(t));
+    const dedicated = tokens.find((t) => isDedicatedTab(t));
     setSelecArray([]);
-    setStatusFilter(token);
-    if (token && isDedicatedTab(token)) {
-      void fetchDedicated(token);
+    if (regular.length === 0 && dedicated && isDedicatedTab(dedicated)) {
+      setStatusFilters([dedicated]);
+      void fetchDedicated(dedicated);
     } else {
+      setStatusFilters(regular);
       setDedicatedData(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSlug, activeQueue]);
+  }, [statusKey, hasStatusParam, activeQueue]);
 
-  const openLead = (row: LeadRow) => {
+  // Fase 1 — catálogos para el panel (áreas de derecho y firmas).
+  useEffect(() => {
+    void api.serviceTypes.list().then((res) => {
+      if (res.success && res.data) setServiceTypes(res.data.map((t) => t.name).filter(Boolean));
+    });
+    void api.firms.list().then((res) => {
+      if (!res.success || !res.data) return;
+      setFirms(res.data.filter((f) => f.status !== 'merged'));
+      setFirmNames(new Map(res.data.map((f) => [f.id, f.name])));
+    });
+  }, []);
+
+  // ── Link directo (?lead=<id>) ──
+  // El lead abierto vive en la URL: abrir una fila la escribe, cerrar el
+  // detalle la borra, y un link compartido abre el detalle al cargar.
+  const linkedLeadRef = useRef<string | null>(null);
+  const showLead = (row: LeadRow) => {
     setSelectedLead(row);
     setIsOpenLead(true);
     // Issue #2: si el lead no está asignado, pre-cargamos lawyers para
@@ -399,6 +524,66 @@ const LeadManagement = () => {
     if (row.status === 'NEW' || row.status === 'EXPIRED' || row.status === 'SEND_BACK') {
       void ensureLawyersLoaded();
     }
+  };
+
+  useEffect(() => {
+    if (!leadParam) {
+      linkedLeadRef.current = null;
+      return;
+    }
+    if (linkedLeadRef.current === leadParam) return;
+    const id = Number(leadParam);
+    if (!Number.isInteger(id) || id <= 0) {
+      linkedLeadRef.current = leadParam;
+      toast.error(LEAD_NOT_AVAILABLE);
+      updateParams((p) => p.delete('lead'));
+      return;
+    }
+    // Espera a que cargue la lista (salvo error) para reutilizar la fila.
+    if (!Array.isArray(dataLeads) && !error) return;
+    linkedLeadRef.current = leadParam;
+    const pool = [...((dataLeads as LeadRow[] | null) ?? []), ...(dedicatedData ?? [])];
+    const row = pool.find((l) => Number(l['lead id']) === id);
+    if (row) {
+      showLead(row);
+      return;
+    }
+    void api.leads.get(id).then((res) => {
+      if (!res.success || !res.data) {
+        toast.error(LEAD_NOT_AVAILABLE);
+        updateParams((p) => p.delete('lead'));
+        return;
+      }
+      showLead(toLeadRow(res.data) as LeadRow);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadParam, dataLeads, error]);
+
+  // Al cerrar el detalle (cualquier camino: Cancel, guardar, asignar…) se
+  // quita ?lead= para que la URL refleje la vista.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (isOpenLead) {
+      wasOpenRef.current = true;
+      return;
+    }
+    if (!wasOpenRef.current) return;
+    wasOpenRef.current = false;
+    if (new URLSearchParams(getQuery()).has('lead')) {
+      updateParams((p) => p.delete('lead'));
+    }
+  }, [isOpenLead, updateParams, getQuery]);
+
+  const leadHref = (id: number | string) => {
+    const p = new URLSearchParams(getQuery());
+    p.set('lead', String(id));
+    return `${LEAD_MANAGEMENT_PATH}?${p.toString()}`;
+  };
+
+  const openLead = (row: LeadRow) => {
+    linkedLeadRef.current = String(row['lead id']);
+    updateParams((p) => p.set('lead', String(row['lead id'])));
+    showLead(row);
   };
 
   const handleSingleAssign = async (lawyerId: number, comment: string) => {
@@ -747,45 +932,45 @@ const LeadManagement = () => {
     fetchLeads();
   };
 
-  const handleExportLeads = async () => {
-    // Vista de cola del dashboard: se exportan exactamente las filas visibles.
-    if (activeQueue) {
-      const cell = (v: unknown) => {
-        const text = v instanceof Date ? dayjs(v).format('YYYY-MM-DD HH:mm') : String(v ?? '');
-        // Prefijo ' ante =,+,-,@ (fórmulas de hoja de cálculo), salvo teléfonos.
-        const risky = /^[=+\-@]/.test(text) && !/^\+?[\d\s().-]+$/.test(text);
-        return `"${(risky ? `'${text}` : text).replace(/"/g, '""')}"`;
-      };
-      const header = ['ID', 'Created', 'Lead', 'Email', 'Phone', 'Service', 'Status', 'Lawyer', 'Last update'];
-      if (activeQueue.context) header.push('Reason', 'Since', activeQueue.context === 'returned' ? 'Previous lawyer' : 'Flagged by');
-      const lines = filtered.map((r) => {
-        const base: unknown[] = [
-          r['lead id'], r.date, r['lead name'], r.email, r['phone number'],
-          r.service, r.status, /no assigned/i.test(r.lawyer) ? '' : r.lawyer, r.date_updated,
-        ];
-        if (activeQueue.context) {
-          const ctx = contextOf(r);
-          base.push(ctx?.reason ?? '', ctx?.at ?? '', ctx?.by ?? '');
-        }
-        return base.map(cell).join(',');
-      });
-      const csv = [header.map(cell).join(','), ...lines].join('\r\n');
-      downloadBlob(
-        new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }),
-        `leads-${activeQueue.key}-${dayjs().format('YYYY-MM-DD')}.csv`
+  // Fase 1 — el CSV contiene exactamente las filas visibles (status, cola,
+  // búsqueda y filtros avanzados), generado en el cliente como el de las colas.
+  const handleExportLeads = () => {
+    const header = ['ID', 'Created', 'Lead', 'Email', 'Phone', 'Service', 'Status', 'Lawyer', 'Last update'];
+    if (activeQueue?.context) {
+      header.push('Reason', 'Since', activeQueue.context === 'returned' ? 'Previous lawyer' : 'Flagged by');
+    }
+    header.push('Code', 'Source', 'Channel', 'Pull date', 'Score', 'AI urgency', 'Spam score', 'Firm');
+    // Misma secuencia que la tabla al abrir: en las colas su orden; si no, Date desc.
+    const rows = activeQueue
+      ? filtered
+      : [...filtered].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const lines = rows.map((r) => {
+      const line: unknown[] = [
+        r['lead id'], r.date, r['lead name'], r.email, r['phone number'],
+        r.service, r.status, /no assigned/i.test(r.lawyer) ? '' : r.lawyer, r.date_updated,
+      ];
+      if (activeQueue?.context) {
+        const ctx = contextOf(r);
+        line.push(ctx?.reason ?? '', ctx?.at ?? '', ctx?.by ?? '');
+      }
+      line.push(
+        r.code ?? '',
+        r.source_label || sourceLabel(r.source),
+        channelLabel(r.channel),
+        r.pull_date ? new Date(r.pull_date) : '',
+        scoreText(r),
+        r.ai_urgency ?? '',
+        r.spam_score ?? '',
+        r.firm_id ? firmNames.get(r.firm_id) ?? r.firm_id : ''
       );
-      toast.success('Leads CSV downloaded');
-      return;
-    }
-    const filters: Record<string, unknown> = {};
-    if (searchText.trim()) filters.search = searchText.trim();
-    if (statusFilter) filters.status = statusFilter;
-    const res = await api.leads.exportCsv(filters as any);
-    if (!res.success || !res.data) {
-      toast.error(res.message || 'Could not export leads');
-      return;
-    }
-    downloadBlob(res.data, `leads-${dayjs().format('YYYY-MM-DD')}.csv`);
+      return line;
+    });
+    downloadBlob(
+      buildCsvBlob(header, lines),
+      activeQueue
+        ? `leads-${activeQueue.key}-${dayjs().format('YYYY-MM-DD')}.csv`
+        : `leads-${dayjs().format('YYYY-MM-DD')}.csv`
+    );
     toast.success('Leads CSV downloaded');
   };
 
@@ -1012,8 +1197,27 @@ const LeadManagement = () => {
       accessor: (r) => r['lead name'],
       render: (r) => (
         <div className='flex min-w-0 flex-col gap-0.5'>
-          <span className='truncate text-[13px] font-bold tracking-[-0.005em] text-slate-900'>
-            {r['lead name'] || '—'}
+          <span className='flex min-w-0 items-center gap-1.5'>
+            <span
+              title={r['lead name'] || undefined}
+              className='truncate text-[13px] font-bold tracking-[-0.005em] text-slate-900'
+            >
+              {r['lead name'] || '—'}
+            </span>
+            {/* Fase 1 — "New Lead": link directo al detalle (?lead=<id>). */}
+            {r.status === 'NEW' ? (
+              <Link
+                href={leadHref(r['lead id'])}
+                replace
+                scroll={false}
+                onClick={(e) => e.stopPropagation()}
+                className='shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-customRed/40'
+              >
+                <Badge variant='new' size='sm' className='whitespace-nowrap'>
+                  New Lead
+                </Badge>
+              </Link>
+            ) : null}
           </span>
           <span className='truncate text-[11px] font-medium text-slate-400'>
             {r.email || '—'}
@@ -1107,7 +1311,37 @@ const LeadManagement = () => {
       accessor: (r) => r.source_label || sourceLabel(r.source),
       render: (r) => <OriginBadge source={r.source} label={r.source_label} />,
     },
+    {
+      // Fase 1 — Score: urgencia IA (High/Medium/Low) y marca de posible spam.
+      key: 'score',
+      label: 'Score',
+      width: '96px',
+      sortable: true,
+      accessor: (r) => scoreSortValue(r),
+      render: (r) => <ScoreBadge urgency={r.ai_urgency} spamScore={r.spam_score} />,
+    },
   ];
+
+  // Fase 1 — a 1280px la tabla no cabe completa: lo que el abogado revisa en
+  // cada fila (lead, área, status, score, asignado) va primero y queda a la
+  // vista; teléfono, descripción, canal y origen siguen en la tabla (scroll
+  // horizontal) y en el detalle del lead.
+  const COLUMN_ORDER = [
+    'lead id',
+    'date',
+    'lead name',
+    'service',
+    'status',
+    'score',
+    'lawyer',
+    'phone number',
+    'description lead',
+    'channel',
+    'source',
+  ];
+  const orderedColumns = COLUMN_ORDER.map((k) => columns.find((c) => c.key === k)).filter(
+    (c): c is DataTableColumn<LeadRow> => !!c
+  );
 
   // ── Columnas de las colas del dashboard (?queue=) ──
   // id → nombre para las asignaciones masivas, que en el audit log solo guardan
@@ -1230,7 +1464,8 @@ const LeadManagement = () => {
   // Vista de cola: se ocultan columnas para que la de tiempo / razón quede
   // visible sin scroll horizontal.
   const WITH_TIME = ['channel', 'source', 'description lead', 'phone number'];
-  const WITH_REASON = [...WITH_TIME, 'phone number', 'date'];
+  // La razón es la columna clave en Returned / Flagged: el Score se oculta ahí.
+  const WITH_REASON = [...WITH_TIME, 'phone number', 'date', 'score'];
   const QUEUE_HIDDEN_COLUMNS: Record<LeadQueueKey, string[]> = {
     new: ['channel', 'source'],
     received: ['channel', 'source'],
@@ -1243,10 +1478,10 @@ const LeadManagement = () => {
     returned: [...WITH_REASON, 'lawyer'],
   };
 
-  let tableColumns = columns;
+  let tableColumns = orderedColumns;
   if (activeQueue) {
     const hidden = new Set(QUEUE_HIDDEN_COLUMNS[activeQueue.key]);
-    const visible = columns.filter((c) => !hidden.has(c.key));
+    const visible = orderedColumns.filter((c) => !hidden.has(c.key));
     // Las columnas de la cola van justo después del lead: son las que explican
     // el orden y el motivo, y tienen que verse sin scroll horizontal.
     const at = visible.findIndex((c) => c.key === 'lead name') + 1;
@@ -1262,6 +1497,132 @@ const LeadManagement = () => {
         direction: activeQueue.sort.direction,
       }
     : { key: 'date', direction: 'desc' as const };
+
+  // ── Fase 1: opciones del panel y chips de filtros activos ──
+  const allRows: LeadRow[] = [
+    ...(Array.isArray(dataLeads) ? (dataLeads as LeadRow[]) : []),
+    ...(dedicatedData ?? []),
+  ];
+  const statusLabel = (st: string) =>
+    statusSelectAll.find((it) => it.value === st)?.name ?? st;
+  const statusPanelOptions: MultiSelectOption[] = uniqueStatuses.map((st) => ({
+    value: st,
+    label: statusLabel(st),
+  }));
+  const regularStatusFilters = statusFilters.filter((st) => !isDedicatedTab(st));
+  const serviceOptions: MultiSelectOption[] = Array.from(
+    new Set([...serviceTypes, ...allRows.map((r) => r.service).filter(Boolean)])
+  )
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({ value: name, label: name }));
+  const lawyerOptions: MultiSelectOption[] = [
+    { value: UNASSIGNED_VALUE, label: 'Unassigned' },
+    ...Array.from(lawyerNames.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, name]) => ({ value: String(id), label: name })),
+  ];
+  const firmOptions: MultiSelectOption[] = [...firms]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((f) => ({ value: String(f.id), label: f.name }));
+  const channelOptions: MultiSelectOption[] = Array.from(
+    new Set(allRows.map((r) => channelKey(r.channel)))
+  )
+    .map((key) => ({ value: key, label: channelLabel(key) }))
+    .sort((a, b) =>
+      a.value === 'unknown' ? 1 : b.value === 'unknown' ? -1 : a.label.localeCompare(b.label)
+    );
+  const optionLabel = (options: MultiSelectOption[], value: string, fallback?: string) =>
+    options.find((o) => o.value === value)?.label ?? fallback ?? value;
+
+  const removeValue = <K extends 'services' | 'assigned' | 'firms' | 'sources' | 'channels' | 'scores'>(
+    key: K,
+    value: string
+  ) =>
+    setAdvanced({
+      ...advanced,
+      [key]: (advanced[key] as string[]).filter((v) => v !== value),
+    } as LeadAdvancedFilters);
+
+  const activeChips: ActiveFilterChip[] = [
+    ...(activeQueue
+      ? []
+      : regularStatusFilters.map((st) => ({
+          key: `status-${st}`,
+          label: 'Status',
+          value: statusLabel(st),
+          onRemove: () => handlePanelStatus(regularStatusFilters.filter((x) => x !== st)),
+        }))),
+    ...advanced.services.map((v) => ({
+      key: `service-${v}`,
+      label: 'Area of Law',
+      value: v,
+      onRemove: () => removeValue('services', v),
+    })),
+    ...advanced.assigned.map((v) => ({
+      key: `assigned-${v}`,
+      label: 'Assigned to',
+      value: optionLabel(lawyerOptions, v, `Lawyer #${v}`),
+      onRemove: () => removeValue('assigned', v),
+    })),
+    ...advanced.firms.map((v) => ({
+      key: `firm-${v}`,
+      label: 'Firm',
+      value: optionLabel(firmOptions, v, `#${v}`),
+      onRemove: () => removeValue('firms', v),
+    })),
+    ...advanced.sources.map((v) => ({
+      key: `source-${v}`,
+      label: 'Source',
+      value: sourceLabel(v),
+      onRemove: () => removeValue('sources', v),
+    })),
+    ...advanced.channels.map((v) => ({
+      key: `channel-${v}`,
+      label: 'Channel',
+      value: channelLabel(v),
+      onRemove: () => removeValue('channels', v),
+    })),
+    ...(advanced.entryFrom || advanced.entryTo
+      ? [
+          {
+            key: 'entry-date',
+            label: 'Entry date',
+            value: dateRangeText(advanced.entryFrom, advanced.entryTo),
+            onRemove: () => setAdvanced({ ...advanced, entryFrom: '', entryTo: '' }),
+          },
+        ]
+      : []),
+    ...(advanced.pullFrom || advanced.pullTo
+      ? [
+          {
+            key: 'pull-date',
+            label: 'Pull date',
+            value: dateRangeText(advanced.pullFrom, advanced.pullTo),
+            onRemove: () => setAdvanced({ ...advanced, pullFrom: '', pullTo: '' }),
+          },
+        ]
+      : []),
+    ...advanced.scores.map((v) => ({
+      key: `score-${v}`,
+      label: 'Score',
+      value: SCORE_OPTIONS.find((o) => o.value === v)?.label ?? v,
+      onRemove: () => removeValue('scores', v),
+    })),
+  ];
+  const activeFilterCount =
+    countAdvancedFilters(advanced) + (!activeQueue && regularStatusFilters.length > 0 ? 1 : 0);
+
+  // Clear all: vuelve a la lista completa (status All, sin filtros ni búsqueda).
+  // Las vistas Review / Trash / Archived y las colas tienen su propio control.
+  const clearAllFilters = () => {
+    setSearchText('');
+    lastSearchRef.current = '';
+    updateParams((p) => {
+      writeAdvancedFilters(p, EMPTY_ADVANCED_FILTERS);
+      p.delete('search');
+      if (!activeQueue && regularStatusFilters.length > 0) p.set('status', 'all');
+    });
+  };
 
   if (loading) return <ReLoading />;
 
@@ -1287,6 +1648,7 @@ const LeadManagement = () => {
                       .local()
                       .format('MMM D, YYYY')
                   : undefined,
+                pullDate: formatDay(selectedLead.pull_date),
                 status: selectedLead.status,
                 spam_score: selectedLead.spam_score,
                 spam_reasons: selectedLead.spam_reasons,
@@ -1389,10 +1751,20 @@ const LeadManagement = () => {
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
         />
+        {/* Fase 1 — filtros avanzados (panel inline) con contador de activos. */}
+        <FilterButton
+          label='Filters'
+          dropdown
+          active={filtersOpen}
+          count={activeFilterCount > 0 ? activeFilterCount : undefined}
+          aria-expanded={filtersOpen}
+          aria-controls='lead-filters-panel'
+          onClick={() => setFiltersOpen((o) => !o)}
+        />
         <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
         <FilterButton
           label='All'
-          active={!statusFilter && selecArray.length === 0 && !activeQueue}
+          active={statusFilters.length === 0 && selecArray.length === 0 && !activeQueue}
           onClick={() => handleStatusClick(null)}
         />
         {uniqueStatuses.map((s) => {
@@ -1402,7 +1774,7 @@ const LeadManagement = () => {
             <FilterButton
               key={s}
               label={niceLabel}
-              active={statusFilter === s}
+              active={!activeQueue && statusFilters.includes(s)}
               onClick={() => handleStatusClick(s)}
             />
           );
@@ -1477,6 +1849,26 @@ const LeadManagement = () => {
         </div>
       ) : null}
 
+      {filtersOpen ? (
+        <LeadFiltersPanel
+          id='lead-filters-panel'
+          idPrefix='lm-filters'
+          status={{
+            options: statusPanelOptions,
+            value: activeQueue ? [] : regularStatusFilters,
+            onChange: handlePanelStatus,
+          }}
+          value={advanced}
+          onChange={setAdvanced}
+          serviceOptions={serviceOptions}
+          lawyerOptions={lawyerOptions}
+          firmOptions={firmOptions}
+          channelOptions={channelOptions}
+        />
+      ) : null}
+
+      <ActiveFilterChips chips={activeChips} onClearAll={clearAllFilters} />
+
       {/* Table or error */}
       {error ? (
         <div className='flex items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-5 py-10 text-center'>
@@ -1524,14 +1916,14 @@ const LeadManagement = () => {
             ) : (
               <div className='flex flex-col items-center gap-1'>
                 <span className='text-[13px] font-semibold text-slate-700'>
-                  {!activeQueue || searchText.trim()
+                  {!activeQueue || searchText.trim() || hasAdvanced
                     ? 'No leads match your filters'
                     : activeQueue.periodField
                     ? `No leads ${activeQueue.hint.toLowerCase()} ${PERIOD_PHRASE[queuePeriod]}`
                     : 'No leads in this list'}
                 </span>
                 <span className='text-[11px] text-slate-400'>
-                  {!activeQueue || searchText.trim()
+                  {!activeQueue || searchText.trim() || hasAdvanced
                     ? 'Adjust the search or status filters above'
                     : activeQueue.periodField
                     ? 'Try a longer period on the dashboard'

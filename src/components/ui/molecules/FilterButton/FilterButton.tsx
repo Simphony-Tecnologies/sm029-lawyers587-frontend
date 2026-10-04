@@ -10,6 +10,8 @@ export interface FilterButtonProps
   count?: number | string;
   /** When true, show a chevron even on active state (use for dropdown triggers). */
   dropdown?: boolean;
+  /** When true, never show the chevron (plain on/off toggles, e.g. inside a filter panel). */
+  hideChevron?: boolean;
   trailing?: ReactNode;
 }
 
@@ -20,6 +22,7 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
       active = false,
       count,
       dropdown = false,
+      hideChevron = false,
       trailing,
       type,
       className,
@@ -27,7 +30,7 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
     },
     ref
   ) => {
-    const showChevron = !active || dropdown;
+    const showChevron = !hideChevron && (!active || dropdown);
     const showActiveDot = active && !dropdown && count === undefined;
 
     return (
@@ -41,6 +44,7 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
             : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900',
           className
         )}
+        aria-pressed={hideChevron ? active : undefined}
         {...rest}
       >
         <span>{label}</span>

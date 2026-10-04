@@ -4,6 +4,7 @@ export * from './DataTable';
 export * from './FaqDialog';
 export * from './LawyerFormModal';
 export * from './LawyerPasswordModal';
+export * from './LeadFiltersPanel';
 export * from './LeadInfoModal';
 export * from './MenuPanel';
 export * from './OnboardingModal';

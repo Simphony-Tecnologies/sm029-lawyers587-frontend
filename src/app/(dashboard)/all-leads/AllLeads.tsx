@@ -1,40 +1,64 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import toast from 'react-hot-toast';
-import { MdOutlineCases, MdReplay } from 'react-icons/md';
-import { api } from '@/services/database';
+import { MdFileDownload, MdOutlineCases, MdReplay } from 'react-icons/md';
+import { api, downloadBlob } from '@/services/database';
 import type { LeadDTO, LeadStatus } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
 import useLoadingStore from '@/store/useLoadingStore';
 import { useAssignedLeads } from '@/store/useAssignedLeads.store';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import {
   LAWYER_LEAD_FILTERS,
   statusFromSlug,
   canViewLeadContact,
 } from '@/constants/leadFilters';
 import {
+  EMPTY_ADVANCED_FILTERS,
+  SCORE_OPTIONS,
+  countAdvancedFilters,
+  formatFilterDay,
+  isPossibleSpam,
+  matchesAdvancedFilters,
+  parseAdvancedFilters,
+  readListParam,
+  scoreSortValue,
+  urgencyBucket,
+  writeAdvancedFilters,
+  type LeadAdvancedFilters,
+} from '@/constants/leadAdvancedFilters';
+import {
+  ActiveFilterChips,
   Avatar,
+  Badge,
   ConfirmationDialog,
   DataTable,
   EmptyStateBox,
   FilterButton,
   IconActionButton,
+  LeadFiltersPanel,
   LeadInfoModal,
   OriginBadge,
   PageHead,
+  ScoreBadge,
   SearchField,
   SourceBadge,
   StatusPill,
+  channelKey,
+  channelLabel,
   toneFromString,
   variantFromStatus,
+  type ActiveFilterChip,
   type DataTableColumn,
   type LeadInfoSubmitPayload,
   type LeadStatusOption,
+  type MultiSelectOption,
 } from '@/components/ui';
-import { sourceLabel, SOURCE_FILTER_OPTIONS } from '@/lib/lead-source';
+import { sourceFilterValue, sourceLabel, SOURCE_FILTER_OPTIONS } from '@/lib/lead-source';
+import { buildCsvBlob } from '@/lib/csv';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
 import Loading from '../loading';
 
@@ -42,6 +66,7 @@ dayjs.extend(utc);
 
 type LeadRow = {
   id: number;
+  code: string;
   fullName: string;
   email: string;
   phone: string;
@@ -54,6 +79,29 @@ type LeadRow = {
   channel?: string;
   source?: string;
   source_label?: string;
+  // Fase 1 — score (urgencia IA + spam) y pull date.
+  ai_urgency: number | null;
+  spam_score: number;
+  pull_date: string | null;
+};
+
+const MY_LEADS_PATH = '/all-leads';
+const LEAD_NOT_AVAILABLE = 'This lead is not available or belongs to another firm.';
+const formatId = (id: number | string) => String(id).padStart(5, '0');
+const dateRangeText = (from: string, to: string) =>
+  from && to
+    ? `${formatFilterDay(from)} – ${formatFilterDay(to)}`
+    : from
+    ? `From ${formatFilterDay(from)}`
+    : `To ${formatFilterDay(to)}`;
+const scoreText = (r: { ai_urgency?: number | null; spam_score?: number | null }) => {
+  const bucket = urgencyBucket(r.ai_urgency);
+  return [
+    bucket ? SCORE_OPTIONS.find((o) => o.value === bucket)?.label : null,
+    isPossibleSpam(r.spam_score) ? 'Possible spam' : null,
+  ]
+    .filter(Boolean)
+    .join('; ');
 };
 
 const STATUS_OPTIONS: LeadStatusOption[] = [
@@ -84,6 +132,7 @@ const URGENT_FIRST_STATUSES = new Set<LeadStatus>([
 
 const toRow = (lead: LeadDTO): LeadRow => ({
   id: lead.id,
+  code: lead.code ?? '',
   fullName: lead.fullName ?? '',
   email: lead.email ?? '',
   phone: lead.phone ?? '',
@@ -96,21 +145,48 @@ const toRow = (lead: LeadDTO): LeadRow => ({
   channel: lead.channel,
   source: lead.source,
   source_label: lead.source_label,
+  ai_urgency: lead.ai_urgency ?? null,
+  spam_score: lead.spam_score ?? 0,
+  pull_date: lead.pull_date ?? null,
 });
 
 const AllLeads = () => {
   const { user } = useAuth();
   const { setLoading, isLoading } = useLoadingStore();
   const { count: assignedCount, setCount: setAssignedCount } = useAssignedLeads();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const activeSlug = searchParams.get('status') ?? 'all';
-  const activeStatus = statusFromSlug(activeSlug);
+  // Fase 1 — ?status (uno o varios slugs), filtros avanzados, ?search y ?lead
+  // viven en la URL (estado optimista, ver hook). Los links del sidebar y del
+  // dashboard (?status=<slug>) siguen funcionando igual.
+  const { params, updateParams, getQuery } = useUrlQueryState(MY_LEADS_PATH);
+  const activeSlugs = useMemo(
+    () => readListParam(params, 'status').filter((sl) => sl !== 'all'),
+    [params]
+  );
+  const activeStatuses = useMemo(
+    () =>
+      activeSlugs
+        .map((sl) => statusFromSlug(sl))
+        .filter((st): st is LeadStatus => !!st),
+    [activeSlugs]
+  );
+  // Clave de la tabla: remonta al cambiar de filtro para aplicar su orden.
+  const activeSlug = activeSlugs.length === 0 ? 'all' : activeSlugs.join(',');
   const isAdmin = String(user?.role?.name ?? '').toLowerCase() === 'admin';
+  // Assigned to / Firm no aplican a la lista propia del abogado (no hay control
+  // para ellos aquí): un ?assigned_to= o ?firm_id= heredado no filtra.
+  const advanced = useMemo<LeadAdvancedFilters>(
+    () => ({ ...parseAdvancedFilters(params), assigned: [], firms: [] }),
+    [params]
+  );
+  const hasAdvanced = countAdvancedFilters(advanced) > 0;
+  const urlSearch = params.get('search') ?? '';
+  const leadParam = params.get('lead');
 
   const [rows, setRows] = useState<LeadRow[]>([]);
-  const [searchText, setSearchText] = useState('');
-  const [sourceFilter, setSourceFilter] = useState<string>('');
+  const [rowsLoaded, setRowsLoaded] = useState(false);
+  const [searchText, setSearchText] = useState(urlSearch);
+  const lastSearchRef = useRef(urlSearch);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -123,12 +199,13 @@ const AllLeads = () => {
   const fetchAssigned = async () => {
     if (!user?.id) return;
     setLoading(true);
+    // El origen (?source) se filtra en el cliente como el resto de filtros.
     const res = await api.leads.list({
       assigned_to: Number(user.id),
       limit: 1000,
-      source: sourceFilter || undefined,
     });
     setLoading(false);
+    setRowsLoaded(true);
     if (!res.success || !res.data) {
       toast.error(res.message || 'Could not load assigned leads');
       setRows([]);
@@ -143,12 +220,13 @@ const AllLeads = () => {
   useEffect(() => {
     void fetchAssigned();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, sourceFilter]);
+  }, [user?.id]);
 
   const filtered = useMemo<LeadRow[]>(() => {
     let list = rows;
-    if (activeStatus) {
-      list = list.filter((l) => l.status === activeStatus);
+    if (activeStatuses.length > 0) {
+      const set = new Set<string>(activeStatuses);
+      list = list.filter((l) => set.has(l.status));
     }
     const q = searchText.trim().toLowerCase();
     if (q) {
@@ -157,24 +235,136 @@ const AllLeads = () => {
           l.fullName.toLowerCase().includes(q) ||
           l.email.toLowerCase().includes(q) ||
           l.phone.toLowerCase().includes(q) ||
-          String(l.id).includes(q)
+          String(l.id).includes(q) ||
+          formatId(l.id).includes(q) ||
+          l.code.toLowerCase().includes(q)
+      );
+    }
+    if (hasAdvanced) {
+      list = list.filter((l) =>
+        matchesAdvancedFilters(
+          {
+            service: l.service,
+            assignedId: null,
+            source: sourceFilterValue(l.source, l.source_label),
+            channel: channelKey(l.channel),
+            entryDate: l.date,
+            pullDate: l.pull_date,
+            ai_urgency: l.ai_urgency,
+            spam_score: l.spam_score,
+          },
+          advanced
+        )
       );
     }
     return list;
-  }, [rows, activeStatus, searchText]);
+  }, [rows, activeStatuses, searchText, advanced, hasAdvanced]);
+
+  // ── Link directo (?lead=<id>) ──
+  const linkedLeadRef = useRef<string | null>(null);
+  const showLead = (row: LeadRow) => {
+    setSelectedLead(row);
+    setIsOpenLead(true);
+  };
 
   const handleOpenLead = (row: LeadRow) => {
     if (isLeadExpired(row)) {
       toast.error('This lead has expired');
       return;
     }
-    setSelectedLead(row);
-    setIsOpenLead(true);
+    linkedLeadRef.current = String(row.id);
+    updateParams((p) => p.set('lead', String(row.id)));
+    showLead(row);
   };
 
-  const goToFilter = (slug: string) => {
-    router.replace(slug === 'all' ? '/all-leads' : `/all-leads?status=${slug}`);
+  useEffect(() => {
+    if (!leadParam) {
+      linkedLeadRef.current = null;
+      return;
+    }
+    if (linkedLeadRef.current === leadParam) return;
+    const id = Number(leadParam);
+    if (!Number.isInteger(id) || id <= 0) {
+      linkedLeadRef.current = leadParam;
+      toast.error(LEAD_NOT_AVAILABLE);
+      updateParams((p) => p.delete('lead'));
+      return;
+    }
+    if (!rowsLoaded) return;
+    linkedLeadRef.current = leadParam;
+    const row = rows.find((r) => r.id === id);
+    if (row) {
+      showLead(row);
+      return;
+    }
+    void api.leads.get(id).then((res) => {
+      if (!res.success || !res.data) {
+        toast.error(LEAD_NOT_AVAILABLE);
+        updateParams((p) => p.delete('lead'));
+        return;
+      }
+      showLead(toRow(res.data));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadParam, rowsLoaded, rows]);
+
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (isOpenLead) {
+      wasOpenRef.current = true;
+      return;
+    }
+    if (!wasOpenRef.current) return;
+    wasOpenRef.current = false;
+    if (new URLSearchParams(getQuery()).has('lead')) {
+      updateParams((p) => p.delete('lead'));
+    }
+  }, [isOpenLead, updateParams, getQuery]);
+
+  const leadHref = (id: number) => {
+    const p = new URLSearchParams(getQuery());
+    p.set('lead', String(id));
+    return `${MY_LEADS_PATH}?${p.toString()}`;
   };
+
+  // Chips de status: un clic = ese status (conserva búsqueda y filtros avanzados).
+  const goToFilter = (slug: string) => {
+    updateParams((p) => {
+      p.delete('status');
+      if (slug !== 'all') p.set('status', slug);
+    });
+  };
+
+  // Panel: status múltiple, sincronizado con los chips.
+  const handlePanelStatus = (next: string[]) => {
+    updateParams((p) => {
+      p.delete('status');
+      next.forEach((sl) => p.append('status', sl));
+    });
+  };
+
+  const setAdvanced = (next: LeadAdvancedFilters) =>
+    updateParams((p) => writeAdvancedFilters(p, next));
+
+  // Chips de origen: leen y escriben ?source (un solo control con la URL).
+  const setSourceFilter = (source: string) =>
+    setAdvanced({ ...advanced, sources: source ? [source] : [] });
+
+  // Búsqueda ↔ URL (?search=), con retardo para no navegar en cada tecla.
+  useEffect(() => {
+    if (urlSearch === lastSearchRef.current) return;
+    lastSearchRef.current = urlSearch;
+    setSearchText(urlSearch);
+  }, [urlSearch]);
+  useEffect(() => {
+    const q = searchText.trim();
+    if (q === lastSearchRef.current) return;
+    const t = setTimeout(() => {
+      lastSearchRef.current = q;
+      updateParams((p) => (q ? p.set('search', q) : p.delete('search')));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [searchText, updateParams]);
 
   const handleSaveLead = async ({
     status,
@@ -259,8 +449,27 @@ const AllLeads = () => {
             size='sm'
           />
           <div className='flex min-w-0 flex-col'>
-            <span className='truncate text-[13px] font-bold text-slate-900'>
-              {r.fullName || '—'}
+            <span className='flex min-w-0 items-center gap-1.5'>
+              <span
+                title={r.fullName || undefined}
+                className='truncate text-[13px] font-bold text-slate-900'
+              >
+                {r.fullName || '—'}
+              </span>
+              {/* Fase 1 — "New Lead": link directo al detalle (?lead=<id>). */}
+              {r.status === 'ASSIGNED' ? (
+                <Link
+                  href={leadHref(r.id)}
+                  replace
+                  scroll={false}
+                  onClick={(e) => e.stopPropagation()}
+                  className='shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-customRed/40'
+                >
+                  <Badge variant='new' size='sm' className='whitespace-nowrap'>
+                    New Lead
+                  </Badge>
+                </Link>
+              ) : null}
             </span>
             <span className='truncate text-[11px] text-slate-400'>
               {canViewLeadContact(r.status, isAdmin) ? r.email : '—'}
@@ -296,6 +505,15 @@ const AllLeads = () => {
       render: (r) => (
         <StatusPill variant={variantFromStatus(r.status) as any} />
       ),
+    },
+    {
+      // Fase 1 — Score: urgencia IA (High/Medium/Low) y marca de posible spam.
+      key: 'score',
+      label: 'Score',
+      width: '96px',
+      sortable: true,
+      accessor: (r) => scoreSortValue(r),
+      render: (r) => <ScoreBadge urgency={r.ai_urgency} spamScore={r.spam_score} />,
     },
     {
       key: 'channel',
@@ -382,6 +600,108 @@ const AllLeads = () => {
     },
   ];
 
+  // ── Fase 1: export CSV de las filas visibles ──
+  const handleExportLeads = () => {
+    const header = ['ID', 'Created', 'Lead', 'Email', 'Phone', 'Service', 'Status', 'Last update', 'Code', 'Channel', 'Pull date', 'Score', 'AI urgency'];
+    const lines = [...filtered]
+      .sort((a, b) => b.date_updated.getTime() - a.date_updated.getTime())
+      .map((r) => {
+        // L587-05/06 — el contacto solo sale si el lead ya está en curso.
+        const contact = canViewLeadContact(r.status, isAdmin);
+        return [
+          r.id, r.date, r.fullName, contact ? r.email : '', contact ? r.phone : '',
+          r.service, r.status, r.date_updated, r.code, channelLabel(r.channel),
+          r.pull_date ? new Date(r.pull_date) : '', scoreText(r), r.ai_urgency ?? '',
+        ];
+      });
+    downloadBlob(buildCsvBlob(header, lines), `my-leads-${dayjs().format('YYYY-MM-DD')}.csv`);
+    toast.success('Leads CSV downloaded');
+  };
+
+  // ── Fase 1: panel de filtros y chips activos ──
+  const statusPanelOptions: MultiSelectOption[] = LAWYER_LEAD_FILTERS.filter(
+    (f) => f.slug !== 'all'
+  ).map((f) => ({ value: f.slug, label: f.label }));
+  const serviceOptions: MultiSelectOption[] = Array.from(
+    new Set(rows.map((r) => r.service).filter(Boolean))
+  )
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({ value: name, label: name }));
+  const channelOptions: MultiSelectOption[] = Array.from(
+    new Set(rows.map((r) => channelKey(r.channel)))
+  )
+    .map((key) => ({ value: key, label: channelLabel(key) }))
+    .sort((a, b) =>
+      a.value === 'unknown' ? 1 : b.value === 'unknown' ? -1 : a.label.localeCompare(b.label)
+    );
+  const removeValue = (key: 'services' | 'sources' | 'channels' | 'scores', value: string) =>
+    setAdvanced({
+      ...advanced,
+      [key]: (advanced[key] as string[]).filter((v) => v !== value),
+    } as LeadAdvancedFilters);
+  const activeChips: ActiveFilterChip[] = [
+    ...activeSlugs.map((sl) => ({
+      key: `status-${sl}`,
+      label: 'Status',
+      value: LAWYER_LEAD_FILTERS.find((f) => f.slug === sl)?.label ?? sl,
+      onRemove: () => handlePanelStatus(activeSlugs.filter((x) => x !== sl)),
+    })),
+    ...advanced.services.map((v) => ({
+      key: `service-${v}`,
+      label: 'Area of Law',
+      value: v,
+      onRemove: () => removeValue('services', v),
+    })),
+    ...advanced.sources.map((v) => ({
+      key: `source-${v}`,
+      label: 'Source',
+      value: sourceLabel(v),
+      onRemove: () => removeValue('sources', v),
+    })),
+    ...advanced.channels.map((v) => ({
+      key: `channel-${v}`,
+      label: 'Channel',
+      value: channelLabel(v),
+      onRemove: () => removeValue('channels', v),
+    })),
+    ...(advanced.entryFrom || advanced.entryTo
+      ? [
+          {
+            key: 'entry-date',
+            label: 'Entry date',
+            value: dateRangeText(advanced.entryFrom, advanced.entryTo),
+            onRemove: () => setAdvanced({ ...advanced, entryFrom: '', entryTo: '' }),
+          },
+        ]
+      : []),
+    ...(advanced.pullFrom || advanced.pullTo
+      ? [
+          {
+            key: 'pull-date',
+            label: 'Pull date',
+            value: dateRangeText(advanced.pullFrom, advanced.pullTo),
+            onRemove: () => setAdvanced({ ...advanced, pullFrom: '', pullTo: '' }),
+          },
+        ]
+      : []),
+    ...advanced.scores.map((v) => ({
+      key: `score-${v}`,
+      label: 'Score',
+      value: SCORE_OPTIONS.find((o) => o.value === v)?.label ?? v,
+      onRemove: () => removeValue('scores', v),
+    })),
+  ];
+  const activeFilterCount = countAdvancedFilters(advanced) + (activeSlugs.length > 0 ? 1 : 0);
+  const clearAllFilters = () => {
+    setSearchText('');
+    lastSearchRef.current = '';
+    updateParams((p) => {
+      writeAdvancedFilters(p, EMPTY_ADVANCED_FILTERS);
+      p.delete('search');
+      p.delete('status');
+    });
+  };
+
   if (isLoading && rows.length === 0) return <Loading />;
 
   return (
@@ -399,10 +719,16 @@ const AllLeads = () => {
                 service: selectedLead.service,
                 description: selectedLead.description,
                 comments: selectedLead.comments,
+                // Fase 1 (1.2) — Entry date + Pull date también para el abogado.
+                entryDate: dayjs(selectedLead.date).format('MMM D, YYYY'),
+                pullDate: selectedLead.pull_date
+                  ? dayjs(selectedLead.pull_date).format('MMM D, YYYY')
+                  : null,
                 status: selectedLead.status,
               }
             : null
         }
+        linkBasePath={MY_LEADS_PATH}
         statusOptions={
           selectedLead?.status === 'CLOSED'
             ? STATUS_OPTIONS_CLOSED
@@ -423,9 +749,19 @@ const AllLeads = () => {
       <PageHead
         title='My Leads'
         action={
-          <span className='text-[13px] font-medium tabular-nums text-slate-400'>
-            {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
-          </span>
+          <div className='flex items-center gap-3'>
+            <button
+              type='button'
+              onClick={handleExportLeads}
+              className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3.5 text-xs font-bold tracking-[-0.005em] text-slate-700 transition-colors hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300'
+            >
+              <MdFileDownload size={14} />
+              Export CSV
+            </button>
+            <span className='text-[13px] font-medium tabular-nums text-slate-400'>
+              {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
+            </span>
+          </div>
         }
       />
 
@@ -435,12 +771,22 @@ const AllLeads = () => {
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
         />
+        {/* Fase 1 — filtros avanzados (panel inline) con contador de activos. */}
+        <FilterButton
+          label='Filters'
+          dropdown
+          active={filtersOpen}
+          count={activeFilterCount > 0 ? activeFilterCount : undefined}
+          aria-expanded={filtersOpen}
+          aria-controls='my-leads-filters-panel'
+          onClick={() => setFiltersOpen((o) => !o)}
+        />
         <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
         {LAWYER_LEAD_FILTERS.map((f) => (
           <FilterButton
             key={f.slug}
             label={f.label}
-            active={activeSlug === f.slug}
+            active={f.slug === 'all' ? activeSlugs.length === 0 : activeSlugs.includes(f.slug)}
             count={
               f.slug === 'assigned' && assignedCount > 0
                 ? assignedCount
@@ -454,11 +800,34 @@ const AllLeads = () => {
           <FilterButton
             key={opt.value || 'all-sources'}
             label={opt.label}
-            active={sourceFilter === opt.value}
+            active={
+              opt.value === ''
+                ? advanced.sources.length === 0
+                : advanced.sources.includes(opt.value)
+            }
             onClick={() => setSourceFilter(opt.value)}
           />
         ))}
       </div>
+
+      {filtersOpen ? (
+        <LeadFiltersPanel
+          id='my-leads-filters-panel'
+          idPrefix='ml-filters'
+          status={{
+            options: statusPanelOptions,
+            value: activeSlugs,
+            onChange: handlePanelStatus,
+          }}
+          value={advanced}
+          onChange={setAdvanced}
+          serviceOptions={serviceOptions}
+          showSource={false}
+          channelOptions={channelOptions}
+        />
+      ) : null}
+
+      <ActiveFilterChips chips={activeChips} onClearAll={clearAllFilters} />
 
       <DataTable
         columns={isAdmin ? columns : columns.filter((c) => c.key !== 'source')}
@@ -471,7 +840,10 @@ const AllLeads = () => {
         initialSort={{
           key: 'expires',
           direction:
-            activeStatus && URGENT_FIRST_STATUSES.has(activeStatus) ? 'asc' : 'desc',
+            activeStatuses.length > 0 &&
+            activeStatuses.every((st) => URGENT_FIRST_STATUSES.has(st))
+              ? 'asc'
+              : 'desc',
         }}
         pagination={{
           enabled: true,

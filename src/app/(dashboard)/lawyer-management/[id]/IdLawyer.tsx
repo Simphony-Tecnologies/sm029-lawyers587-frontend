@@ -908,6 +908,10 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
                 service: selectedLead.service,
                 description: selectedLead['description lead'],
                 comments: selectedLead.comments,
+                // Fase 1 (1.2) — Entry date; la Pull date la resuelve el detalle.
+                entryDate: selectedLead.date
+                  ? dayjs(selectedLead.date).format('MMM D, YYYY')
+                  : undefined,
                 status: selectedLead.status,
               }
             : null

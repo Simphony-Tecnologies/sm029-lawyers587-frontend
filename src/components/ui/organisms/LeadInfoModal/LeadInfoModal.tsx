@@ -1,5 +1,5 @@
 'use client';
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import {
   Dialog,
   DialogPanel,
@@ -9,8 +9,11 @@ import {
 } from '@headlessui/react';
 import {
   MdClose,
+  MdEdit,
   MdEmail,
+  MdFileDownload,
   MdInfoOutline,
+  MdLink,
   MdLock,
   MdPhone,
   MdDescription,
@@ -18,7 +21,12 @@ import {
   MdKeyboardArrowDown,
   MdHistoryEdu,
 } from 'react-icons/md';
+import toast from 'react-hot-toast';
 import { cn } from '@/lib/cn';
+import { apiText } from '@/lib/apiText';
+import { copyText } from '@/lib/clipboard';
+import { Badge } from '@/components/ui/atoms/Badge';
+import { IconButton } from '@/components/ui/atoms/IconButton';
 import {
   getLeadStatusMeta,
   isDestructiveStatus,
@@ -30,10 +38,10 @@ import {
   type LeadStatusKey,
 } from './leadStatusMeta';
 import dayjs from 'dayjs';
-import { api } from '@/services/database';
+import { api, downloadBlob } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
 import { canViewLeadContact } from '@/constants/leadFilters';
-import type { NoteType, TimelineEntry } from '@/types/api.types';
+import type { ExportFormat, NoteType, TimelineEntry } from '@/types/api.types';
 
 const REASON_MAX = 500;
 // L587-05 — texto mostrado en lugar del contacto mientras el lead no llega a
@@ -48,7 +56,11 @@ export interface LeadInfoLead {
   service?: string;
   description?: string;
   comments?: string;
+  /** Entry date ya formateada (alta del lead). `selectedAt` es el nombre legacy. */
+  entryDate?: string;
   selectedAt?: string;
+  /** Pull date ya formateada; si falta se pide al detalle (GET /leads/:id). */
+  pullDate?: string | null;
   status: string;
   // Spam / trash (optional — only populated for REVIEW/TRASHED leads)
   spam_score?: number;
@@ -101,6 +113,8 @@ export interface LeadInfoModalProps {
   onRestore?: (id: number | string) => Promise<void> | void;
   onTrash?: (id: number | string, comment?: string) => Promise<void> | void;
   onDeletePermanent?: (id: number | string) => Promise<void> | void;
+  /** Ruta del link directo (`<ruta>?lead=<id>`). Por defecto según el rol. */
+  linkBasePath?: string;
 }
 
 const formatId = (id: number | string) =>
@@ -132,6 +146,7 @@ export const LeadInfoModal = ({
   onRestore,
   onTrash,
   onDeletePermanent,
+  linkBasePath,
 }: LeadInfoModalProps) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [comment, setComment] = useState<string>('');
@@ -151,6 +166,12 @@ export const LeadInfoModal = ({
   const [newCommentType, setNewCommentType] = useState<NoteType>('internal');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Fase 1 — pull date del detalle, export del historial y edición de comentarios.
+  const [detailPullDate, setDetailPullDate] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
   const { user } = useAuth();
 
   // Reset internal state when the modal opens with a new lead.
@@ -168,7 +189,27 @@ export const LeadInfoModal = ({
     setAssignReason('');
     setAssignSearch('');
     setConfirmDelete(false);
+    setEditingCommentId(null);
+    setEditDraft('');
   }, [open, lead]);
+
+  // Pull date: la fila de la lista puede traerla vacía; el detalle usa como
+  // respaldo el último ASSIGN del historial (contrato A2).
+  useEffect(() => {
+    setDetailPullDate(null);
+    if (!open || !lead || lead.pullDate) return;
+    const id = Number(lead.id);
+    if (!Number.isFinite(id)) return;
+    let cancelled = false;
+    void api.leads.get(id).then((res) => {
+      if (cancelled || !res.success || !res.data?.pull_date) return;
+      setDetailPullDate(dayjs(res.data.pull_date).format('MMM D, YYYY'));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, lead?.id, lead?.pullDate]);
 
   const fetchTimeline = async (
     leadId: number | string,
@@ -226,6 +267,63 @@ export const LeadInfoModal = ({
     void fetchTimeline(lead.id, timelineFilter);
   };
 
+  // Fase 1 (1.4) — historial del lead en PDF / CSV (export existente del backend).
+  const handleExportHistory = async (format: ExportFormat) => {
+    if (!lead || exporting) return;
+    setExporting(format);
+    const res = await api.leads.exportHistory(Number(lead.id), format);
+    setExporting(null);
+    if (!res.success || !res.data) {
+      toast.error(apiText(res.message, 'Could not export the history'));
+      return;
+    }
+    downloadBlob(
+      res.data,
+      `lead-${lead.id}-history-${dayjs().format('YYYY-MM-DD')}.${format}`
+    );
+  };
+
+  // Fase 1 (1.5) — edición en línea de comentarios propios.
+  const startEditComment = (commentId: number, content: string) => {
+    setEditingCommentId(commentId);
+    setEditDraft(content);
+  };
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditDraft('');
+  };
+  const saveEditComment = async (original: string) => {
+    if (!lead || editingCommentId === null || editSaving) return;
+    const content = editDraft.trim();
+    if (content.length === 0) return;
+    if (content === original.trim()) {
+      cancelEditComment();
+      return;
+    }
+    setEditSaving(true);
+    const res = await api.leads.comments.update(Number(lead.id), editingCommentId, {
+      content,
+    });
+    setEditSaving(false);
+    if (!res.success) {
+      toast.error(apiText(res.message, 'Could not save the comment'));
+      return;
+    }
+    // El texto nuevo y "(edited)" se ven al instante; el refetch trae además
+    // el evento "Comment edited" del historial.
+    const editedId = editingCommentId;
+    const editedAt = res.data?.edited_at ?? new Date().toISOString();
+    setTimeline((prev) =>
+      prev.map((e) =>
+        e.type === 'comment' && e.id === editedId
+          ? { ...e, content, edited_at: editedAt }
+          : e
+      )
+    );
+    cancelEditComment();
+    void fetchTimeline(lead.id, timelineFilter);
+  };
+
   const currentMeta = useMemo(
     () => getLeadStatusMeta(lead?.status),
     [lead?.status]
@@ -254,6 +352,21 @@ export const LeadInfoModal = ({
   // estado sin cerrar el card. El admin siempre lo ve.
   const isAdmin = String(user?.role?.name ?? '').toLowerCase() === 'admin';
   const contactVisible = canViewLeadContact(selectedStatus, isAdmin);
+  const myId = Number(user?.id);
+
+  // Fase 1 (1.2 / 1.3) — encabezado: Entry date + Pull date, badge "New Lead"
+  // (NEW para el admin, Assigned para el abogado) y link directo copiable.
+  const entryDate = lead?.entryDate ?? lead?.selectedAt;
+  const pullDate = lead?.pullDate || detailPullDate || '—';
+  const showNewLead = isAdmin ? leadStatusUpper === 'NEW' : leadStatusUpper === 'ASSIGNED';
+  const handleCopyLink = async (e: MouseEvent<HTMLButtonElement>) => {
+    if (!lead) return;
+    const base = linkBasePath ?? (isAdmin ? '/lead-management' : '/all-leads');
+    const url = `${window.location.origin}${base}?lead=${lead.id}`;
+    const ok = await copyText(url, e.currentTarget.parentElement);
+    if (ok) toast.success('Link copied');
+    else window.prompt('Copy link', url);
+  };
 
   const canAssign =
     !!onAssign &&
@@ -361,15 +474,28 @@ export const LeadInfoModal = ({
                     Lead Info
                   </DialogTitle>
                 </div>
-                <button
-                  type='button'
-                  onClick={onClose}
-                  disabled={loading}
-                  className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-[13px] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:opacity-50'
-                  aria-label='Close'
-                >
-                  <MdClose size={16} />
-                </button>
+                <div className='flex flex-shrink-0 items-center gap-1.5'>
+                  <IconButton
+                    variant='outline'
+                    size='sm'
+                    onClick={handleCopyLink}
+                    disabled={!lead}
+                    aria-label='Copy link'
+                    title='Copy link'
+                    className='rounded-lg shadow-none hover:bg-slate-50 hover:text-slate-700 focus-visible:ring-slate-300'
+                  >
+                    <MdLink size={16} />
+                  </IconButton>
+                  <button
+                    type='button'
+                    onClick={onClose}
+                    disabled={loading}
+                    className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-[13px] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:opacity-50'
+                    aria-label='Close'
+                  >
+                    <MdClose size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* Identity strip */}
@@ -384,11 +510,35 @@ export const LeadInfoModal = ({
                 >
                   {initialsOf(lead?.name ?? '')}
                 </div>
-                <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                {/* Jerarquía: nombre → status + New Lead → #ID · área · fechas. */}
+                <div className='flex min-w-0 flex-1 flex-col gap-1'>
                   <span className='truncate text-[16px] font-extrabold leading-[1.15] tracking-[-0.015em] text-slate-900'>
                     {lead?.name || '—'}
                   </span>
-                  <div className='flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-slate-500'>
+                  <div className='flex flex-wrap items-center gap-1.5'>
+                    <span
+                      className={cn(
+                        'inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold tracking-[0.02em]',
+                        currentMeta.badgeBgClass,
+                        currentMeta.textClass
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'h-[5px] w-[5px] rounded-full',
+                          currentMeta.dotClass
+                        )}
+                      />
+                      {currentMeta.label}
+                    </span>
+                    {showNewLead ? (
+                      <Badge variant='new' className='whitespace-nowrap'>
+                        New Lead
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className='flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-medium text-slate-500'>
                     <span className='font-bold tracking-[0.04em] text-slate-400'>
                       #{formatId(lead?.id ?? '')}
                     </span>
@@ -400,32 +550,26 @@ export const LeadInfoModal = ({
                         <span>{lead.service}</span>
                       </>
                     ) : null}
-                    {lead?.selectedAt ? (
+                    {entryDate ? (
                       <>
                         <span aria-hidden className='text-slate-300'>
                           ·
                         </span>
-                        <span>Selected {lead.selectedAt}</span>
+                        <span className='whitespace-nowrap'>
+                          Entry date{' '}
+                          <span className='font-semibold text-slate-700'>{entryDate}</span>
+                        </span>
                       </>
                     ) : null}
+                    <span aria-hidden className='text-slate-300'>
+                      ·
+                    </span>
+                    <span className='whitespace-nowrap'>
+                      Pull date{' '}
+                      <span className='font-semibold text-slate-700'>{pullDate}</span>
+                    </span>
                   </div>
                 </div>
-                <span
-                  className={cn(
-                    'inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold tracking-[0.02em]',
-                    currentMeta.badgeBgClass,
-                    currentMeta.textClass
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      'h-[5px] w-[5px] rounded-full',
-                      currentMeta.dotClass
-                    )}
-                  />
-                  {currentMeta.label}
-                </span>
               </div>
 
               {/* Body */}
@@ -871,13 +1015,32 @@ export const LeadInfoModal = ({
                     chips selectables, FilterChip) queda comentado más abajo
                     en caso de que se reactive más adelante. */}
                 <section className='flex flex-col gap-2'>
-                  <div className='flex items-center justify-between'>
-                    <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
-                      Activity &amp; Comments
+                  <div className='flex flex-wrap items-center justify-between gap-2'>
+                    <span className='inline-flex items-center gap-2'>
+                      <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
+                        Activity &amp; Comments
+                      </span>
+                      {timelineLoading ? (
+                        <span className='text-[10px] font-semibold text-slate-400'>
+                          Loading…
+                        </span>
+                      ) : null}
                     </span>
-                    {timelineLoading ? (
-                      <span className='text-[10px] font-semibold text-slate-400'>
-                        Loading…
+                    {/* Fase 1 (1.4) — historial completo del lead. */}
+                    {!timelineError ? (
+                      <span className='inline-flex items-center gap-1.5'>
+                        {(['pdf', 'csv'] as const).map((format) => (
+                          <button
+                            key={format}
+                            type='button'
+                            onClick={() => handleExportHistory(format)}
+                            disabled={!!exporting}
+                            className='inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-bold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50'
+                          >
+                            <MdFileDownload size={12} />
+                            {format === 'pdf' ? 'Export PDF' : 'Export CSV'}
+                          </button>
+                        ))}
                       </span>
                     ) : null}
                   </div>
@@ -903,12 +1066,38 @@ export const LeadInfoModal = ({
                         No activity yet.
                       </div>
                     ) : (
-                      timeline.map((entry) => (
-                        <TimelineRow
-                          key={`${entry.type}-${entry.id}`}
-                          entry={entry}
-                        />
-                      ))
+                      timeline.map((entry) => {
+                        const authorId =
+                          entry.type === 'comment'
+                            ? Number(entry.author_id ?? entry.actor_id ?? entry.actor?.id)
+                            : NaN;
+                        const own =
+                          entry.type === 'comment' &&
+                          Number.isFinite(myId) &&
+                          myId > 0 &&
+                          authorId === myId;
+                        const editing =
+                          entry.type === 'comment' && editingCommentId === entry.id;
+                        return (
+                          <TimelineRow
+                            key={`${entry.type}-${entry.id}`}
+                            entry={entry}
+                            own={own}
+                            editing={editing}
+                            editDraft={editDraft}
+                            editSaving={editSaving}
+                            onEdit={() =>
+                              entry.type === 'comment' &&
+                              startEditComment(entry.id, entry.content)
+                            }
+                            onEditDraftChange={setEditDraft}
+                            onEditCancel={cancelEditComment}
+                            onEditSave={() =>
+                              entry.type === 'comment' && saveEditComment(entry.content)
+                            }
+                          />
+                        );
+                      })
                     )}
                   </div>
                   <CommentComposer
@@ -1223,7 +1412,30 @@ const CommentComposer = ({
   );
 };
 
-const TimelineRow = ({ entry }: { entry: TimelineEntry }) => {
+interface TimelineRowProps {
+  entry: TimelineEntry;
+  /** Comentario escrito por el usuario actual → se puede editar. */
+  own?: boolean;
+  editing?: boolean;
+  editDraft?: string;
+  editSaving?: boolean;
+  onEdit?: () => void;
+  onEditDraftChange?: (next: string) => void;
+  onEditCancel?: () => void;
+  onEditSave?: () => void;
+}
+
+const TimelineRow = ({
+  entry,
+  own = false,
+  editing = false,
+  editDraft = '',
+  editSaving = false,
+  onEdit,
+  onEditDraftChange,
+  onEditCancel,
+  onEditSave,
+}: TimelineRowProps) => {
   const actorName =
     `${entry.actor?.firstName ?? ''} ${entry.actor?.lastName ?? ''}`.trim() ||
     'System';
@@ -1242,15 +1454,84 @@ const TimelineRow = ({ entry }: { entry: TimelineEntry }) => {
             <span className='truncate text-[11px] font-bold text-slate-900'>
               {actorName}
             </span>
-            <span className='text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500'>
-              Comment
+            <span className='inline-flex flex-shrink-0 items-center gap-2.5'>
+              {own && !editing ? (
+                <button
+                  type='button'
+                  onClick={onEdit}
+                  className='inline-flex items-center gap-0.5 rounded bg-transparent text-[10px] font-bold uppercase tracking-[0.04em] text-slate-400 transition-colors hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300'
+                >
+                  <MdEdit size={11} aria-hidden />
+                  Edit
+                </button>
+              ) : null}
+              <span className='text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500'>
+                Comment
+              </span>
             </span>
           </div>
-          <span className='whitespace-pre-wrap text-[12px] leading-[1.5] text-slate-700'>
-            {entry.content}
-          </span>
+          {editing ? (
+            // Edición en línea con el estilo del compositor de comentarios.
+            <div className='flex flex-col gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2.5'>
+              <textarea
+                value={editDraft}
+                onChange={(e) => onEditDraftChange?.(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    // Cancela la edición sin cerrar el detalle del lead.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onEditCancel?.();
+                  } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    onEditSave?.();
+                  }
+                }}
+                rows={3}
+                autoFocus
+                disabled={editSaving}
+                aria-label='Edit comment'
+                className='w-full resize-none rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-slate-400 focus:outline-none disabled:opacity-60'
+              />
+              <div className='flex items-center justify-between'>
+                <span className='text-[10px] font-semibold tabular-nums text-slate-400'>
+                  {editDraft.length} / 500
+                </span>
+                <span className='inline-flex items-center gap-1.5'>
+                  <button
+                    type='button'
+                    onClick={onEditCancel}
+                    disabled={editSaving}
+                    className='inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50'
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type='button'
+                    onClick={onEditSave}
+                    disabled={editSaving || editDraft.trim().length === 0}
+                    className='inline-flex h-7 items-center rounded-md bg-slate-900 px-3 text-[11px] font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50'
+                  >
+                    {editSaving ? 'Saving\u2026' : 'Save'}
+                  </button>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <span className='whitespace-pre-wrap text-[12px] leading-[1.5] text-slate-700'>
+              {entry.content}
+            </span>
+          )}
           <span className='text-[10px] font-semibold text-slate-400'>
             {formatTs(entry.timestamp)}
+            {entry.edited_at ? (
+              <span
+                className='ml-1 font-medium italic'
+                title={formatTs(entry.edited_at)}
+              >
+                (edited)
+              </span>
+            ) : null}
           </span>
         </div>
       </div>
