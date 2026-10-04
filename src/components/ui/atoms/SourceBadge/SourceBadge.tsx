@@ -46,6 +46,13 @@ const LABELS: Record<Channel, string> = {
 const normalize = (channel?: Channel | string | null): Channel =>
   channel && channel in LABELS ? (channel as Channel) : 'unknown';
 
+/** Label visible del canal (mismo texto que el badge). */
+export const channelLabel = (channel?: Channel | string | null): string =>
+  LABELS[normalize(channel)];
+
+/** Clave normalizada del canal (valores fuera del set → 'unknown'). */
+export const channelKey = normalize;
+
 export interface SourceBadgeProps extends HTMLAttributes<HTMLSpanElement> {
   channel?: Channel | string | null;
 }

@@ -1,3 +1,4 @@
+export * from './ActiveFilterChips';
 export * from './ActivityItem';
 export * from './AuditEvent';
 export * from './Brand';
@@ -12,6 +13,7 @@ export * from './LawyerIdentity';
 export * from './LawyerStatusPill';
 export * from './MenuIdentity';
 export * from './MenuItem';
+export * from './MultiSelectFilter';
 export * from './NavGroupLabel';
 export * from './NavItem';
 export * from './NavSubItem';

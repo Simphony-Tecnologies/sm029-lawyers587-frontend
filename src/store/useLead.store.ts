@@ -29,8 +29,10 @@ const pickLawyerName = (lead: any): string => {
   return 'No assigned';
 };
 
-const toRow = (lead: LeadDTO | any) => ({
+// Exportado: el link directo (?lead=<id>) mapea GET /leads/:id con la misma forma.
+export const toLeadRow = (lead: LeadDTO | any) => ({
   'lead id': lead.id,
+  code: lead.code ?? '',
   date: new Date(lead.created_at ?? lead.entry_date),
   date_updated: new Date(lead.updated_at ?? lead.created_at ?? lead.entry_date),
   'lead name': pickName(lead),
@@ -50,6 +52,10 @@ const toRow = (lead: LeadDTO | any) => ({
   spam_reasons: lead.spam_reasons ?? null,
   trashed_at: lead.trashed_at ?? null,
   previous_status: lead.previous_status ?? null,
+  // Fase 1 (contrato A2) — score, pull date y firma del abogado asignado.
+  ai_urgency: lead.ai_urgency ?? null,
+  pull_date: lead.pull_date ?? null,
+  firm_id: lead.assigned_lawyer?.firm_id ?? null,
 });
 
 export const useLeadsStore = create<LeadsStore>((set) => ({
@@ -68,7 +74,7 @@ export const useLeadsStore = create<LeadsStore>((set) => ({
       });
       return;
     }
-    const rows = res.data.data.map(toRow);
+    const rows = res.data.data.map(toLeadRow);
     set({
       columns: rows.length > 0 ? Object.keys(rows[0]) : [],
       dataLeads: rows,

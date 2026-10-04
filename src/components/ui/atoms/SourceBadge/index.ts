@@ -1,1 +1,1 @@
-export { SourceBadge, type SourceBadgeProps } from './SourceBadge';
+export { SourceBadge, channelKey, channelLabel, type SourceBadgeProps } from './SourceBadge';

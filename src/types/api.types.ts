@@ -62,6 +62,8 @@ export interface LawyerRef {
   firstName: string;
   lastName: string;
   email?: string;
+  /** Fase 1 — firma del abogado (solo en `assigned_lawyer` del Lead DTO). */
+  firm_id?: number | null;
 }
 
 // ─── Leads ───────────────────────────────────────────────────────────────────
@@ -114,8 +116,18 @@ export interface LeadDTO {
   // requerido) es el valor crudo; `source_label` lo deriva el backend SOLO en el
   // LIST DTO (ausente en GET /leads/:id → derivar client-side con sourceLabel()).
   source_label?: string;
+  // Fase 1 (contrato A2) — opcionales hasta que el backend los exponga.
+  /** Urgencia IA 1–5 (chatbot_conversations.ai_urgency_level); null si no hay. */
+  ai_urgency?: number | null;
+  /** ISO. Fecha en que el abogado tomó/recibió el lead (leads_assigned.assigned_at). */
+  pull_date?: string | null;
 }
 
+/** Score del lead (contrato A1): high = urgencia 4–5, medium = 3, low = 1–2, spam = spam_score ≥ 1. */
+export type LeadScore = 'high' | 'medium' | 'low' | 'spam';
+
+// Los multivalor (status, service, source, assigned_to, firm_id, score) aceptan
+// lista separada por comas (contrato A1).
 export interface LeadFilters {
   search?: string;
   status?: LeadStatus | string;
@@ -123,7 +135,11 @@ export interface LeadFilters {
   source?: string;
   date_from?: string;
   date_to?: string;
-  assigned_to?: number;
+  assigned_to?: number | string;
+  firm_id?: number | string;
+  pull_from?: string;
+  pull_to?: string;
+  score?: LeadScore | string;
   limit?: number;
   offset?: number;
 }
@@ -139,11 +155,18 @@ export interface LeadComment {
   note_type: NoteType;
   created_at: string;
   author?: LawyerRef;
+  // Fase 1 (contrato A4): null si nunca se editó.
+  edited_at?: string | null;
 }
 
 export interface CreateCommentDTO {
   content: string;
   note_type?: NoteType;
+}
+
+/** PATCH /leads/:leadId/comments/:commentId — solo el autor (contrato A4). */
+export interface UpdateCommentDTO {
+  content: string;
 }
 
 export interface CommentFilters {
@@ -188,6 +211,10 @@ export type TimelineEntry =
       note_type: NoteType;
       actor: LawyerRef;
       content: string;
+      // Fase 1 (contrato A4): autor del comentario y fecha de edición.
+      author_id?: number | null;
+      actor_id?: number | null;
+      edited_at?: string | null;
     };
 
 export interface TimelineFilters {
@@ -712,8 +739,21 @@ export interface FirmLeadsQuery {
   source?: string;
   date_from?: string;
   date_to?: string;
+  assigned_to?: number | string;
+  score?: LeadScore | string;
   limit?: number;
   offset?: number;
+}
+
+// GET /firms — admin global. Firmas con su conteo de miembros (JSON crudo).
+export interface FirmListItem extends Firm {
+  member_count: number;
+}
+
+// GET /service_types — catálogo de áreas de derecho.
+export interface ServiceType {
+  id: number;
+  name: string;
 }
 
 // POST /firms/merge — admin GLOBAL (role.name === 'admin'), no firm admin.

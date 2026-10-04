@@ -52,3 +52,14 @@ export const SOURCE_FILTER_OPTIONS = [
   { value: 'chatbot', label: 'Chatbot' },
   { value: 'web_form', label: 'Web Form' },
 ] as const;
+
+/**
+ * Valor de filtro (Source) tal como se muestra la fila: 'chatbot' | 'web_form'
+ * (incluye legacy `web` y los null que el badge muestra como "Web Form").
+ */
+export function sourceFilterValue(source?: string | null, label?: string | null): string {
+  const text = (label ?? '').trim() || sourceLabel(source);
+  if (text === 'Chatbot') return 'chatbot';
+  if (text === 'Web Form') return 'web_form';
+  return sourceVariant(source);
+}

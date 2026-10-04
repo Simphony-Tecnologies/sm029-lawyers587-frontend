@@ -14,6 +14,7 @@ import type {
   CommentFilters,
   CreateBlacklistDTO,
   CreateCommentDTO,
+  UpdateCommentDTO,
   CreatePatternDTO,
   ExportFormat,
   HistoryFilters,
@@ -60,6 +61,8 @@ import type {
   SetFirmAdminsBody,
   SetFirmAdminsResult,
   FirmLeadsQuery,
+  FirmListItem,
+  ServiceType,
   MergeFirmsBody,
   MergeFirmsResult,
   ChatbotSettings,
@@ -903,10 +906,31 @@ const unwrapApi = <T>(body: any, ok: boolean, status: number): ApiResult<T> => {
   };
 };
 
+// Fase 1 — algunos endpoints devuelven `{ success, data: { data, total } }` y
+// otros el paginado crudo `{ data, total }` (p. ej. /firms/me/leads). unwrapApi
+// sobre el crudo devolvía solo el array y perdía `total`. Normaliza ambos.
+const toPaginated = <T>(body: any): Paginated<T> => {
+  const inner =
+    body?.data && !Array.isArray(body.data) && Array.isArray(body.data?.data)
+      ? body.data
+      : body;
+  const list: T[] = Array.isArray(inner?.data)
+    ? inner.data
+    : Array.isArray(inner)
+    ? inner
+    : [];
+  const total = Number.isFinite(Number(inner?.total))
+    ? Number(inner.total)
+    : list.length;
+  return { data: list, total };
+};
+
 async function apiRequest<T>(
   path: string,
   init: RequestInit,
-  token?: string
+  token?: string,
+  /** Devuelve el body completo como `data` (sin desenvolver). */
+  raw = false
 ): Promise<ApiResult<T>> {
   try {
     const response = await authedFetch(`${baseUrl()}${path}`, {
@@ -918,7 +942,9 @@ async function apiRequest<T>(
       cache: 'no-store',
     });
     const body = await response.json().catch(() => ({}));
-    return unwrapApi<T>(body, response.ok, response.status);
+    const result = unwrapApi<T>(body, response.ok, response.status);
+    if (raw && result.success) result.data = body as T;
+    return result;
   } catch (error: any) {
     return {
       success: false,
@@ -1029,6 +1055,18 @@ export const api = {
         apiRequest<LeadComment>(
           `/leads/${leadId}/comments`,
           { method: 'POST', body: JSON.stringify(body) },
+          token
+        ),
+      // Fase 1 (contrato A4) — solo el autor; 403 si no lo es, 404 si no existe.
+      update: (
+        leadId: number,
+        commentId: number,
+        body: UpdateCommentDTO,
+        token?: string
+      ) =>
+        apiRequest<LeadComment>(
+          `/leads/${leadId}/comments/${commentId}`,
+          { method: 'PATCH', body: JSON.stringify(body) },
           token
         ),
     },
@@ -1317,6 +1355,16 @@ export const api = {
       ),
   },
 
+  // GET /service_types — catálogo de áreas de derecho (Area of Law).
+  serviceTypes: {
+    list: async (token?: string): Promise<ApiResult<ServiceType[]>> => {
+      const res = await apiRequest<unknown>('/service_types', { method: 'GET' }, token);
+      return res.success
+        ? { ...res, data: toPaginated<ServiceType>(res.data).data }
+        : { ...res, data: null };
+    },
+  },
+
   // ── Chatbot settings (Activity 30) ──────────────────────────────────────
   // Singleton /chatbot/settings. GET/PATCH exigen admin global (backend 403 si no).
   chatbot: {
@@ -1370,12 +1418,30 @@ export const api = {
       ),
 
     // GET /firms/me/leads — firm admin. Paginado server-side (limit/offset/total).
-    leads: (query?: FirmLeadsQuery, token?: string) =>
-      apiRequest<Paginated<LeadDTO>>(
+    // El backend responde el paginado crudo `{ data, total }`: se pide el body
+    // completo y se normaliza (antes `total` se perdía y la lista quedaba en 0).
+    leads: async (
+      query?: FirmLeadsQuery,
+      token?: string
+    ): Promise<ApiResult<Paginated<LeadDTO>>> => {
+      const res = await apiRequest<unknown>(
         `/firms/me/leads${buildQuery(query as Record<string, unknown>)}`,
         { method: 'GET' },
-        token
-      ),
+        token,
+        true
+      );
+      return res.success
+        ? { ...res, data: toPaginated<LeadDTO>(res.data) }
+        : { ...res, data: null };
+    },
+
+    // GET /firms — admin GLOBAL. Firmas con member_count (array crudo).
+    list: async (token?: string): Promise<ApiResult<FirmListItem[]>> => {
+      const res = await apiRequest<unknown>('/firms', { method: 'GET' }, token);
+      return res.success
+        ? { ...res, data: toPaginated<FirmListItem>(res.data).data }
+        : { ...res, data: null };
+    },
 
     // POST /firms/merge — admin GLOBAL (role.name === 'admin'), NO firm admin.
     merge: (body: MergeFirmsBody, token?: string) =>
