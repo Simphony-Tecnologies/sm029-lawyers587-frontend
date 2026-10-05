@@ -22,7 +22,12 @@ import {
 } from 'react-icons/md';
 import { useLeadsStore } from '@/store/useLead.store';
 import { api } from '@/services/database';
-import type { ActionType, AuditEvent, LawyerListItem } from '@/types/api.types';
+import type {
+  ActionType,
+  AuditEvent,
+  LawyerListItem,
+  MetricsPeriod,
+} from '@/types/api.types';
 import {
   ActivityPanel,
   KpiCard,
@@ -43,8 +48,17 @@ import {
   type LeadQueueKey,
 } from '@/constants/leadQueues';
 import { PerformancePanel } from './PerformancePanel';
+import { SourceAnalysisPanel } from './SourceAnalysisPanel';
+import { AgingPanel } from './AgingPanel';
 
 dayjs.extend(relativeTime);
+
+// Fase 3 — tarjetas de análisis: mes, trimestre o año de calendario en curso.
+const ANALYSIS_PERIODS: PeriodOption<MetricsPeriod>[] = [
+  { key: 'month', label: 'This month', days: null },
+  { key: 'quarter', label: 'This quarter', days: null },
+  { key: 'year', label: 'This year', days: null },
+];
 
 // Tonos distintos en cards vecinas del grid (3 columnas).
 const QUEUE_VISUAL: Record<LeadQueueKey, { tone: KpiTone; icon: JSX.Element }> = {
@@ -70,6 +84,9 @@ const Dashboard = () => {
     key: PeriodKey;
     days: number | null;
   }>({ key: 'all', days: null });
+  // Cada tarjeta de análisis (Fase 3) conserva su propio período.
+  const [sourcesPeriod, setSourcesPeriod] = useState<MetricsPeriod>('month');
+  const [agingPeriod, setAgingPeriod] = useState<MetricsPeriod>('month');
 
   // Mismo dataset y mismo predicado que Lead Management (?queue=), así cada
   // card abre exactamente los registros que cuenta.
@@ -270,6 +287,30 @@ const Dashboard = () => {
             onChange={(opt: PeriodOption) =>
               setPerfPeriod({ key: opt.key, days: opt.days })
             }
+          />
+        }
+      />
+
+      <SourceAnalysisPanel
+        period={sourcesPeriod}
+        action={
+          <PeriodSelect
+            ariaLabel='Lead Source Analysis'
+            options={ANALYSIS_PERIODS}
+            value={sourcesPeriod}
+            onChange={(opt) => setSourcesPeriod(opt.key)}
+          />
+        }
+      />
+
+      <AgingPanel
+        period={agingPeriod}
+        action={
+          <PeriodSelect
+            ariaLabel='Aging Report'
+            options={ANALYSIS_PERIODS}
+            value={agingPeriod}
+            onChange={(opt) => setAgingPeriod(opt.key)}
           />
         }
       />

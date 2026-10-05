@@ -195,10 +195,12 @@ export interface AuditEvent {
 export type TimelineEntry =
   | {
       type: 'audit';
-      id: number;
+      // null en la entrada sintética "Lead received via …" (Fase 4, sin fila en audit_log).
+      id: number | null;
       timestamp: string;
       action_type: ActionType;
-      actor: LawyerRef;
+      // null en eventos de sistema (p. ej. "Lead received via …", Fase 4).
+      actor: LawyerRef | null;
       actor_role?: string;
       old_value: any;
       new_value: any;
@@ -595,6 +597,50 @@ export interface PerformanceFilters extends MetricsDateFilters {
   offset?: number;
 }
 
+// Fase 3 — período de calendario en curso (APP_TIMEZONE), resuelto por el backend.
+export type MetricsPeriod = 'month' | 'quarter' | 'year';
+
+// GET /leads/metrics/sources (solo admin)
+export type SourceAnalysisKey = 'chatbot' | 'web_form';
+
+export interface SourceFunnel {
+  captured: number; // leads con entry date en el período (sin REVIEW/ARCHIVED/TRASHED)
+  converted: number; // de esos, status actual CLOSED (Retained)
+  conversion_rate: number | null; // % con 1 decimal; null si captured=0
+}
+
+export interface SourceFunnelRow extends SourceFunnel {
+  source: SourceAnalysisKey;
+  label: string;
+}
+
+export interface SourceAnalysisResponse {
+  period: MetricsPeriod;
+  from: string; // ISO
+  to: string; // ISO
+  sources: SourceFunnelRow[];
+  total: SourceFunnel;
+}
+
+// GET /leads/metrics/aging (solo admin)
+export type AgingKey = 'new' | 'in_progress' | 'contacted';
+
+export interface AgingRow {
+  key: AgingKey;
+  label: string;
+  count: number; // intervalos medidos que terminaron en el período
+  avg_days: number | null; // 1 decimal; null si count=0
+  p50_days: number | null;
+  p90_days: number | null;
+}
+
+export interface AgingReportResponse {
+  period: MetricsPeriod;
+  from: string; // ISO
+  to: string; // ISO
+  rows: AgingRow[];
+}
+
 // ── Lawyer signup / verification / onboarding (Activity 24) ───────────────
 export type VerificationStatus = 'pending' | 'verified' | 'rejected';
 export type OnboardingStatus = 'pending' | 'completed' | 'skipped';
@@ -755,6 +801,23 @@ export interface FirmLeadsQuery {
   score?: LeadScore | string;
   limit?: number;
   offset?: number;
+}
+
+// GET /firms/me/reports — firm admin (Fase 4). Métricas del dashboard acotadas
+// a la firma. Mismas fechas que /lawyers/metrics/performance (sin fechas, 30 días).
+export type FirmReportsQuery = MetricsDateFilters;
+
+export interface FirmReportsResponse {
+  firm: { id: number; name: string };
+  from: string; // ISO
+  to: string; // ISO
+  /** Snapshot: leads con asignación vigente a abogados de la firma, por status actual. */
+  status_counts: Partial<Record<LeadStatus, number>>;
+  /** Mismas reglas que "Leads Received" y "Clients Retained" del dashboard. */
+  received: number;
+  retained: number;
+  /** Ranking de los abogados de la firma (misma fila que /lawyers/metrics/performance). */
+  lawyers: LawyerPerformanceRow[];
 }
 
 // GET /firms — admin global. Firmas con su conteo de miembros (JSON crudo).

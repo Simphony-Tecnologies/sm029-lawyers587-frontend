@@ -175,6 +175,13 @@ export const routesSidebar: dataItem[] = [
         rol: ['lawyer'],
         gate: 'firm_admin',
       },
+      {
+        // Fase 4 — reportes de la firma (métricas del dashboard por firma).
+        name: 'Reports',
+        route: '/my-firm/reports',
+        rol: ['lawyer'],
+        gate: 'firm_admin',
+      },
     ],
   },
 ];
