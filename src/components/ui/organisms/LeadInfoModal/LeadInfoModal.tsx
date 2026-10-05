@@ -20,6 +20,7 @@ import {
   MdWorkOutline,
   MdKeyboardArrowDown,
   MdHistoryEdu,
+  MdMoveToInbox,
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import { cn } from '@/lib/cn';
@@ -27,6 +28,7 @@ import { apiText } from '@/lib/apiText';
 import { copyText } from '@/lib/clipboard';
 import { Badge } from '@/components/ui/atoms/Badge';
 import { IconButton } from '@/components/ui/atoms/IconButton';
+import { OriginBadge } from '@/components/ui/atoms/OriginBadge';
 import {
   getLeadStatusMeta,
   isDestructiveStatus,
@@ -185,6 +187,11 @@ export const LeadInfoModal = ({
   // Fase 2 (2.4) — recordatorio de calendario. `detailLawyerId`: abogado asignado
   // según el detalle (solo admin; undefined = aún cargando, null = sin asignar).
   const [detailLawyerId, setDetailLawyerId] = useState<number | null | undefined>(undefined);
+  // Fase 4 — origen del lead (Chatbot / Web Form) según el detalle.
+  const [detailSource, setDetailSource] = useState<{
+    source: string | null;
+    label: string | null;
+  } | null>(null);
   const [reminders, setReminders] = useState<CalendarReminderDTO[]>([]);
   const [reminderDate, setReminderDate] = useState('');
   const [reminderTime, setReminderTime] = useState('');
@@ -219,10 +226,12 @@ export const LeadInfoModal = ({
   // Pull date: la fila de la lista puede traerla vacía; el detalle usa como
   // respaldo el último ASSIGN del historial (contrato A2). Fase 2 — al admin el
   // mismo detalle le da el abogado asignado (destinatario del recordatorio).
+  // Fase 4 — el detalle da además el origen (fila Source), para admin y abogado.
   useEffect(() => {
     setDetailPullDate(null);
     setDetailLawyerId(undefined);
-    if (!open || !lead || (lead.pullDate && !isAdmin)) return;
+    setDetailSource(null);
+    if (!open || !lead) return;
     const id = Number(lead.id);
     if (!Number.isFinite(id)) return;
     let cancelled = false;
@@ -231,6 +240,12 @@ export const LeadInfoModal = ({
       setDetailLawyerId(
         res.data?.assigned_lawyer_id ?? res.data?.assigned_lawyer?.id ?? null
       );
+      if (res.success && res.data) {
+        setDetailSource({
+          source: res.data.source ?? null,
+          label: res.data.source_label ?? null,
+        });
+      }
       if (!res.success || !res.data?.pull_date) return;
       setDetailPullDate(dayjs(res.data.pull_date).format('MMM D, YYYY'));
     });
@@ -1046,6 +1061,20 @@ export const LeadInfoModal = ({
                       value={lead?.service}
                       locked
                     />
+                    {/* Fase 4 — origen del lead: mismo badge que la columna Source de las listas. */}
+                    <DetailRow
+                      icon={<MdMoveToInbox size={11} />}
+                      label='Source'
+                      value={
+                        detailSource ? (
+                          <OriginBadge
+                            source={detailSource.source}
+                            label={detailSource.label}
+                          />
+                        ) : undefined
+                      }
+                      locked
+                    />
                     <DetailRow
                       icon={<MdDescription size={11} />}
                       label='Summary'
@@ -1174,7 +1203,8 @@ export const LeadInfoModal = ({
                           entry.type === 'comment' && editingCommentId === entry.id;
                         return (
                           <TimelineRow
-                            key={`${entry.type}-${entry.id}`}
+                            // Fase 4 — la entrada sintética de origen no tiene id.
+                            key={`${entry.type}-${entry.id ?? `created-${entry.timestamp}`}`}
                             entry={entry}
                             own={own}
                             editing={editing}
@@ -1432,7 +1462,7 @@ const formatTs = (ts: string) => {
 };
 
 const initialsFromActor = (
-  actor: { firstName?: string; lastName?: string } | undefined
+  actor: { firstName?: string; lastName?: string } | null | undefined
 ): string => {
   const f = (actor?.firstName ?? '').trim().charAt(0);
   const l = (actor?.lastName ?? '').trim().charAt(0);
@@ -1793,8 +1823,10 @@ const TimelineRow = ({
   const actionLabel = entry.action_type.replace(/_/g, ' ').toUpperCase();
   const from = entry.old_value?.status;
   const to = entry.new_value?.status;
+  // Eventos de sistema (sin actor, p. ej. "Lead received via …"): solo "System",
+  // sin repetir el rol "(System)".
   const roleSuffix =
-    entry.actor_role
+    entry.actor_role && (entry.actor || entry.actor_role.toLowerCase() !== 'system')
       ? ` (${entry.actor_role.charAt(0).toUpperCase() + entry.actor_role.slice(1)})`
       : '';
 

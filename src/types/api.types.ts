@@ -195,10 +195,12 @@ export interface AuditEvent {
 export type TimelineEntry =
   | {
       type: 'audit';
-      id: number;
+      // null en la entrada sintética "Lead received via …" (Fase 4, sin fila en audit_log).
+      id: number | null;
       timestamp: string;
       action_type: ActionType;
-      actor: LawyerRef;
+      // null en eventos de sistema (p. ej. "Lead received via …", Fase 4).
+      actor: LawyerRef | null;
       actor_role?: string;
       old_value: any;
       new_value: any;
@@ -799,6 +801,23 @@ export interface FirmLeadsQuery {
   score?: LeadScore | string;
   limit?: number;
   offset?: number;
+}
+
+// GET /firms/me/reports — firm admin (Fase 4). Métricas del dashboard acotadas
+// a la firma. Mismas fechas que /lawyers/metrics/performance (sin fechas, 30 días).
+export type FirmReportsQuery = MetricsDateFilters;
+
+export interface FirmReportsResponse {
+  firm: { id: number; name: string };
+  from: string; // ISO
+  to: string; // ISO
+  /** Snapshot: leads con asignación vigente a abogados de la firma, por status actual. */
+  status_counts: Partial<Record<LeadStatus, number>>;
+  /** Mismas reglas que "Leads Received" y "Clients Retained" del dashboard. */
+  received: number;
+  retained: number;
+  /** Ranking de los abogados de la firma (misma fila que /lawyers/metrics/performance). */
+  lawyers: LawyerPerformanceRow[];
 }
 
 // GET /firms — admin global. Firmas con su conteo de miembros (JSON crudo).

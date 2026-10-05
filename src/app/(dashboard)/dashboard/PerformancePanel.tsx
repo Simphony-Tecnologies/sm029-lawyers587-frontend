@@ -50,43 +50,85 @@ const CSV_VALUE: Record<string, (r: LawyerPerformanceRow) => CellValue> = {
 const EXPORT_BUTTON_CLASS =
   'inline-flex h-9 items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3.5 text-xs font-bold tracking-[-0.005em] text-slate-700 transition-colors hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50';
 
+// Fase 4 — filas ya cargadas por otra vista (Reports de la firma), con el
+// rango del período (ISO) para el nombre del CSV.
+export interface PerformancePanelData {
+  lawyers: LawyerPerformanceRow[];
+  from: string;
+  to: string;
+}
+
+export interface PerformancePanelSource {
+  data: PerformancePanelData | null;
+  loading: boolean;
+  error: string | null;
+}
+
 interface PerformancePanelProps {
   /** Ventana relativa del PeriodSelect. `null` = all time → backend default 30d. */
-  days: number | null;
+  days?: number | null;
   sortBy?: PerformanceSortBy;
   /** Control opcional en el header (p. ej. el PeriodSelect propio del panel). */
   action?: ReactNode;
+  /**
+   * Fase 4 — datos externos: si viene, el panel no llama a
+   * /lawyers/metrics/performance y muestra estas filas. Sin `source` (dashboard
+   * admin) el comportamiento es el de siempre.
+   */
+  source?: PerformancePanelSource;
 }
 
 export const PerformancePanel = ({
-  days,
+  days = null,
   sortBy = 'conversion_rate',
   action,
+  source,
 }: PerformancePanelProps) => {
-  const [data, setData] = useState<LawyerPerformanceResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [fetched, setFetched] = useState<LawyerPerformanceResponse | null>(null);
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const external = source !== undefined;
 
   useEffect(() => {
+    if (external) return;
     let active = true;
-    setLoading(true);
-    setError(null);
+    setFetchLoading(true);
+    setFetchError(null);
     api.lawyers.metrics
       // limit alto: traemos todos los abogados de la firma para que el conteo
       // del header (data.total) no diverja de las filas paginadas en cliente.
       .performance({ ...periodToRange(days), sort_by: sortBy, limit: 100 })
       .then((res) => {
         if (!active) return;
-        if (res.success && res.data) setData(res.data);
-        else setError(res.message || 'Unable to load performance');
+        if (res.success && res.data) setFetched(res.data);
+        else setFetchError(res.message || 'Unable to load performance');
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) setFetchLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [days, sortBy]);
+  }, [days, sortBy, external]);
+
+  // Misma forma para ambos orígenes: filas, total del header y rango del CSV.
+  const data = useMemo(() => {
+    if (external) {
+      return source.data
+        ? { ...source.data, total: source.data.lawyers.length }
+        : null;
+    }
+    return fetched
+      ? {
+          lawyers: fetched.lawyers,
+          total: fetched.total,
+          from: fetched.range.from,
+          to: fetched.range.to,
+        }
+      : null;
+  }, [external, source?.data, fetched]);
+  const loading = external ? source.loading : fetchLoading;
+  const error = external ? source.error : fetchError;
 
   const columns = useMemo<DataTableColumn<LawyerPerformanceRow>[]>(
     () => [
@@ -199,8 +241,8 @@ export const PerformancePanel = ({
         columns.map((c) => c.label),
         rows.map((r) => columns.map((c) => CSV_VALUE[c.key]?.(r) ?? ''))
       ),
-      `lawyer-ranking-${dayjs(data.range.from).format('YYYY-MM-DD')}-${dayjs(
-        data.range.to
+      `lawyer-ranking-${dayjs(data.from).format('YYYY-MM-DD')}-${dayjs(
+        data.to
       ).format('YYYY-MM-DD')}.csv`
     );
   };

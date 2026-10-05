@@ -66,6 +66,8 @@ import type {
   SetFirmAdminsResult,
   FirmLeadsQuery,
   FirmListItem,
+  FirmReportsQuery,
+  FirmReportsResponse,
   ServiceType,
   MergeFirmsBody,
   MergeFirmsResult,
@@ -1507,6 +1509,29 @@ export const api = {
       return res.success
         ? { ...res, data: toPaginated<LeadDTO>(res.data) }
         : { ...res, data: null };
+    },
+
+    // GET /firms/me/reports — firm admin (Fase 4). Responde JSON crudo o
+    // envuelto `{ success, data }`; se pide el body completo y se normaliza como
+    // en `leads` (el reporte trae `status_counts`, el sobre no).
+    reports: async (
+      query?: FirmReportsQuery,
+      token?: string
+    ): Promise<ApiResult<FirmReportsResponse>> => {
+      const res = await apiRequest<unknown>(
+        `/firms/me/reports${buildQuery(query as Record<string, unknown>)}`,
+        { method: 'GET' },
+        token,
+        true
+      );
+      if (!res.success) return { ...res, data: null };
+      const body = res.data as
+        | (Partial<FirmReportsResponse> & { data?: Partial<FirmReportsResponse> })
+        | null;
+      const report = body?.status_counts ? body : body?.data;
+      return report?.status_counts
+        ? { ...res, data: report as FirmReportsResponse }
+        : { ...res, success: false, data: null };
     },
 
     // GET /firms — admin GLOBAL. Firmas con member_count (array crudo).
