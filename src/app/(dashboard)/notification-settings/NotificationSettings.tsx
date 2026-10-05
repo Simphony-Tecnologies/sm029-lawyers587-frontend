@@ -7,6 +7,7 @@ import { MdClose, MdSend } from 'react-icons/md';
 import { api } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
 import type {
+  DefaultReminderPolicy,
   GlobalNotifSettingsDTO,
   NotificationDTO,
   NotificationHistoryFilters,
@@ -76,6 +77,19 @@ const STATUS_LABELS: Record<NotificationStatus, string> = {
 
 const WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+// Fase 2 (2.5) — aviso X horas antes de que expire el lead asignado.
+type ReminderPolicyOption = Exclude<DefaultReminderPolicy, 'immediate'>;
+const REMINDER_POLICY_OPTIONS: { value: ReminderPolicyOption; label: string }[] = [
+  { value: 'disabled', label: 'Disabled' },
+  { value: '4', label: '4 h before expiry' },
+  { value: '8', label: '8 h before expiry' },
+  { value: '12', label: '12 h before expiry' },
+  { value: '24', label: '24 h before expiry' },
+];
+// 'immediate' (valor legado) = 8 h, el comportamiento de hoy.
+const toReminderPolicy = (value?: string | null): ReminderPolicyOption =>
+  REMINDER_POLICY_OPTIONS.find((o) => o.value === value)?.value ?? '8';
+
 // ─── Reusable form atoms ───────────────────────────────────────────────────
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -119,6 +133,7 @@ export default function NotificationSettings() {
   const [dedupMinutes, setDedupMinutes] = useState(30);
   const [dailyTime, setDailyTime] = useState('08:00');
   const [weeklyDay, setWeeklyDay] = useState(1);
+  const [reminderPolicy, setReminderPolicy] = useState<ReminderPolicyOption>('8');
 
   // ── History state ──────────────────────────────────────────────────────
   const [history, setHistory] = useState<NotificationDTO[]>([]);
@@ -146,6 +161,7 @@ export default function NotificationSettings() {
         setDedupMinutes(d.dedup_minutes);
         setDailyTime(d.daily_summary_time);
         setWeeklyDay(d.weekly_summary_day);
+        setReminderPolicy(toReminderPolicy(d.default_reminder_policy));
       }
     } catch {
       toast.error('Failed to load notification settings');
@@ -195,6 +211,7 @@ export default function NotificationSettings() {
         dedup_minutes: dedupMinutes,
         daily_summary_time: dailyTime,
         weekly_summary_day: weeklyDay,
+        default_reminder_policy: reminderPolicy,
       };
       const res = await api.notifications.settings.global.update(body);
       if (res.success) {
@@ -447,6 +464,22 @@ export default function NotificationSettings() {
                   </select>
                 </div>
               </div>
+            </SettingsCard>
+
+            {/* Default reminder policy (Fase 2) */}
+            <SettingsCard title='Default reminder policy'>
+              <select
+                value={reminderPolicy}
+                onChange={(e) => setReminderPolicy(e.target.value as ReminderPolicyOption)}
+                aria-label='Default reminder policy'
+                className='h-9 w-44 rounded-md border border-slate-200 px-2.5 text-[13px] outline-none focus:border-slate-400'
+              >
+                {REMINDER_POLICY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
             </SettingsCard>
 
             {/* Action buttons */}

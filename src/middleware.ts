@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { jwtDecode } from 'jwt-decode';
-import { database } from './services/database';
+import { database, loginReturnPath } from './services/database';
 
 export const config = {
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
@@ -42,6 +42,28 @@ export async function middleware(req: any) {
     '/dash-lawyers',
     '/my-firm',
   ];
+
+  // Fase 2 — login con regreso: sin sesión válida, el link directo a la lista
+  // (p. ej. desde un email) va al login conservando el destino en `?next=`.
+  const { pathname } = req.nextUrl;
+  if (
+    !role &&
+    ['/lead-management', '/all-leads'].some(
+      (base) => pathname === base || pathname.startsWith(`${base}/`)
+    )
+  ) {
+    const search = new URLSearchParams(req.nextUrl.search);
+    search.delete('_rsc');
+    const query = search.toString();
+    const loginURL = new URL('/', req.nextUrl.origin);
+    loginURL.searchParams.set('next', query ? `${pathname}?${query}` : pathname);
+    return NextResponse.redirect(loginURL.toString());
+  }
+  // Con sesión y un `next` válido para el rol, va ahí en vez del dashboard.
+  if (currentUser && pathname === '/') {
+    const next = loginReturnPath(req.nextUrl.searchParams.get('next'), role);
+    if (next) return NextResponse.redirect(new URL(next, req.url));
+  }
 
   if (role === 'admin' && currentUser && req.nextUrl.pathname === '/') {
     return NextResponse.redirect(new URL('/dashboard', req.url));

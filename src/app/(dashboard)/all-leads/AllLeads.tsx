@@ -774,6 +774,7 @@ const AllLeads = () => {
         {/* Fase 1 — filtros avanzados (panel inline) con contador de activos. */}
         <FilterButton
           label='Filters'
+          glow
           dropdown
           active={filtersOpen}
           count={activeFilterCount > 0 ? activeFilterCount : undefined}
