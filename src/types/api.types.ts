@@ -595,6 +595,50 @@ export interface PerformanceFilters extends MetricsDateFilters {
   offset?: number;
 }
 
+// Fase 3 — período de calendario en curso (APP_TIMEZONE), resuelto por el backend.
+export type MetricsPeriod = 'month' | 'quarter' | 'year';
+
+// GET /leads/metrics/sources (solo admin)
+export type SourceAnalysisKey = 'chatbot' | 'web_form';
+
+export interface SourceFunnel {
+  captured: number; // leads con entry date en el período (sin REVIEW/ARCHIVED/TRASHED)
+  converted: number; // de esos, status actual CLOSED (Retained)
+  conversion_rate: number | null; // % con 1 decimal; null si captured=0
+}
+
+export interface SourceFunnelRow extends SourceFunnel {
+  source: SourceAnalysisKey;
+  label: string;
+}
+
+export interface SourceAnalysisResponse {
+  period: MetricsPeriod;
+  from: string; // ISO
+  to: string; // ISO
+  sources: SourceFunnelRow[];
+  total: SourceFunnel;
+}
+
+// GET /leads/metrics/aging (solo admin)
+export type AgingKey = 'new' | 'in_progress' | 'contacted';
+
+export interface AgingRow {
+  key: AgingKey;
+  label: string;
+  count: number; // intervalos medidos que terminaron en el período
+  avg_days: number | null; // 1 decimal; null si count=0
+  p50_days: number | null;
+  p90_days: number | null;
+}
+
+export interface AgingReportResponse {
+  period: MetricsPeriod;
+  from: string; // ISO
+  to: string; // ISO
+  rows: AgingRow[];
+}
+
 // ── Lawyer signup / verification / onboarding (Activity 24) ───────────────
 export type VerificationStatus = 'pending' | 'verified' | 'rejected';
 export type OnboardingStatus = 'pending' | 'completed' | 'skipped';

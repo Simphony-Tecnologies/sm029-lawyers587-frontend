@@ -27,6 +27,9 @@ import type {
   LeadDTO,
   LeadFilters,
   MetricsDateFilters,
+  MetricsPeriod,
+  SourceAnalysisResponse,
+  AgingReportResponse,
   Paginated,
   PerformanceFilters,
   PoolFilters,
@@ -1208,6 +1211,33 @@ export const api = {
       widgets: (filters?: MetricsDateFilters, token?: string) =>
         apiRequest<WidgetMetricsResponse>(
           `/leads/metrics/widgets${buildQuery(filters as Record<string, unknown>)}`,
+          { method: 'GET' },
+          token
+        ),
+
+      // Fase 3 (3.2) — Lead Source Analysis: embudo captured → converted por source.
+      sources: (period: MetricsPeriod, token?: string) =>
+        apiRequest<SourceAnalysisResponse>(
+          `/leads/metrics/sources${buildQuery({ period })}`,
+          { method: 'GET' },
+          token
+        ),
+
+      exportSources: (
+        period: MetricsPeriod,
+        format: ExportFormat = 'csv',
+        token?: string
+      ) =>
+        apiBlob(
+          `/leads/metrics/sources/export${buildQuery({ period, format })}`,
+          token,
+          format === 'csv' ? 'text/csv' : 'application/pdf'
+        ),
+
+      // Fase 3 (3.3) — Aging Report: días por status (promedio, P50, P90).
+      aging: (period: MetricsPeriod, token?: string) =>
+        apiRequest<AgingReportResponse>(
+          `/leads/metrics/aging${buildQuery({ period })}`,
           { method: 'GET' },
           token
         ),

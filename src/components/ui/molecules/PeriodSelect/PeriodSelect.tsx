@@ -12,10 +12,13 @@ import { cn } from '@/lib/cn';
 
 export type PeriodKey = 'today' | 'week' | 'month' | 'all';
 
-export interface PeriodOption {
-  key: PeriodKey;
+// Fase 3 — `K` permite opciones propias (p. ej. month/quarter/year de las
+// tarjetas de análisis). Por defecto sigue siendo PeriodKey: los usos
+// existentes no cambian.
+export interface PeriodOption<K extends string = PeriodKey> {
+  key: K;
   label: string;
-  /** Días hacia atrás desde hoy. `null` = sin filtro (all time). */
+  /** Días hacia atrás desde hoy. `null` = sin filtro (all time) o período de calendario que resuelve el backend. */
   days: number | null;
 }
 
@@ -26,10 +29,11 @@ export const DEFAULT_PERIODS: PeriodOption[] = [
   { key: 'all', label: 'All time', days: null },
 ];
 
-export interface PeriodSelectProps {
-  value?: PeriodKey;
-  onChange?: (next: PeriodOption) => void;
-  options?: PeriodOption[];
+export interface PeriodSelectProps<K extends string = PeriodKey> {
+  value?: K;
+  onChange?: (next: PeriodOption<K>) => void;
+  /** Opciones propias; si no se pasan, DEFAULT_PERIODS. */
+  options?: PeriodOption<K>[];
   className?: string;
   /** Legacy: si no se pasa value/onChange el botón se renderiza estático con este label. */
   label?: string;
@@ -38,14 +42,15 @@ export interface PeriodSelectProps {
   children?: ReactNode;
 }
 
-export const PeriodSelect = ({
+export const PeriodSelect = <K extends string = PeriodKey>({
   value,
   onChange,
-  options = DEFAULT_PERIODS,
+  // Sin `options`, K es PeriodKey (el default del genérico).
+  options = DEFAULT_PERIODS as unknown as PeriodOption<K>[],
   className,
   label,
   ariaLabel,
-}: PeriodSelectProps) => {
+}: PeriodSelectProps<K>) => {
   // Modo estático: si no hay onChange, se renderiza como botón decorativo
   // (preserva uso legacy donde solo se pasaba `label`).
   if (!onChange) {
