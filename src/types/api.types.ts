@@ -467,12 +467,16 @@ export interface NotificationPreferenceDTO {
   updated_at?: string;
 }
 
+/** Fase 2 (2.5) — horas antes de expirar el lead; `immediate` es el valor legado (= 8). */
+export type DefaultReminderPolicy = 'disabled' | '4' | '8' | '12' | '24' | 'immediate';
+
 export interface GlobalNotifSettingsDTO {
   quiet_hours_start: string;
   quiet_hours_end: string;
   retries: number;
   backoff_ms: number;
   dedup_minutes: number;
+  /** Ver `DefaultReminderPolicy`. */
   default_reminder_policy: string;
   daily_summary_time: string;
   weekly_summary_day: number;
@@ -495,6 +499,14 @@ export interface ScheduleNotificationDTO {
   type: 'SCHEDULED' | 'CALENDAR_REMINDER';
   scheduled_at: string;
   message: string;
+}
+
+/** Fase 2 (2.4) — recordatorio de calendario pendiente (GET /notifications/reminders). */
+export interface CalendarReminderDTO {
+  id: number;
+  lawyer: LawyerRef;
+  message: string;
+  scheduled_at: string;
 }
 
 // ─── Analytics / Metrics ─────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ import { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { database } from '@/services/database';
+import { database, loginReturnPath } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
 import Modal from '@/components/organisms/Modal';
 import Input from '@/components/atoms/Input';
@@ -50,7 +50,13 @@ const Page = () => {
 
     const lastLogin: any = { last_login: new Date() };
 
-    router.push('/dashboard');
+    // Fase 2 — login con regreso: si se llegó desde un link directo (`/?next=`)
+    // válido para el rol, vuelve ahí; si no, al dashboard de siempre.
+    const next = loginReturnPath(
+      new URLSearchParams(window.location.search).get('next'),
+      login.data.lawyer?.role?.name
+    );
+    router.push(next ?? '/dashboard');
     await database.UpdateLawyer(lastLogin, user.id);
     setLoading(false);
   };

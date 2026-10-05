@@ -41,9 +41,19 @@ import dayjs from 'dayjs';
 import { api, downloadBlob } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
 import { canViewLeadContact } from '@/constants/leadFilters';
-import type { ExportFormat, NoteType, TimelineEntry } from '@/types/api.types';
+import type {
+  CalendarReminderDTO,
+  ExportFormat,
+  NoteType,
+  TimelineEntry,
+} from '@/types/api.types';
 
 const REASON_MAX = 500;
+// Fase 2 (2.4) — nota del recordatorio de calendario (1–255, regla del backend).
+// notification.text es varchar(255) en la BD: el límite sale de ahí.
+const REMINDER_NOTE_MAX = 255;
+// Texto genérico de error ya usado en la app (toast de Signup).
+const GENERIC_ERROR = 'Something went wrong. Please try again.';
 // L587-05 — texto mostrado en lugar del contacto mientras el lead no llega a
 // In Progress / Waiting on Client / Retained.
 const CONTACT_HIDDEN_LABEL = 'Available once In Progress';
@@ -172,7 +182,17 @@ export const LeadInfoModal = ({
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  // Fase 2 (2.4) — recordatorio de calendario. `detailLawyerId`: abogado asignado
+  // según el detalle (solo admin; undefined = aún cargando, null = sin asignar).
+  const [detailLawyerId, setDetailLawyerId] = useState<number | null | undefined>(undefined);
+  const [reminders, setReminders] = useState<CalendarReminderDTO[]>([]);
+  const [reminderDate, setReminderDate] = useState('');
+  const [reminderTime, setReminderTime] = useState('');
+  const [reminderNote, setReminderNote] = useState('');
+  const [reminderSubmitting, setReminderSubmitting] = useState(false);
+  const [cancellingReminderId, setCancellingReminderId] = useState<number | null>(null);
   const { user } = useAuth();
+  const isAdmin = String(user?.role?.name ?? '').toLowerCase() === 'admin';
 
   // Reset internal state when the modal opens with a new lead.
   // `comment` (razón de auditoría) siempre arranca vacío — sólo se llena
@@ -191,25 +211,34 @@ export const LeadInfoModal = ({
     setConfirmDelete(false);
     setEditingCommentId(null);
     setEditDraft('');
+    setReminderDate('');
+    setReminderTime('');
+    setReminderNote('');
   }, [open, lead]);
 
   // Pull date: la fila de la lista puede traerla vacía; el detalle usa como
-  // respaldo el último ASSIGN del historial (contrato A2).
+  // respaldo el último ASSIGN del historial (contrato A2). Fase 2 — al admin el
+  // mismo detalle le da el abogado asignado (destinatario del recordatorio).
   useEffect(() => {
     setDetailPullDate(null);
-    if (!open || !lead || lead.pullDate) return;
+    setDetailLawyerId(undefined);
+    if (!open || !lead || (lead.pullDate && !isAdmin)) return;
     const id = Number(lead.id);
     if (!Number.isFinite(id)) return;
     let cancelled = false;
     void api.leads.get(id).then((res) => {
-      if (cancelled || !res.success || !res.data?.pull_date) return;
+      if (cancelled) return;
+      setDetailLawyerId(
+        res.data?.assigned_lawyer_id ?? res.data?.assigned_lawyer?.id ?? null
+      );
+      if (!res.success || !res.data?.pull_date) return;
       setDetailPullDate(dayjs(res.data.pull_date).format('MMM D, YYYY'));
     });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, lead?.id, lead?.pullDate]);
+  }, [open, lead?.id, lead?.pullDate, isAdmin]);
 
   const fetchTimeline = async (
     leadId: number | string,
@@ -350,7 +379,6 @@ export const LeadInfoModal = ({
   // L587-05 — el contacto se revela solo en In Progress/Waiting/Retained.
   // Gating sobre selectedStatus (dropdown en vivo) → aparece al cambiar de
   // estado sin cerrar el card. El admin siempre lo ve.
-  const isAdmin = String(user?.role?.name ?? '').toLowerCase() === 'admin';
   const contactVisible = canViewLeadContact(selectedStatus, isAdmin);
   const myId = Number(user?.id);
 
@@ -408,6 +436,72 @@ export const LeadInfoModal = ({
     const reason = assignReason.trim();
     if (reason.length === 0) return;
     await onAssign(Number(assignLawyerId), reason);
+  };
+
+  // Fase 2 (2.4) — recordatorio de calendario. Destinatario: el propio abogado,
+  // o para el admin el abogado asignado del lead. Sin asignar, el admin ve igual
+  // los pendientes (para poder cancelarlos) pero no el formulario.
+  const reminderLawyerId = isAdmin
+    ? detailLawyerId
+    : Number.isFinite(myId) && myId > 0
+    ? myId
+    : null;
+  const canAddReminder = typeof reminderLawyerId === 'number';
+  const showReminders = !!lead && !timelineError && (canAddReminder || isAdmin);
+  // Fecha y hora locales del navegador → instante; futuro y hasta un año (backend).
+  const reminderAt =
+    reminderDate && reminderTime ? new Date(`${reminderDate}T${reminderTime}`) : null;
+  const reminderValid =
+    !!reminderAt &&
+    reminderAt.getTime() > Date.now() &&
+    reminderAt.getTime() <= dayjs().add(1, 'year').valueOf() &&
+    reminderNote.trim().length > 0;
+
+  const fetchReminders = async (leadId: number | string) => {
+    const res = await api.notifications.reminders.list(Number(leadId));
+    setReminders(res.success && Array.isArray(res.data) ? res.data : []);
+  };
+
+  useEffect(() => {
+    setReminders([]);
+    if (!open || !lead || !showReminders) return;
+    void fetchReminders(lead.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, lead?.id, showReminders]);
+
+  const handleAddReminder = async () => {
+    if (!lead || !reminderAt || !reminderValid || reminderSubmitting) return;
+    if (typeof reminderLawyerId !== 'number') return;
+    setReminderSubmitting(true);
+    const res = await api.notifications.schedule({
+      lawyer_id: reminderLawyerId,
+      lead_id: Number(lead.id),
+      type: 'CALENDAR_REMINDER',
+      scheduled_at: reminderAt.toISOString(),
+      message: reminderNote.trim(),
+    });
+    setReminderSubmitting(false);
+    if (!res.success) {
+      toast.error(GENERIC_ERROR);
+      return;
+    }
+    setReminderDate('');
+    setReminderTime('');
+    setReminderNote('');
+    void fetchReminders(lead.id);
+  };
+
+  const handleCancelReminder = async (reminderId: number) => {
+    if (!lead || cancellingReminderId !== null) return;
+    setCancellingReminderId(reminderId);
+    const res = await api.notifications.reminders.cancel(reminderId);
+    setCancellingReminderId(null);
+    if (!res.success) {
+      toast.error(GENERIC_ERROR);
+      return;
+    }
+    setReminders((prev) => prev.filter((r) => r.id !== reminderId));
+    void fetchReminders(lead.id);
   };
 
   if (!lead && !open) return null;
@@ -1100,6 +1194,24 @@ export const LeadInfoModal = ({
                       })
                     )}
                   </div>
+                  {showReminders ? (
+                    <ReminderComposer
+                      canAdd={canAddReminder}
+                      date={reminderDate}
+                      time={reminderTime}
+                      note={reminderNote}
+                      valid={reminderValid}
+                      submitting={reminderSubmitting}
+                      reminders={reminders}
+                      canCancel={(r) => isAdmin || r.lawyer?.id === myId}
+                      cancellingId={cancellingReminderId}
+                      onChangeDate={setReminderDate}
+                      onChangeTime={setReminderTime}
+                      onChangeNote={setReminderNote}
+                      onSubmit={handleAddReminder}
+                      onCancel={handleCancelReminder}
+                    />
+                  ) : null}
                   <CommentComposer
                     value={newComment}
                     submitting={commentSubmitting}
@@ -1408,6 +1520,145 @@ const CommentComposer = ({
           {submitting ? 'Adding…' : 'Add comment'}
         </button>
       </div>
+    </div>
+  );
+};
+
+// Fase 2 (2.4) — recordatorio de calendario con el estilo del compositor de
+// comentarios: fecha + hora nativas y nota; debajo, los próximos pendientes.
+interface ReminderComposerProps {
+  /** false → solo la lista de pendientes (admin en un lead sin abogado asignado). */
+  canAdd: boolean;
+  date: string;
+  time: string;
+  note: string;
+  valid: boolean;
+  submitting: boolean;
+  reminders: CalendarReminderDTO[];
+  canCancel: (reminder: CalendarReminderDTO) => boolean;
+  cancellingId: number | null;
+  onChangeDate: (next: string) => void;
+  onChangeTime: (next: string) => void;
+  onChangeNote: (next: string) => void;
+  onSubmit: () => void;
+  onCancel: (reminderId: number) => void;
+}
+
+const REMINDER_FIELD_LABEL =
+  'text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400';
+const REMINDER_INPUT =
+  'w-full min-w-0 rounded-md border border-slate-200 bg-white px-2.5 text-[12px] text-slate-800 transition-colors focus:border-slate-400 focus:outline-none disabled:opacity-60';
+
+const ReminderComposer = ({
+  canAdd,
+  date,
+  time,
+  note,
+  valid,
+  submitting,
+  reminders,
+  canCancel,
+  cancellingId,
+  onChangeDate,
+  onChangeTime,
+  onChangeNote,
+  onSubmit,
+  onCancel,
+}: ReminderComposerProps) => {
+  const today = dayjs();
+  if (!canAdd && reminders.length === 0) return null;
+  return (
+    <div className='flex flex-col gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3.5 py-3 transition-colors'>
+      <span className='text-[10px] font-bold uppercase tracking-[0.04em] text-slate-600'>
+        Calendar reminder
+      </span>
+      {canAdd ? (
+        <>
+          <div className='grid grid-cols-2 gap-2'>
+            <label className='flex min-w-0 flex-col gap-1'>
+              <span className={REMINDER_FIELD_LABEL}>Date</span>
+              <input
+                type='date'
+                value={date}
+                min={today.format('YYYY-MM-DD')}
+                max={today.add(1, 'year').format('YYYY-MM-DD')}
+                onChange={(e) => onChangeDate(e.target.value)}
+                disabled={submitting}
+                className={cn(REMINDER_INPUT, 'h-8')}
+              />
+            </label>
+            <label className='flex min-w-0 flex-col gap-1'>
+              <span className={REMINDER_FIELD_LABEL}>Time</span>
+              <input
+                type='time'
+                value={time}
+                onChange={(e) => onChangeTime(e.target.value)}
+                disabled={submitting}
+                className={cn(REMINDER_INPUT, 'h-8')}
+              />
+            </label>
+          </div>
+          <label className='flex flex-col gap-1'>
+            <span className={REMINDER_FIELD_LABEL}>Note</span>
+            <textarea
+              value={note}
+              onChange={(e) => onChangeNote(e.target.value.slice(0, REMINDER_NOTE_MAX))}
+              rows={2}
+              maxLength={REMINDER_NOTE_MAX}
+              disabled={submitting}
+              className={cn(REMINDER_INPUT, 'resize-none py-1.5')}
+            />
+          </label>
+          <div className='flex items-center justify-between'>
+            <span className='text-[10px] font-semibold tabular-nums text-slate-400'>
+              {note.length} / {REMINDER_NOTE_MAX}
+            </span>
+            <button
+              type='button'
+              onClick={onSubmit}
+              disabled={submitting || !valid}
+              className='inline-flex h-7 items-center gap-1 rounded-md bg-slate-900 px-3 text-[11px] font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50'
+            >
+              {submitting ? 'Adding…' : 'Add reminder'}
+            </button>
+          </div>
+        </>
+      ) : null}
+      {reminders.length > 0 ? (
+        <ul className='flex flex-col divide-y divide-slate-100 rounded-md border border-slate-200 bg-white'>
+          {reminders.map((r) => {
+            const lawyerName = `${r.lawyer?.firstName ?? ''} ${r.lawyer?.lastName ?? ''}`.trim();
+            return (
+              <li key={r.id} className='flex items-start gap-2.5 px-3 py-2.5'>
+                <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                  <span className='text-[11px] font-bold text-slate-900'>
+                    {formatTs(r.scheduled_at)}
+                  </span>
+                  <span className='whitespace-pre-wrap break-words text-[12px] leading-[1.5] text-slate-700'>
+                    {r.message}
+                  </span>
+                  {lawyerName ? (
+                    <span className='truncate text-[10px] font-semibold text-slate-400'>
+                      {lawyerName}
+                    </span>
+                  ) : null}
+                </div>
+                {canCancel(r) ? (
+                  <button
+                    type='button'
+                    onClick={() => onCancel(r.id)}
+                    disabled={cancellingId !== null}
+                    className='inline-flex flex-shrink-0 items-center gap-0.5 rounded bg-transparent text-[10px] font-bold uppercase tracking-[0.04em] text-slate-400 transition-colors hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50'
+                  >
+                    <MdClose size={11} aria-hidden />
+                    Cancel
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
     </div>
   );
 };

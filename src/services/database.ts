@@ -40,6 +40,7 @@ import type {
   UpdateLawyerStatusDTO,
   UpdatePatternDTO,
   WidgetMetricsResponse,
+  CalendarReminderDTO,
   GlobalNotifSettingsDTO,
   NotificationDTO,
   NotificationHistoryFilters,
@@ -130,6 +131,33 @@ const handleAuthFailure = () => {
   authFailureHandled = true;
   destroyCookie(null, 'currentUser', { path: '/' });
   window.location.href = '/';
+};
+
+// ── Fase 2 — login con regreso (links directos de los emails) ───────────────
+// `next` válido = la lista del rol: `/lead-management` (admin) o `/all-leads`
+// (abogado), con una sola barra inicial, sin `//`, protocolo ni `\`. Cualquier
+// otro valor → null (va al dashboard de siempre). Lo usan el middleware y el login.
+const LOGIN_RETURN_BASE: Record<string, string> = {
+  admin: '/lead-management',
+  lawyer: '/all-leads',
+};
+export const loginReturnPath = (
+  next: string | null | undefined,
+  role: unknown
+): string | null => {
+  const base = LOGIN_RETURN_BASE[String(role ?? '').toLowerCase()];
+  if (!base || !next || !next.startsWith(base)) return null;
+  if (!/^(?:[/?#]|$)/.test(next.slice(base.length))) return null;
+  if (next.includes('//') || next.includes('\\') || /\s/.test(next)) return null;
+  // Sin segmentos "." / ".." (también codificados): /lead-management/../x no vale.
+  let path: string;
+  try {
+    path = decodeURIComponent(next.split(/[?#]/)[0]);
+  } catch {
+    return null;
+  }
+  if (path.split('/').some((seg) => seg === '.' || seg === '..')) return null;
+  return next;
 };
 
 // Wrapper de fetch que dispara el manejo global de 401. Toda llamada autenticada
@@ -1347,6 +1375,22 @@ export const api = {
         { method: 'POST', body: JSON.stringify(body) },
         token
       ),
+    // Fase 2 (2.4) — recordatorios de calendario de un lead. Lista: próximos
+    // pendientes (abogado: los suyos; admin: todos). Cancelar: propio (admin: cualquiera).
+    reminders: {
+      list: (leadId: number, token?: string) =>
+        apiRequest<CalendarReminderDTO[]>(
+          `/notifications/reminders${buildQuery({ lead_id: leadId })}`,
+          { method: 'GET' },
+          token
+        ),
+      cancel: (id: number, token?: string) =>
+        apiRequest<{ id: number }>(
+          `/notifications/reminders/${id}`,
+          { method: 'DELETE' },
+          token
+        ),
+    },
     test: (body?: { lawyer_id?: number }, token?: string) =>
       apiRequest<NotificationDTO>(
         '/notifications/test',

@@ -12,6 +12,8 @@ export interface FilterButtonProps
   dropdown?: boolean;
   /** When true, never show the chevron (plain on/off toggles, e.g. inside a filter panel). */
   hideChevron?: boolean;
+  /** Halo suave constante mientras no está activo (botón "Filters" de las listas). */
+  glow?: boolean;
   trailing?: ReactNode;
 }
 
@@ -23,6 +25,7 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
       count,
       dropdown = false,
       hideChevron = false,
+      glow = false,
       trailing,
       type,
       className,
@@ -42,6 +45,9 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
           active
             ? 'border-slate-900 bg-slate-900 text-white'
             : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900',
+          glow &&
+            !active &&
+            'animate-[soft-glow_2.4s_ease-in-out_infinite] border-customRed/50 text-slate-900 motion-reduce:animate-none motion-reduce:shadow-[0_0_0_3px_rgba(255,66,64,0.16)]',
           className
         )}
         aria-pressed={hideChevron ? active : undefined}
