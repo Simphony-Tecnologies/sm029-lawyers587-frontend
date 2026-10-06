@@ -10,6 +10,7 @@ export {
   getLeadStatusMeta,
   isDestructiveStatus,
   isReasonRequired,
+  reasonPlaceholderFor,
   SPAM_REASON_LABELS,
   SPAM_REASON_TONE,
   SPAM_SCORE_META,

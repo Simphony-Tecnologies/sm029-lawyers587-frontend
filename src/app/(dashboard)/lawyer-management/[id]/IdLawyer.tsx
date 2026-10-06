@@ -8,12 +8,18 @@ import { useRouter } from 'next/navigation';
 import {
   MdArrowBack,
   MdArrowForward,
+  MdCheckCircleOutline,
   MdCircle,
   MdDownload,
+  MdEventAvailable,
   MdHistoryEdu,
+  MdMoveToInbox,
   MdNotifications,
   MdOutlineLogin,
+  MdReplay,
+  MdSchedule,
   MdSquare,
+  MdTrendingUp,
 } from 'react-icons/md';
 import { useLeadsStore } from '@/store/useLead.store';
 import { api, database, downloadBlob } from '@/services/database';
@@ -21,6 +27,7 @@ import type {
   ActionType,
   AuditEvent as AuditEventDTO,
   LawyerHistoryResponse,
+  LawyerPerformanceRow,
   LeadComment,
   LeadDTO,
   LeadStatus,
@@ -32,12 +39,14 @@ import {
   Avatar,
   AuditEvent,
   DataTable,
+  DEFAULT_PERIODS,
   EmptyStateBox,
   FilterButton,
   KpiCard,
   LawyerIdentity,
   LeadInfoModal,
   OriginBadge,
+  PeriodSelect,
   SearchField,
   SourceBadge,
   StatusPill,
@@ -45,11 +54,25 @@ import {
   variantFromStatus,
   type AuditEventTone,
   type DataTableColumn,
+  type KpiCardProps,
   type LeadInfoSubmitPayload,
   type LeadStatusOption,
   type KpiTone,
+  type PeriodKey,
+  type PeriodOption,
 } from '@/components/ui';
 import { sourceLabel } from '@/lib/lead-source';
+import { apiText } from '@/lib/apiText';
+import {
+  formatDays,
+  formatDeltaPct,
+  formatHours,
+  formatPercent,
+  formatSignedDays,
+  formatSignedInt,
+  periodToRange,
+  trendToDirection,
+} from '@/lib/metrics';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
 import ReLoading from '@/components/atoms/ReLoading';
 import Button from '@/components/atoms/Button';
@@ -112,6 +135,19 @@ const STATUS_OPTIONS_SELECT: LeadStatusOption[] = [
   { name: 'Retained', value: 'CLOSED' },
   { name: 'Disabled', value: 'DISABLED' },
 ];
+// Completed solo se alcanza desde Retained: se ofrece en leads Retained y
+// Completed (desde Completed el admin puede ir a cualquier otro status).
+const STATUS_OPTIONS_RETAINED: LeadStatusOption[] = [
+  { name: 'Assigned', value: 'ASSIGNED' },
+  { name: 'In progress', value: 'IN PROGRESS' },
+  { name: 'Waiting on Client', value: 'WAITING_ON_CLIENT' },
+  { name: 'New', value: 'NEW' },
+  { name: 'Flagged', value: 'PROBLEMATIC' },
+  { name: 'Send back', value: 'LOST' },
+  { name: 'Retained', value: 'CLOSED' },
+  { name: 'Completed', value: 'COMPLETED' },
+  { name: 'Disabled', value: 'DISABLED' },
+];
 
 const ACTIVE_STATUSES = new Set(['ASSIGNED', 'IN PROGRESS', 'WAITING_ON_CLIENT']);
 const LOST_STATUSES = new Set(['LOST', 'EXPIRED']);
@@ -124,6 +160,7 @@ const LEAD_STATUS_LABEL: Partial<Record<LeadStatus, string>> = {
   WAITING_ON_CLIENT: 'Waiting on Client',
   PROBLEMATIC: 'Flagged',
   CLOSED: 'Retained',
+  COMPLETED: 'Completed',
   LOST: 'Sent back',
   SEND_BACK: 'Sent back',
   EXPIRED: 'Expired',
@@ -231,6 +268,94 @@ const LEAD_TABLE_COLUMNS: DataTableColumn<LeadRow>[] = [
         {dayjs.utc(r.date_updated).local().format('MMM DD, HH:mm')}
       </span>
     ),
+  },
+];
+
+// ─── Lawyer performance ──────────────────────────────────────────────────────
+// Las métricas del ranking del dashboard (PerformancePanel) para este abogado:
+// mismas etiquetas y formatos. El Δ es el que devuelve el backend vs el período
+// anterior; las métricas sin Δ (o con Δ null) no muestran pill.
+type PerfTrend = KpiCardProps['trend'];
+
+// Mismo TrendPill que el ranking: la flecha sigue el signo del cambio; en
+// métricas donde bajar es mejor (Lost, días para convertir) el color se invierte.
+const signedTrend = (n: number, value: string, lowerIsBetter = false): PerfTrend => ({
+  direction: n > 0 ? 'up' : n < 0 ? 'down' : 'neutral',
+  value,
+  lowerIsBetter,
+});
+
+const PERF_CARDS: {
+  key: string;
+  label: string;
+  tone: KpiTone;
+  icon: JSX.Element;
+  value: (r: LawyerPerformanceRow) => number | string;
+  trend?: (r: LawyerPerformanceRow) => PerfTrend;
+}[] = [
+  {
+    key: 'taken',
+    label: 'Taken',
+    tone: 'violet',
+    icon: <MdMoveToInbox size={14} />,
+    value: (r) => r.taken,
+    trend: (r) => signedTrend(r.delta.taken, formatSignedInt(r.delta.taken)),
+  },
+  {
+    key: 'closed',
+    label: 'Closed',
+    tone: 'emerald',
+    icon: <MdCheckCircleOutline size={14} />,
+    value: (r) => r.closed,
+    trend: (r) => signedTrend(r.delta.closed, formatSignedInt(r.delta.closed)),
+  },
+  {
+    key: 'conversion_rate',
+    label: 'Conversion',
+    tone: 'sky',
+    icon: <MdTrendingUp size={14} />,
+    value: (r) => formatPercent(r.conversion_rate),
+    // Δ en puntos %; misma dirección (delta.trend) que la pill del ranking.
+    trend: (r) =>
+      r.delta.conversion_rate == null
+        ? undefined
+        : {
+            direction: trendToDirection(r.delta.trend),
+            value: formatDeltaPct(r.delta.conversion_rate),
+          },
+  },
+  {
+    key: 'avg_days_to_convert',
+    label: 'Avg. Days to Convert',
+    tone: 'amber',
+    icon: <MdEventAvailable size={14} />,
+    value: (r) => formatDays(r.avg_days_to_convert),
+    trend: (r) => {
+      const d = r.delta.avg_days_to_convert;
+      return d == null ? undefined : signedTrend(Number(d.toFixed(1)), formatSignedDays(d), true);
+    },
+  },
+  {
+    key: 'avg_response_hours',
+    label: 'Avg. Response',
+    tone: 'slate',
+    icon: <MdSchedule size={14} />,
+    value: (r) => formatHours(r.avg_response_hours),
+  },
+  {
+    key: 'lost',
+    label: 'Lost',
+    tone: 'coral',
+    icon: <MdReplay size={14} />,
+    value: (r) => r.lost,
+    trend: (r) => signedTrend(r.delta.lost, formatSignedInt(r.delta.lost), true),
+  },
+  {
+    key: 'active_assigned',
+    label: 'Active Now',
+    tone: 'violet',
+    icon: <MdSquare size={12} />,
+    value: (r) => r.active_assigned,
   },
 ];
 
@@ -417,6 +542,34 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   const [commentsLoading, setCommentsLoading] = useState(false);
 
   const lawyerId = useMemo(() => parseInt(params.id, 10), [params.id]);
+
+  // Lawyer performance: su propio período, como el ranking del dashboard.
+  const [perfPeriod, setPerfPeriod] = useState<PeriodKey>('month');
+  const [perfRow, setPerfRow] = useState<LawyerPerformanceRow | null>(null);
+  const [perfError, setPerfError] = useState<string | null>(null);
+
+  // Mismo período → rango (periodToRange) que PerformancePanel, filtrado a
+  // este abogado: los números coinciden con su fila del ranking.
+  useEffect(() => {
+    if (!Number.isFinite(lawyerId)) return;
+    let active = true;
+    const days = DEFAULT_PERIODS.find((o) => o.key === perfPeriod)?.days ?? null;
+    setPerfRow(null);
+    setPerfError(null);
+    api.lawyers.metrics
+      .performance({ ...periodToRange(days), lawyer_id: lawyerId })
+      .then((res) => {
+        if (!active) return;
+        if (res.success && res.data) {
+          setPerfRow(res.data.lawyers.find((r) => r.lawyer_id === lawyerId) ?? null);
+        } else {
+          setPerfError(apiText(res.message, 'Unable to load performance'));
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [lawyerId, perfPeriod]);
 
   const fetchLawyer = async () => {
     const res = await database.getLawyer(params.id);
@@ -843,7 +996,8 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     if (!selectedLead) return;
     const upper = (status ?? '').toUpperCase() as LeadStatus;
     const reasonRequired =
-      upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST' || upper === 'WAITING_ON_CLIENT';
+      upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST' || upper === 'WAITING_ON_CLIENT' ||
+      upper === 'COMPLETED';
     const reason = (comments ?? '').trim();
     if (reasonRequired && reason.length === 0) {
       toast.error('A reason is required for this status change');
@@ -916,7 +1070,11 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
               }
             : null
         }
-        statusOptions={STATUS_OPTIONS_SELECT}
+        statusOptions={
+          selectedLead?.status === 'CLOSED' || selectedLead?.status === 'COMPLETED'
+            ? STATUS_OPTIONS_RETAINED
+            : STATUS_OPTIONS_SELECT
+        }
         onSubmit={handleSave}
         loading={loading}
         breadcrumb={`${displayName} · Audit`}
@@ -1050,6 +1208,39 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           </div>
         </section>
       ) : null}
+
+      {/* ─── Lawyer performance ─────────────────────────────────────
+          GET /lawyers/metrics/performance?lawyer_id=<id>. Sin datos o
+          cargando, cada card muestra '—'. */}
+      <section className='flex flex-col gap-3'>
+        <div className='flex flex-wrap items-center justify-between gap-3'>
+          <h2 className='text-[15px] font-extrabold tracking-[-0.015em] text-slate-900'>
+            Lawyer performance
+          </h2>
+          <PeriodSelect
+            ariaLabel='Performance period'
+            value={perfPeriod}
+            onChange={(opt: PeriodOption) => setPerfPeriod(opt.key)}
+          />
+        </div>
+        {perfError ? (
+          <p className='text-sm text-slate-500'>{perfError}</p>
+        ) : (
+          <div className='grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4'>
+            {PERF_CARDS.map((card) => (
+              <KpiCard
+                key={card.key}
+                label={card.label}
+                tone={card.tone}
+                icon={card.icon}
+                value={perfRow ? card.value(perfRow) : '—'}
+                // "All time" no tiene período anterior comparable: sin variación.
+                trend={perfRow && perfPeriod !== 'all' ? card.trend?.(perfRow) : undefined}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* ── Notification Preferences ────────────────────────────────── */}
       <section className='flex flex-col gap-3'>

@@ -58,6 +58,7 @@ const STATUS_OPTIONS: LeadStatus[] = [
   'ASSIGNED',
   'IN PROGRESS',
   'CLOSED',
+  'COMPLETED',
   'LOST',
   'PROBLEMATIC',
   'EXPIRED',
@@ -122,6 +123,8 @@ const statusPillClass = (status: LeadStatus): string => {
       return 'bg-sky-50 text-sky-700';
     case 'CLOSED':
       return 'bg-emerald-50 text-emerald-700';
+    case 'COMPLETED':
+      return 'bg-indigo-50 text-indigo-700';
     case 'LOST':
     case 'PROBLEMATIC':
     case 'TRASHED':

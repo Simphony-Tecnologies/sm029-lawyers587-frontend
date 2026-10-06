@@ -17,6 +17,7 @@ export const LAWYER_LEAD_FILTERS: LeadFilterDef[] = [
   { slug: 'waiting', label: 'Waiting on Client', status: 'WAITING_ON_CLIENT' },
   { slug: 'flagged', label: 'Flagged', status: 'PROBLEMATIC' },
   { slug: 'retained', label: 'Retained', status: 'CLOSED' },
+  { slug: 'completed', label: 'Completed', status: 'COMPLETED' },
   { slug: 'disabled', label: 'Disabled', status: 'DISABLED' },
 ];
 
@@ -29,11 +30,13 @@ export const statusFromSlug = (slug?: string | null): LeadStatus | null => {
 
 // L587-05 / L587-06 — Fuente única de la regla de visibilidad de contacto.
 // El teléfono y el correo del lead solo se muestran al abogado cuando el lead
-// está en In Progress / Waiting on Client / Retained. El admin siempre los ve.
+// está en In Progress / Waiting on Client / Retained / Completed. El admin
+// siempre los ve.
 export const CONTACT_VISIBLE_STATUSES: LeadStatus[] = [
   'IN PROGRESS',
   'WAITING_ON_CLIENT',
   'CLOSED',
+  'COMPLETED',
 ];
 
 export const canViewLeadContact = (
@@ -58,6 +61,7 @@ export const ADMIN_LEAD_FILTERS: LeadFilterDef[] = [
   { slug: 'flagged', label: 'Flagged', status: 'PROBLEMATIC' },
   { slug: 'sent-back', label: 'Sent Back', status: 'LOST' },
   { slug: 'retained', label: 'Retained', status: 'CLOSED' },
+  { slug: 'completed', label: 'Completed', status: 'COMPLETED' },
   { slug: 'disabled', label: 'Disabled', status: 'DISABLED' },
   { slug: 'expired', label: 'Expired', status: 'EXPIRED' },
   { slug: 'review', label: 'Review', status: 'REVIEW' },

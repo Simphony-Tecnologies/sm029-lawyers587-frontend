@@ -23,6 +23,8 @@ export interface KpiCardProps
     direction: 'up' | 'down' | 'neutral';
     value: string;
     meta?: string;
+    /** Bajar es mejor (Lost, días): verde al bajar, rojo al subir. */
+    lowerIsBetter?: boolean;
   };
   spark?: number[];
   caption?: ReactNode;
@@ -104,7 +106,13 @@ export const KpiCard = forwardRef<HTMLButtonElement, KpiCardProps>(
           <span className='text-[30px] font-extrabold leading-none tracking-[-0.035em] tabular-nums text-slate-900'>
             {value}
           </span>
-          {trend ? <TrendPill direction={trend.direction} value={trend.value} /> : null}
+          {trend ? (
+            <TrendPill
+              direction={trend.direction}
+              value={trend.value}
+              lowerIsBetter={trend.lowerIsBetter}
+            />
+          ) : null}
           {trend?.meta ? (
             <span className='ml-auto text-[10px] font-medium text-slate-400'>
               {trend.meta}

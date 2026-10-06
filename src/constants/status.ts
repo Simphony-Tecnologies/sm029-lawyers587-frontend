@@ -25,6 +25,10 @@ export const statusSelectAll = [
     value: 'CLOSED',
   },
   {
+    name: 'Completed',
+    value: 'COMPLETED',
+  },
+  {
     name: 'Disabled',
     value: 'DISABLED',
   },

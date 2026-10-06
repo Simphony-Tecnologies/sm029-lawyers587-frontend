@@ -13,6 +13,7 @@ const statusPillStyles = cva(
         'waiting-on-client': 'bg-orange-50 text-orange-700',
         problematic: 'bg-rose-50 text-rose-700',
         closed: 'bg-slate-100 text-slate-600',
+        completed: 'bg-indigo-50 text-indigo-700',
         lost: 'bg-orange-50 text-orange-700',
         expired: 'bg-stone-100 text-stone-600',
         disabled: 'bg-slate-100 text-slate-500',
@@ -34,6 +35,7 @@ export type StatusPillVariant =
   | 'waiting-on-client'
   | 'problematic'
   | 'closed'
+  | 'completed'
   | 'lost'
   | 'expired'
   | 'disabled'
@@ -52,6 +54,7 @@ const LABELS: Record<StatusPillVariant, string> = {
   'waiting-on-client': 'Waiting on Client',
   problematic: 'Flagged',
   closed: 'Retained',
+  completed: 'Completed',
   lost: 'Sent back',
   expired: 'Expired',
   disabled: 'Disabled',
@@ -67,6 +70,7 @@ const RAW_TO_VARIANT: Record<string, StatusPillVariant> = {
   WAITING_ON_CLIENT: 'waiting-on-client',
   PROBLEMATIC: 'problematic',
   CLOSED: 'closed',
+  COMPLETED: 'completed',
   LOST: 'lost',
   // SEND_BACK y ARCHIVED caían al fallback 'closed' y se pintaban "Retained".
   // SEND_BACK comparte etiqueta con LOST ("Sent back") hasta la decisión C1.

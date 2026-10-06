@@ -112,8 +112,15 @@ const STATUS_OPTIONS: LeadStatusOption[] = [
   { name: 'Retained', value: 'CLOSED' },
 ];
 
+// Completed solo se alcanza desde Retained y no se reabre: un lead Completed
+// solo ofrece Completed.
 const STATUS_OPTIONS_CLOSED: LeadStatusOption[] = [
   { name: 'Retained', value: 'CLOSED' },
+  { name: 'Completed', value: 'COMPLETED' },
+];
+
+const STATUS_OPTIONS_COMPLETED: LeadStatusOption[] = [
+  { name: 'Completed', value: 'COMPLETED' },
 ];
 
 const ASSIGNED_FRESHNESS_HOURS = 48;
@@ -373,7 +380,8 @@ const AllLeads = () => {
     if (!selectedLead) return;
     const upper = (status ?? '').toUpperCase() as LeadStatus;
     const reasonRequired =
-      upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST' || upper === 'WAITING_ON_CLIENT';
+      upper === 'PROBLEMATIC' || upper === 'SEND_BACK' || upper === 'LOST' || upper === 'WAITING_ON_CLIENT' ||
+      upper === 'COMPLETED';
     const reason = (comments ?? '').trim();
     if (reasonRequired && reason.length === 0) {
       toast.error('A reason is required for this status change');
@@ -732,6 +740,8 @@ const AllLeads = () => {
         statusOptions={
           selectedLead?.status === 'CLOSED'
             ? STATUS_OPTIONS_CLOSED
+            : selectedLead?.status === 'COMPLETED'
+            ? STATUS_OPTIONS_COMPLETED
             : STATUS_OPTIONS
         }
         onSubmit={handleSaveLead}

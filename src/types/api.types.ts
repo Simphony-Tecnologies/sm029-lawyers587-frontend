@@ -9,6 +9,7 @@ export type LeadStatus =
   | 'ASSIGNED'
   | 'IN PROGRESS'
   | 'CLOSED'
+  | 'COMPLETED'
   | 'LOST'
   | 'PROBLEMATIC'
   | 'EXPIRED'
@@ -551,13 +552,15 @@ export type PerformanceSortBy =
   | 'closed'
   | 'taken'
   | 'lost'
-  | 'active_assigned';
+  | 'active_assigned'
+  | 'avg_days_to_convert';
 
 export interface PerformanceDelta {
   taken: number;
   closed: number;
   lost: number;
   conversion_rate: number | null; // Δ en puntos %, null si algún período tenía taken=0
+  avg_days_to_convert: number | null; // Δ en días, null si algún período no tuvo conversiones
   trend: Trend;
 }
 
@@ -570,6 +573,7 @@ export interface LawyerPerformanceRow {
   lost: number;
   conversion_rate: number | null; // closed/taken %, null si taken=0
   avg_response_hours: number | null; // asignación → 1ª acción; null si N/A
+  avg_days_to_convert: number | null; // días promedio hasta la conversión; null si N/A
   active_assigned: number; // snapshot ACTUAL (no depende del rango)
   delta: PerformanceDelta;
 }

@@ -21,6 +21,8 @@ export interface TrendPillProps
   extends HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof trendPillStyles> {
   value: string;
+  /** Métricas donde bajar es mejor (Lost, días): la flecha sigue el cambio y el color se invierte. */
+  lowerIsBetter?: boolean;
 }
 
 const Icon = ({ direction }: { direction: TrendPillProps['direction'] }) => {
@@ -30,10 +32,20 @@ const Icon = ({ direction }: { direction: TrendPillProps['direction'] }) => {
 };
 
 export const TrendPill = forwardRef<HTMLSpanElement, TrendPillProps>(
-  ({ direction, value, className, ...rest }, ref) => (
+  ({ direction, value, lowerIsBetter = false, className, ...rest }, ref) => (
     <span
       ref={ref}
-      className={cn(trendPillStyles({ direction }), className)}
+      className={cn(
+        trendPillStyles({
+          direction:
+            lowerIsBetter && direction === 'up'
+              ? 'down'
+              : lowerIsBetter && direction === 'down'
+                ? 'up'
+                : direction,
+        }),
+        className
+      )}
       {...rest}
     >
       <Icon direction={direction} />
