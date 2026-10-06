@@ -70,6 +70,7 @@ import {
   ViewToggle,
   channelKey,
   channelLabel,
+  reasonPlaceholderFor,
   toneFromString,
   variantFromStatus,
   type ActiveFilterChip,
@@ -182,6 +183,19 @@ const STATUS_OPTIONS_SELECT = [
   { name: 'Archive', value: 'ARCHIVED' },
   { name: 'Expired', value: 'EXPIRED' },
 ];
+// Completed solo se alcanza desde Retained: se ofrece en leads Retained y
+// Completed (desde Completed el admin puede ir a cualquier otro status).
+const STATUS_OPTIONS_RETAINED = [
+  { name: 'In progress', value: 'IN PROGRESS' },
+  { name: 'Waiting on Client', value: 'WAITING_ON_CLIENT' },
+  { name: 'Flagged', value: 'PROBLEMATIC' },
+  { name: 'Send back', value: 'LOST' },
+  { name: 'Retained', value: 'CLOSED' },
+  { name: 'Completed', value: 'COMPLETED' },
+  { name: 'Disabled', value: 'DISABLED' },
+  { name: 'Archive', value: 'ARCHIVED' },
+  { name: 'Expired', value: 'EXPIRED' },
+];
 // Lead NEW/EXPIRED: no tiene lawyer asignado.
 // Flagged (ej: spam) y Send back (ej: lawyer inactivo) son acciones
 // del admin que no requieren lawyer. In Progress y Retained sí requieren
@@ -212,6 +226,7 @@ const BULK_STATUS_OPTIONS: { name: string; value: string }[] = [
   { name: 'Flagged', value: 'PROBLEMATIC' },
   { name: 'Send back', value: 'LOST' },
   { name: 'Retained', value: 'CLOSED' },
+  { name: 'Completed', value: 'COMPLETED' },
   { name: 'Disabled', value: 'DISABLED' },
 ];
 
@@ -1669,6 +1684,9 @@ const LeadManagement = () => {
               selectedLead.status === 'EXPIRED' ||
               selectedLead.status === 'SEND_BACK'
             ? STATUS_OPTIONS_NEW
+            : selectedLead.status === 'CLOSED' ||
+              selectedLead.status === 'COMPLETED'
+            ? STATUS_OPTIONS_RETAINED
             : STATUS_OPTIONS_SELECT
         }
         onSubmit={handleSaveLead}
@@ -2007,7 +2025,10 @@ const LeadManagement = () => {
           value={bulkComment}
           onChange={setBulkComment}
           disabled={bulkLoading}
-          placeholder='Why is the status changing for these leads?'
+          placeholder={reasonPlaceholderFor(
+            bulkStatus,
+            'Why is the status changing for these leads?'
+          )}
         />
       </ConfirmationDialog>
 

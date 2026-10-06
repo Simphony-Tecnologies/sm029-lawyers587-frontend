@@ -113,10 +113,13 @@ export const PERIOD_QUEUES: LeadQueueDef[] = [
     label: 'Clients Retained',
     hint: 'Retained',
     info: 'Retained leads whose last update falls in the selected period. Archived leads are not included.',
-    statuses: ['CLOSED'],
+    // COMPLETED sale de Retained y sigue contando como conversión: suma aquí
+    // para que el conteo no baje al completar el caso.
+    statuses: ['CLOSED', 'COMPLETED'],
     // El DTO no trae fecha de cierre: se usa updated_at, que el BE también
     // actualiza en cualquier PUT posterior sobre el lead CLOSED (aproximación
-    // hasta que el BE exponga closed_at).
+    // hasta que el BE exponga closed_at). En un COMPLETED, updated_at es la
+    // fecha en que se completó.
     periodField: 'updated',
     sort: { field: 'updated', direction: 'desc', label: 'Most recently retained first' },
   },

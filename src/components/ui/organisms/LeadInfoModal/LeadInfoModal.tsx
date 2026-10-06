@@ -33,6 +33,7 @@ import {
   getLeadStatusMeta,
   isDestructiveStatus,
   isReasonRequired,
+  reasonPlaceholderFor,
   SPAM_REASON_LABELS,
   SPAM_REASON_TONE,
   SPAM_SCORE_META,
@@ -1105,7 +1106,10 @@ export const LeadInfoModal = ({
                       onChange={(e) =>
                         setComment(e.target.value.slice(0, REASON_MAX))
                       }
-                      placeholder='Explain the reason for this status change. The super admin will see this in the lead history.'
+                      placeholder={reasonPlaceholderFor(
+                        selectedStatus,
+                        'Explain the reason for this status change. The super admin will see this in the lead history.'
+                      )}
                       disabled={loading}
                       className={cn(
                         'min-h-[96px] w-full resize-y rounded-[10px] border-[1.5px] bg-white px-3.5 py-3 text-[13px] font-medium leading-[1.5] text-slate-900 outline-none transition-colors',

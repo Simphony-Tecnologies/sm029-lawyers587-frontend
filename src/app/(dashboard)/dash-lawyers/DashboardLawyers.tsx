@@ -6,6 +6,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import {
   MdAddCircleOutline,
   MdCheckCircleOutline,
+  MdDoneAll,
   MdHighlightOff,
   MdInfoOutline,
   MdOutbox,
@@ -96,12 +97,18 @@ const RETAINED_CARD: LawyerCardDef = {
 // Leads que ocupan capacidad (mismo criterio que el desglose por área).
 const ACTIVE_STATUSES = new Set(['ASSIGNED', 'IN PROGRESS', 'WAITING_ON_CLIENT']);
 
+// "Your results": Completed sale de Retained y sigue contando como conversión,
+// así que suma en Retained (la card abre ambos filtros: lista = conteo).
+const RETAINED_STATUSES = new Set(['CLOSED', 'COMPLETED']);
+const RETAINED_SLUGS = ['retained', 'completed'];
+
 const ACTION_TONE_BY_STATUS: Record<string, { bg: string; fg: string; icon: JSX.Element }> = {
   NEW: { bg: 'bg-violet-100', fg: 'text-violet-600', icon: <MdAddCircleOutline size={14} /> },
   ASSIGNED: { bg: 'bg-violet-100', fg: 'text-violet-600', icon: <MdOutbox size={14} /> },
   'IN PROGRESS': { bg: 'bg-sky-100', fg: 'text-sky-700', icon: <MdSwapHoriz size={14} /> },
   PROBLEMATIC: { bg: 'bg-amber-100', fg: 'text-amber-700', icon: <MdInfoOutline size={14} /> },
   CLOSED: { bg: 'bg-emerald-100', fg: 'text-emerald-700', icon: <MdCheckCircleOutline size={14} /> },
+  COMPLETED: { bg: 'bg-indigo-100', fg: 'text-indigo-700', icon: <MdDoneAll size={14} /> },
   LOST: { bg: 'bg-rose-100', fg: 'text-rose-600', icon: <MdHighlightOff size={14} /> },
   EXPIRED: { bg: 'bg-rose-100', fg: 'text-rose-600', icon: <MdHighlightOff size={14} /> },
   WAITING_ON_CLIENT: { bg: 'bg-orange-100', fg: 'text-orange-700', icon: <MdSchedule size={14} /> },
@@ -196,6 +203,11 @@ const DashboardLawyers = () => {
     [leads]
   );
 
+  const retainedCount = useMemo(
+    () => leads.filter((l) => RETAINED_STATUSES.has(l.status)).length,
+    [leads]
+  );
+
   const openFilter = (slug: string) => {
     router.push(`/all-leads?status=${slug}`);
   };
@@ -236,11 +248,11 @@ const DashboardLawyers = () => {
     {
       key: 'retained',
       label: 'Retained',
-      value: leads.filter((l) => l.status === 'CLOSED').length,
+      value: retainedCount,
       color: '#4AD991',
       dotClass: 'bg-emerald-400',
     },
-  ], [leads]);
+  ], [leads, retainedCount]);
 
   const displayName =
     userId && (userId.firstName || userId.lastName)
@@ -287,10 +299,12 @@ const DashboardLawyers = () => {
             label={RETAINED_CARD.label}
             hint={RETAINED_CARD.hint}
             info={RETAINED_CARD.info}
-            value={countFor(RETAINED_CARD.slug)}
+            value={leadsLoaded ? retainedCount : '—'}
             tone={RETAINED_CARD.tone}
             icon={RETAINED_CARD.icon}
-            onClick={() => openFilter(RETAINED_CARD.slug)}
+            onClick={() =>
+              router.push(`/all-leads?${RETAINED_SLUGS.map((s) => `status=${s}`).join('&')}`)
+            }
           />
           <PipelineChart segments={pipelineSegments} />
         </div>

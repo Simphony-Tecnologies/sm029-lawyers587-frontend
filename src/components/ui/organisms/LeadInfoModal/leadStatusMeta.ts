@@ -5,6 +5,7 @@ export type LeadStatusKey =
   | 'PROBLEMATIC'
   | 'WAITING_ON_CLIENT'
   | 'CLOSED'
+  | 'COMPLETED'
   | 'LOST'
   | 'EXPIRED'
   | 'DISABLED'
@@ -75,6 +76,17 @@ export const LEAD_STATUS_META: Record<LeadStatusKey, LeadStatusMeta> = {
     triggerClass: 'bg-emerald-50 border-emerald-200 text-emerald-700',
     triggerHoverClass: 'hover:bg-emerald-100 hover:border-emerald-300',
     triggerMetaClass: 'text-emerald-700/70',
+  },
+  // Completed: cierre posterior a Retained. Índigo (tono "violet" del sistema)
+  // para distinguirlo del verde de Retained.
+  COMPLETED: {
+    label: 'Completed',
+    dotClass: 'bg-indigo-500',
+    textClass: 'text-indigo-700',
+    badgeBgClass: 'bg-indigo-50',
+    triggerClass: 'bg-indigo-50 border-indigo-200 text-indigo-700',
+    triggerHoverClass: 'hover:bg-indigo-100 hover:border-indigo-300',
+    triggerMetaClass: 'text-indigo-700/70',
   },
   LOST: {
     label: 'Sent back',
@@ -153,10 +165,19 @@ export const SPAM_SCORE_META: Record<number, { label: string; tone: string }> = 
 export const TRASH_PURGE_DAYS = 30;
 
 // Statuses que requieren razón obligatoria — alineado con backend.
-const REASON_REQUIRED_STATUSES = new Set(['LOST', 'PROBLEMATIC', 'SEND_BACK', 'WAITING_ON_CLIENT']);
+const REASON_REQUIRED_STATUSES = new Set(['LOST', 'PROBLEMATIC', 'SEND_BACK', 'WAITING_ON_CLIENT', 'COMPLETED']);
 
 export const isReasonRequired = (raw?: string): boolean =>
   REASON_REQUIRED_STATUSES.has((raw ?? '').toUpperCase());
+
+// Placeholder propio de la nota obligatoria según el status destino (texto del
+// cliente). El resto de statuses conserva el placeholder genérico del diálogo.
+const REASON_PLACEHOLDERS: Record<string, string> = {
+  COMPLETED: 'Briefly describe the outcome.',
+};
+
+export const reasonPlaceholderFor = (raw: string | undefined, fallback: string): string =>
+  REASON_PLACEHOLDERS[(raw ?? '').toUpperCase()] ?? fallback;
 
 // Destructive = permanent/unassign action. Red warning + "do not contact" toggle.
 const DESTRUCTIVE_STATUSES = new Set(['LOST', 'SEND_BACK']);

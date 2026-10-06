@@ -9,6 +9,7 @@ import type {
   PerformanceSortBy,
 } from '@/types/api.types';
 import {
+  formatDays,
   formatHours,
   formatPercent,
   formatSignedInt,
@@ -42,9 +43,14 @@ const CSV_VALUE: Record<string, (r: LawyerPerformanceRow) => CellValue> = {
   closed: (r) => r.closed,
   lost: (r) => r.lost,
   conversion_rate: (r) => formatPercent(r.conversion_rate),
+  avg_days_to_convert: (r) => formatDays(r.avg_days_to_convert),
   avg_response_hours: (r) => formatHours(r.avg_response_hours),
   active_assigned: (r) => r.active_assigned,
 };
+
+// Columnas de enteros cortos: pueden bajar a 80px para que las 8 columnas
+// quepan sin scroll horizontal a 1280px; con espacio, todas reparten 1fr igual.
+const NARROW_COLUMN = 'minmax(80px, 1fr)';
 
 // Mismo estilo que los botones Export CSV de la Fase 1, con la altura del PeriodSelect.
 const EXPORT_BUTTON_CLASS =
@@ -147,6 +153,7 @@ export const PerformancePanel = ({
       {
         key: 'taken',
         label: 'Taken',
+        width: NARROW_COLUMN,
         align: 'right',
         sortable: true,
         accessor: (r) => r.taken,
@@ -155,6 +162,7 @@ export const PerformancePanel = ({
       {
         key: 'closed',
         label: 'Closed',
+        width: NARROW_COLUMN,
         align: 'right',
         sortable: true,
         accessor: (r) => r.closed,
@@ -163,6 +171,7 @@ export const PerformancePanel = ({
       {
         key: 'lost',
         label: 'Lost',
+        width: NARROW_COLUMN,
         align: 'right',
         sortable: true,
         accessor: (r) => r.lost,
@@ -178,12 +187,23 @@ export const PerformancePanel = ({
         render: (r) => (
           <div className='flex items-center justify-end gap-1.5'>
             <span className='tabular-nums'>{formatPercent(r.conversion_rate)}</span>
-            <TrendPill
-              direction={trendToDirection(r.delta.trend)}
-              value={formatSignedInt(r.delta.closed)}
-            />
+            {/* "All time" no tiene período anterior comparable: sin variación. */}
+            {days != null ? (
+              <TrendPill
+                direction={trendToDirection(r.delta.trend)}
+                value={formatSignedInt(r.delta.closed)}
+              />
+            ) : null}
           </div>
         ),
+      },
+      {
+        key: 'avg_days_to_convert',
+        label: 'Avg. Days to Convert',
+        align: 'right',
+        sortable: true,
+        accessor: (r) => r.avg_days_to_convert ?? -1,
+        render: (r) => <span className='tabular-nums'>{formatDays(r.avg_days_to_convert)}</span>,
       },
       {
         key: 'avg_response_hours',
@@ -196,13 +216,14 @@ export const PerformancePanel = ({
       {
         key: 'active_assigned',
         label: 'Active Now',
+        width: NARROW_COLUMN,
         align: 'right',
         sortable: true,
         accessor: (r) => r.active_assigned,
         render: (r) => <span className='tabular-nums'>{r.active_assigned}</span>,
       },
     ],
-    []
+    [days]
   );
 
   // Fase 3 (3.1) — Lawyer Ranking a CSV: mismas filas (todas las páginas),

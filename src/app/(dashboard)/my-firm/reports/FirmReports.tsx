@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   MdBlock,
   MdCheckCircleOutline,
+  MdDoneAll,
   MdFlag,
   MdMoveToInbox,
   MdOutbox,
@@ -60,6 +61,7 @@ const STATUS_VISUAL: Partial<Record<LeadStatus, { tone: KpiTone; icon: JSX.Eleme
   WAITING_ON_CLIENT: { tone: 'amber', icon: <MdSchedule size={14} /> },
   PROBLEMATIC: { tone: 'coral', icon: <MdFlag size={14} /> },
   CLOSED: { tone: 'emerald', icon: <MdCheckCircleOutline size={14} /> },
+  COMPLETED: { tone: 'violet', icon: <MdDoneAll size={14} /> },
   DISABLED: { tone: 'slate', icon: <MdBlock size={14} /> },
 };
 
