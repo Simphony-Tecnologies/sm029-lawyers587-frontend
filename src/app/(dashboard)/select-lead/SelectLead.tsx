@@ -10,7 +10,10 @@ import type { LeadDTO } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
 import useLoadingStore from '@/store/useLoadingStore';
 import { useLeadsStore } from '@/store/useLead.store';
-import { getServicesLawyer } from '@/utils/getNameServiceLawyer';
+import {
+  dedupeServicesCapacity,
+  getServicesLawyer,
+} from '@/utils/getNameServiceLawyer';
 import {
   Avatar,
   BulkActionBar,
@@ -87,8 +90,20 @@ const SelectLead = () => {
     [lawyerServices]
   );
 
+  // Activos = los que el backend cuenta contra la capacidad (active_assigned_leads
+  // por área en services_capacity, una fila por área). El total de
+  // /leads?assigned_to incluía Retained, Disabled, etc. (28 en vez de 9) y podía
+  // bloquear el pull con cupo libre. Ese total queda solo como respaldo.
+  const activeCount = useMemo(() => {
+    if (!Array.isArray(userDetail?.services_capacity)) return assignedCount;
+    return dedupeServicesCapacity<any>(userDetail.services_capacity).reduce(
+      (acc: number, s: any) => acc + (Number(s?.active_assigned_leads) || 0),
+      0
+    );
+  }, [userDetail, assignedCount]);
+
   const available = Math.max(
-    capacityTotal - assignedCount - selectedKeys.size,
+    capacityTotal - activeCount - selectedKeys.size,
     0
   );
 
@@ -148,7 +163,7 @@ const SelectLead = () => {
       toast.error('You need to select at least one lead');
       return;
     }
-    if (capacityTotal - assignedCount < selectedKeys.size) {
+    if (capacityTotal - activeCount < selectedKeys.size) {
       toast.error(
         'You have exceeded the available leads. Please remove some to continue.'
       );
@@ -189,6 +204,8 @@ const SelectLead = () => {
     setSelectedKeys(new Set());
     setConfirmOpen(false);
     void fetchLeads();
+    // services_capacity trae los activos por área (activeCount).
+    void fetchUserAndServices();
     void fetchAssignedCount();
     void fetchPool();
   };
@@ -204,9 +221,9 @@ const SelectLead = () => {
     return {
       count: selected.length,
       byService,
-      after: capacityTotal - assignedCount - selected.length,
+      after: capacityTotal - activeCount - selected.length,
     };
-  }, [filteredPool, selectedKeys, capacityTotal, assignedCount]);
+  }, [filteredPool, selectedKeys, capacityTotal, activeCount]);
 
   const pullFields: ConfirmationField[] = [
     {
@@ -353,7 +370,7 @@ const SelectLead = () => {
           period='Active right now'
           tone='emerald'
           icon={<MdInfoOutline size={14} />}
-          value={assignedCount}
+          value={activeCount}
           caption={
             <span className='text-[11px] font-medium text-slate-400'>
               of {capacityTotal || '—'} total
