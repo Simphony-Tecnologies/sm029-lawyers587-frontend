@@ -332,6 +332,10 @@ const LawyerManagement = () => {
     // Obs 46 — sin áreas (o capacidad 0) = nunca configurado, no "at capacity".
     const totalMax = capacityOf(ownServices);
     const notSetUp = ownServices.length === 0 || totalMax <= 0;
+    // Activos = los que el backend cuenta contra la capacidad, el mismo dato de
+    // la fila de la lista. Antes se contaban Retained y Flagged como activos y
+    // "disponibles" restaba todos los leads históricos (17 / 42 vs 9 / 61).
+    const activeApi = withOutFormat[index].active_assigned_leads;
 
     if (!!dataLeads && dataLeads.length > 0) {
       const filterLeads = dataLeads.filter((item: any) =>
@@ -340,15 +344,16 @@ const LawyerManagement = () => {
           .includes(item['lead id'])
       );
       const total = filterLeads.length;
-      const available = Math.max(totalMax - total, 0);
-      const active = filterLeads.filter(
-        (item: any) =>
-          item.status === 'ASSIGNED' ||
-          item.status === 'PROBLEMATIC' ||
-          item.status === 'IN PROGRESS' ||
-          item.status === 'WAITING_ON_CLIENT' ||
-          item.status === 'CLOSED'
-      ).length;
+      const active =
+        activeApi != null
+          ? Number(activeApi) || 0
+          : filterLeads.filter(
+              (item: any) =>
+                item.status === 'ASSIGNED' ||
+                item.status === 'IN PROGRESS' ||
+                item.status === 'WAITING_ON_CLIENT'
+            ).length;
+      const available = Math.max(totalMax - active, 0);
       const lost = filterLeads.filter(
         (item: any) => item.status === 'LOST'
       ).length;
@@ -357,6 +362,15 @@ const LawyerManagement = () => {
       ).length;
 
       setLawyerStats({ total, available, active, lost, missed });
+      setAssignable({
+        isAssignable: available > 0,
+        toBeAssigned: available,
+        notSetUp,
+      });
+    } else if (activeApi != null) {
+      const active = Number(activeApi) || 0;
+      const available = Math.max(totalMax - active, 0);
+      setLawyerStats({ total: 0, available, active, lost: 0, missed: 0 });
       setAssignable({
         isAssignable: available > 0,
         toBeAssigned: available,
@@ -903,9 +917,11 @@ const LawyerManagement = () => {
     const assignable = lawyerRows.filter((r) => r.status === 'assignable').length;
     const capacity = lawyerRows.filter((r) => r.status === 'capacity').length;
     const pending = lawyerRows.filter((r) => r.status === 'pending').length;
-    const unassignable =
-      statsServer?.inactive ??
-      lawyerRows.filter((r) => r.status === 'unassignable').length;
+    // Mismo criterio que el filtro "Unassignable" (antes /lawyers/stats.inactive
+    // también contaba a los "Pending" y la tarjeta no cuadraba con el filtro).
+    const unassignable = lawyerRows.filter(
+      (r) => r.status === 'unassignable'
+    ).length;
     const specialtyCount =
       statsServer?.by_service?.length ??
       new Set(
@@ -1272,7 +1288,9 @@ const LawyerManagement = () => {
           sub={
             kpis.unassignable > 0
               ? `unassignable: ${kpis.unassignable}`
-              : 'all onboarded'
+              : kpis.pending === 0
+              ? 'all onboarded'
+              : undefined
           }
           icon={
             <svg
