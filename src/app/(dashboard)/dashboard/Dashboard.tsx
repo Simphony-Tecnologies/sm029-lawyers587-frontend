@@ -25,7 +25,6 @@ import { api } from '@/services/database';
 import type {
   ActionType,
   AuditEvent,
-  LawyerListItem,
   MetricsPeriod,
 } from '@/types/api.types';
 import {
@@ -34,6 +33,7 @@ import {
   PageHead,
   PeriodSelect,
   SectionHead,
+  statusLabel,
   type KpiTone,
   type PeriodKey,
   type PeriodOption,
@@ -127,45 +127,21 @@ const Dashboard = () => {
     router.push(`/lead-management?${params}`);
   };
 
-  // Audit log real combinado de los top lawyers activos.
-  // Backend NO expone /audit/recent global → hacemos N fetches a
-  // /lawyers/:id/history y mergeamos por timestamp. Aceptable porque
-  // solo ocurre en mount del dashboard.
-  type ActivityEvent = AuditEvent & {
-    _actorName: string;
-  };
-  const [recentEvents, setRecentEvents] = useState<ActivityEvent[]>([]);
+  // Obs 33/35 — feed global real: una sola llamada a GET /audit (solo admin).
+  // Antes se reconstruía con el historial de los 10 abogados de id más alto y
+  // la actividad de los demás (p. ej. Lawyer Demo, id 3) nunca aparecía.
+  // Sin los "Edit denied", que solo ensucian el feed (siguen en el log completo).
+  const [recentEvents, setRecentEvents] = useState<AuditEvent[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
 
   const fetchRecentActivity = async () => {
     setRecentLoading(true);
-    const lawyersRes = await api.lawyers.list({ is_active: true, limit: 10 });
-    if (!lawyersRes.success || !lawyersRes.data) {
-      setRecentLoading(false);
-      setRecentEvents([]);
-      return;
-    }
-    const lawyers: LawyerListItem[] = lawyersRes.data.data;
-    const histories = await Promise.all(
-      lawyers.map((l) => api.lawyers.history(l.id, { limit: 5 }))
-    );
+    const res = await api.audit.list({
+      limit: 8,
+      exclude_actions: 'edit_denied',
+    });
     setRecentLoading(false);
-
-    const merged: ActivityEvent[] = histories
-      .flatMap((h, i) => {
-        if (!h.success || !h.data) return [];
-        const lawyer = lawyers[i];
-        const fullName =
-          `${lawyer.firstName ?? ''} ${lawyer.lastName ?? ''}`.trim() ||
-          `Lawyer #${lawyer.id}`;
-        return h.data.events.data.map((ev) => ({
-          ...ev,
-          _actorName: fullName,
-        }));
-      })
-      .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp))
-      .slice(0, 8);
-    setRecentEvents(merged);
+    setRecentEvents(res.success && res.data ? res.data.data ?? [] : []);
   };
 
   useEffect(() => {
@@ -175,6 +151,11 @@ const Dashboard = () => {
 
   const handleActivityClick = () => {
     router.push('/lead-management?status=all');
+  };
+
+  // Obs 35 — "View all" abre el log completo de auditoría, no la lista de leads.
+  const handleViewAllActivity = () => {
+    router.push('/audit-log');
   };
 
   useEffect(() => {
@@ -245,7 +226,7 @@ const Dashboard = () => {
             : 'No recent activity yet'
         }
         onViewAll={
-          recentEvents.length > 0 ? handleActivityClick : undefined
+          recentEvents.length > 0 ? handleViewAllActivity : undefined
         }
       >
         <ul className='flex flex-col divide-y divide-slate-100'>
@@ -262,11 +243,8 @@ const Dashboard = () => {
                     {describeEvent(ev)}
                   </span>
                   <span className='truncate text-[11px] text-slate-500'>
-                    {ev.actor_role
-                      ? ev.actor_role.charAt(0).toUpperCase() +
-                        ev.actor_role.slice(1)
-                      : 'System'}{' '}
-                    · <strong className='font-semibold text-slate-700'>{ev._actorName}</strong>
+                    {actorRoleLabel(ev)}{' '}
+                    · <strong className='font-semibold text-slate-700'>{actorName(ev)}</strong>
                   </span>
                 </div>
                 <span className='flex-shrink-0 text-[10px] font-medium text-slate-400'>
@@ -368,7 +346,19 @@ const ACTION_TONE: Record<
   },
 };
 
-const ActionDot = ({ type }: { type: ActionType }) => {
+// Obs 33/35 — el actor viene en el propio evento de GET /audit (id, nombre,
+// email). Mismo texto que antes: rol capitalizado (o System) · nombre.
+export const actorRoleLabel = (ev: AuditEvent): string =>
+  ev.actor_role
+    ? ev.actor_role.charAt(0).toUpperCase() + ev.actor_role.slice(1)
+    : 'System';
+
+export const actorName = (ev: AuditEvent): string =>
+  `${ev.actor?.firstName ?? ''} ${ev.actor?.lastName ?? ''}`.trim() ||
+  (ev.actor_id != null ? `Lawyer #${ev.actor_id}` : '—');
+
+// Exportados: la página Audit log (/audit-log) pinta cada fila igual que el feed.
+export const ActionDot = ({ type }: { type: ActionType }) => {
   const meta = ACTION_TONE[type] ?? ACTION_TONE.update;
   return (
     <span
@@ -379,7 +369,7 @@ const ActionDot = ({ type }: { type: ActionType }) => {
   );
 };
 
-const describeEvent = (ev: AuditEvent): JSX.Element => {
+export const describeEvent = (ev: AuditEvent): JSX.Element => {
   const idLabel =
     ev.entity_type === 'lead'
       ? `#${String(ev.entity_id).padStart(5, '0')}`
@@ -402,15 +392,18 @@ const describeEvent = (ev: AuditEvent): JSX.Element => {
         </>
       );
     case 'status_change': {
+      // Obs 23 — nombre visible del status (el de las pills), no el código.
       const from = ev.old_value?.status;
       const to = ev.new_value?.status;
       return (
         <>
           <strong className='font-bold text-slate-900'>{idLabel}</strong>{' '}
           status changed to{' '}
-          <strong className='font-bold text-slate-900'>{to ?? '—'}</strong>
+          <strong className='font-bold text-slate-900'>
+            {to ? statusLabel(to) : '—'}
+          </strong>
           {from ? (
-            <span className='text-slate-400'> (from {from})</span>
+            <span className='text-slate-400'> (from {statusLabel(from)})</span>
           ) : null}
         </>
       );

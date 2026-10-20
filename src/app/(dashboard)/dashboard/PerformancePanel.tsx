@@ -150,9 +150,12 @@ export const PerformancePanel = ({
           </div>
         ),
       },
+      // Obs 24 — solo cambian las etiquetas visibles (y con ellas las del CSV):
+      // Taken → Assigned, Closed → Retained, Lost → Returned. Los campos
+      // taken/closed/lost y las claves de orden no cambian.
       {
         key: 'taken',
-        label: 'Taken',
+        label: 'Assigned',
         width: NARROW_COLUMN,
         align: 'right',
         sortable: true,
@@ -161,7 +164,7 @@ export const PerformancePanel = ({
       },
       {
         key: 'closed',
-        label: 'Closed',
+        label: 'Retained',
         width: NARROW_COLUMN,
         align: 'right',
         sortable: true,
@@ -170,7 +173,7 @@ export const PerformancePanel = ({
       },
       {
         key: 'lost',
-        label: 'Lost',
+        label: 'Returned',
         width: NARROW_COLUMN,
         align: 'right',
         sortable: true,

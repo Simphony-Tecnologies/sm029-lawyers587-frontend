@@ -50,6 +50,7 @@ import {
   SearchField,
   SourceBadge,
   StatusPill,
+  statusLabel,
   toneFromString,
   variantFromStatus,
   type AuditEventTone,
@@ -75,6 +76,7 @@ import {
 } from '@/lib/metrics';
 import CountdownTimer from '@/components/organisms/CountdownTimer';
 import ReLoading from '@/components/atoms/ReLoading';
+import { dedupeServicesCapacity } from '@/utils/getNameServiceLawyer';
 import Button from '@/components/atoms/Button';
 
 dayjs.extend(utc);
@@ -293,9 +295,11 @@ const PERF_CARDS: {
   value: (r: LawyerPerformanceRow) => number | string;
   trend?: (r: LawyerPerformanceRow) => PerfTrend;
 }[] = [
+  // Obs 24 — solo cambian las etiquetas visibles (Taken → Assigned,
+  // Closed → Retained, Lost → Returned); los campos taken/closed/lost no.
   {
     key: 'taken',
-    label: 'Taken',
+    label: 'Assigned',
     tone: 'violet',
     icon: <MdMoveToInbox size={14} />,
     value: (r) => r.taken,
@@ -303,7 +307,7 @@ const PERF_CARDS: {
   },
   {
     key: 'closed',
-    label: 'Closed',
+    label: 'Retained',
     tone: 'emerald',
     icon: <MdCheckCircleOutline size={14} />,
     value: (r) => r.closed,
@@ -344,7 +348,7 @@ const PERF_CARDS: {
   },
   {
     key: 'lost',
-    label: 'Lost',
+    label: 'Returned',
     tone: 'coral',
     icon: <MdReplay size={14} />,
     value: (r) => r.lost,
@@ -422,8 +426,9 @@ const renderAuditDetail = (ev: AuditEventDTO): React.ReactNode => {
         </>
       );
     case 'status_change': {
-      const from = ev.old_value?.status ?? '—';
-      const to = ev.new_value?.status ?? '—';
+      // Obs 23 — nombre visible del status (el de las pills), no el código.
+      const from = ev.old_value?.status ? statusLabel(ev.old_value.status) : '—';
+      const to = ev.new_value?.status ? statusLabel(ev.new_value.status) : '—';
       return (
         <>
           <strong className='font-bold text-slate-900'>{idLabel}</strong>:{' '}
@@ -767,19 +772,26 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     return list;
   }, [lawyerLeads, statusFilter, searchText]);
 
+  // Obs 50 — una sola fila por área (la original): sin esto las áreas
+  // repetidas en BD se sumaban (p. ej. 130 en vez de 50).
+  const ownServices = useMemo(
+    () => dedupeServicesCapacity<LawyerService>(lawyer?.lawyersServices),
+    [lawyer]
+  );
+
   const capacity = useMemo(() => {
     if (!lawyer?.lawyersServices) return 0;
-    return lawyer.lawyersServices.reduce(
+    return ownServices.reduce(
       (acc, s) => acc + (s.max_leads || 0),
       0
     );
-  }, [lawyer]);
+  }, [lawyer, ownServices]);
 
   // L587-12 — desglose por área: capacidad (max_leads) vs leads activos.
   // El match asignados↔área es por NOMBRE (el lead trae `service` como string,
   // no service_type_id) — frágil si difieren las etiquetas del backend.
   const capacityByArea = useMemo(() => {
-    const svcs = lawyer?.lawyersServices ?? [];
+    const svcs = ownServices;
     const nameById = new Map<number, string>(
       serviceTypes.map((t) => [Number(t.id), t.name])
     );
@@ -799,7 +811,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
         assigned,
       };
     });
-  }, [lawyer, serviceTypes, lawyerLeads]);
+  }, [ownServices, serviceTypes, lawyerLeads]);
 
   const stats = useMemo(() => {
     const total = lawyerLeads.length;

@@ -51,7 +51,12 @@ export const toLeadRow = (lead: LeadDTO | any) => ({
   spam_score: lead.spam_score ?? 0,
   spam_reasons: lead.spam_reasons ?? null,
   trashed_at: lead.trashed_at ?? null,
+  purge_at: lead.purge_at ?? null,
   previous_status: lead.previous_status ?? null,
+  // Obs 25/36 — devoluciones: motivo, abogado que lo devolvió y contador (R1, R2…).
+  return_reason: lead.return_reason ?? null,
+  previous_lawyer: lead.previous_lawyer ?? null,
+  return_count: lead.return_count ?? 0,
   // Fase 1 (contrato A2) — score, pull date y firma del abogado asignado.
   ai_urgency: lead.ai_urgency ?? null,
   pull_date: lead.pull_date ?? null,

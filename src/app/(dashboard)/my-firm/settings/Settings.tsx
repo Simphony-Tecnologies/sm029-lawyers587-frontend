@@ -2,47 +2,172 @@
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { api } from '@/services/database';
-import { PageHead, EmptyStateBox, FormField } from '@/components/ui';
+import {
+  PageHead,
+  EmptyStateBox,
+  FormField,
+  fieldInputClass,
+} from '@/components/ui';
 import { apiText } from '@/lib/apiText';
 import type { Firm, FirmSettings } from '@/types/api.types';
 
-// Serializa un sub-blob a JSON legible para el textarea ('' si no existe).
-const toText = (blob?: Record<string, unknown>): string =>
-  blob && Object.keys(blob).length > 0 ? JSON.stringify(blob, null, 2) : '';
+// Obs 52 — formulario estructurado en lugar de cajas de JSON. El backend hoy
+// solo guarda `settings.notifications` / `settings.templates` (shallow-merge en
+// PATCH /firms/me/settings) y no consume ninguna clave, así que no hay un
+// catálogo fijo: se renderizan las claves ya guardadas (booleanos → toggle,
+// strings → campo de texto). Las de otro tipo (números, objetos, arrays, null)
+// no se muestran pero se conservan al guardar.
 
-// Valida que el texto sea un objeto JSON plano. Devuelve el objeto o un error.
-const parseBlob = (
-  text: string
-): { value?: Record<string, unknown>; error?: string } => {
-  const trimmed = text.trim();
-  if (!trimmed) return {}; // vacío = no tocar este sub-blob
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    return { error: 'Invalid JSON' };
-  }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return { error: 'Must be a JSON object, e.g. { "newLead": true }' };
-  }
-  return { value: parsed as Record<string, unknown> };
+type Blob = Record<string, unknown>;
+type SectionKey = keyof FirmSettings; // 'notifications' | 'templates'
+type Draft = Record<SectionKey, Blob>;
+
+const SECTIONS: SectionKey[] = ['notifications', 'templates'];
+
+// Copia de los sub-blobs ({} si no existen) para editar sin mutar el original.
+const toDraft = (settings: FirmSettings | null): Draft => ({
+  notifications: { ...(settings?.notifications ?? {}) },
+  templates: { ...(settings?.templates ?? {}) },
+});
+
+// Humaniza una clave: "newLead" / "new_lead" → "New lead".
+const humanize = (key: string): string => {
+  const words = key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_\-.]+/g, ' ')
+    .trim()
+    .toLowerCase();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : key;
 };
+
+// Claves que se pueden editar en el formulario.
+const editableEntries = (blob: Blob): [string, boolean | string][] =>
+  Object.entries(blob).filter(
+    (entry): entry is [string, boolean | string] =>
+      typeof entry[1] === 'boolean' || typeof entry[1] === 'string'
+  );
+
+// Mismo switch que Chatbot Settings.
+function Toggle({
+  checked,
+  onChange,
+  labelledBy,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  labelledBy: string;
+}) {
+  return (
+    <button
+      type='button'
+      role='switch'
+      aria-checked={checked}
+      aria-labelledby={labelledBy}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+        checked ? 'bg-emerald-500' : 'bg-slate-300'
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-5' : 'translate-x-0.5'
+        }`}
+      />
+    </button>
+  );
+}
+
+// Tarjeta de un sub-blob: una fila por clave editable. `multiline` usa
+// textarea para los strings (las plantillas suelen ser texto largo).
+function SectionCard({
+  section,
+  title,
+  blob,
+  onChange,
+  multiline = false,
+}: {
+  section: SectionKey;
+  title: string;
+  blob: Blob;
+  onChange: (section: SectionKey, key: string, value: boolean | string) => void;
+  multiline?: boolean;
+}) {
+  const entries = editableEntries(blob);
+  return (
+    <div className='rounded-xl border border-slate-200 bg-white p-5'>
+      <h2 className='mb-3 text-sm font-bold text-slate-900'>{title}</h2>
+      {entries.length === 0 ? (
+        <p className='text-sm text-slate-400'>No settings stored yet.</p>
+      ) : (
+        <div className='flex flex-col divide-y divide-slate-100'>
+          {entries.map(([key, value]) => {
+            const id = `${section}-${key}`;
+            if (typeof value === 'boolean') {
+              return (
+                <div
+                  key={key}
+                  className='flex items-center justify-between gap-4 py-3'
+                >
+                  <span
+                    id={id}
+                    className='min-w-0 break-words text-sm font-medium text-slate-700'
+                  >
+                    {humanize(key)}
+                  </span>
+                  <Toggle
+                    checked={value}
+                    onChange={(v) => onChange(section, key, v)}
+                    labelledBy={id}
+                  />
+                </div>
+              );
+            }
+            return (
+              <FormField
+                key={key}
+                label={humanize(key)}
+                htmlFor={id}
+                className='py-3'
+              >
+                {multiline ? (
+                  <textarea
+                    id={id}
+                    value={value}
+                    onChange={(e) => onChange(section, key, e.target.value)}
+                    rows={4}
+                    className={fieldInputClass()}
+                  />
+                ) : (
+                  <input
+                    id={id}
+                    value={value}
+                    onChange={(e) => onChange(section, key, e.target.value)}
+                    className={fieldInputClass()}
+                  />
+                )}
+              </FormField>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const Settings = () => {
   const [firm, setFirm] = useState<Firm | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [notifText, setNotifText] = useState('');
-  const [templText, setTemplText] = useState('');
-  const [notifErr, setNotifErr] = useState<string>();
-  const [templErr, setTemplErr] = useState<string>();
+  // `original` = lo guardado; `draft` = lo editado (arranca como copia).
+  const [original, setOriginal] = useState<Draft>(() => toDraft(null));
+  const [draft, setDraft] = useState<Draft>(() => toDraft(null));
   const [saving, setSaving] = useState(false);
 
   const hydrate = (f: Firm) => {
     setFirm(f);
-    setNotifText(toText(f.settings?.notifications));
-    setTemplText(toText(f.settings?.templates));
+    setOriginal(toDraft(f.settings));
+    setDraft(toDraft(f.settings));
   };
 
   const load = useCallback(async () => {
@@ -65,18 +190,22 @@ const Settings = () => {
     load();
   }, [load]);
 
-  const save = async () => {
-    const notif = parseBlob(notifText);
-    const templ = parseBlob(templText);
-    setNotifErr(notif.error);
-    setTemplErr(templ.error);
-    if (notif.error || templ.error) return;
+  const setValue = (section: SectionKey, key: string, value: boolean | string) =>
+    setDraft((prev) => ({
+      ...prev,
+      [section]: { ...prev[section], [key]: value },
+    }));
 
-    // Solo incluir los sub-blobs con contenido: el backend hace shallow-merge,
-    // así que omitir uno lo deja intacto. Para limpiarlo, escribí `{}`.
+  const save = async () => {
+    // Solo se envían los sub-blobs que cambiaron: el backend hace shallow-merge
+    // a nivel raíz, así que omitir uno lo deja intacto, y el que se envía
+    // reemplaza al guardado → se manda completo (incluye claves no mostradas).
     const body: Partial<FirmSettings> = {};
-    if (notif.value) body.notifications = notif.value;
-    if (templ.value) body.templates = templ.value;
+    for (const section of SECTIONS) {
+      if (JSON.stringify(draft[section]) !== JSON.stringify(original[section])) {
+        body[section] = draft[section];
+      }
+    }
 
     if (Object.keys(body).length === 0) {
       toast('Nothing to save', { icon: 'ℹ️' });
@@ -118,53 +247,19 @@ const Settings = () => {
       />
 
       <div className='grid grid-cols-1 gap-5 lg:grid-cols-2'>
-        <div className='rounded-xl border border-slate-200 bg-white p-5'>
-          <FormField
-            label='Notifications'
-            htmlFor='notifications'
-            error={notifErr}
-            hint='JSON object. Example: { "newLead": true }'
-          >
-            <textarea
-              id='notifications'
-              value={notifText}
-              onChange={(e) => {
-                setNotifText(e.target.value);
-                setNotifErr(undefined);
-              }}
-              rows={10}
-              spellCheck={false}
-              placeholder='{ }'
-              className={`w-full rounded-lg border bg-white px-3 py-2 font-mono text-xs text-slate-900 outline-none focus:ring-2 focus:ring-primary/25 ${
-                notifErr ? 'border-rose-400' : 'border-slate-300 focus:border-primary'
-              }`}
-            />
-          </FormField>
-        </div>
-
-        <div className='rounded-xl border border-slate-200 bg-white p-5'>
-          <FormField
-            label='Templates'
-            htmlFor='templates'
-            error={templErr}
-            hint='JSON object. Example: { "welcomeEmail": "..." }'
-          >
-            <textarea
-              id='templates'
-              value={templText}
-              onChange={(e) => {
-                setTemplText(e.target.value);
-                setTemplErr(undefined);
-              }}
-              rows={10}
-              spellCheck={false}
-              placeholder='{ }'
-              className={`w-full rounded-lg border bg-white px-3 py-2 font-mono text-xs text-slate-900 outline-none focus:ring-2 focus:ring-primary/25 ${
-                templErr ? 'border-rose-400' : 'border-slate-300 focus:border-primary'
-              }`}
-            />
-          </FormField>
-        </div>
+        <SectionCard
+          section='notifications'
+          title='Notifications'
+          blob={draft.notifications}
+          onChange={setValue}
+        />
+        <SectionCard
+          section='templates'
+          title='Templates'
+          blob={draft.templates}
+          onChange={setValue}
+          multiline
+        />
       </div>
 
       <div className='flex justify-end'>

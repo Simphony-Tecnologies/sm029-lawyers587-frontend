@@ -22,7 +22,7 @@ const Page = () => {
   const [loading, setLoading] = useState(false);
   const [openModal, setOpenModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { setUser, user } = useAuth();
+  const { setUser } = useAuth();
   const singIn = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
     setLoading(true);
@@ -48,7 +48,9 @@ const Page = () => {
     }
     setUser(login.data.lawyer);
 
-    const lastLogin: any = { last_login: new Date() };
+    // El PUT de last_login salía a /lawyers/undefined (`user` aún no estaba en
+    // el store) y solo dejaba filas "Edit denied" en la auditoría. El
+    // last_login lo debe registrar el backend en el login.
 
     // Fase 2 — login con regreso: si se llegó desde un link directo (`/?next=`)
     // válido para el rol, vuelve ahí; si no, al dashboard de siempre.
@@ -57,7 +59,6 @@ const Page = () => {
       login.data.lawyer?.role?.name
     );
     router.push(next ?? '/dashboard');
-    await database.UpdateLawyer(lastLogin, user.id);
     setLoading(false);
   };
   const handleOpenForgotPassword = () => {

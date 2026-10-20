@@ -5,6 +5,7 @@ import type {
   AssignLeadDTO,
   AssignLeadResult,
   AuditEvent,
+  AuditFilters,
   BlacklistEntry,
   BulkArchiveDTO,
   BulkAssignDTO,
@@ -41,6 +42,7 @@ import type {
   UnassignLeadDTO,
   UpdateLawyerPasswordDTO,
   UpdateLawyerStatusDTO,
+  UpdateLawyerServicesDTO,
   UpdatePatternDTO,
   WidgetMetricsResponse,
   CalendarReminderDTO,
@@ -1257,6 +1259,14 @@ export const api = {
     stats: (token?: string) =>
       apiRequest<LawyerStats>(`/lawyers/stats`, { method: 'GET' }, token),
 
+    // Obs 37/50 — reemplaza áreas y capacidad (lista completa, idempotente).
+    updateServices: (id: number, body: UpdateLawyerServicesDTO, token?: string) =>
+      apiRequest<LawyerListItem>(
+        `/lawyers/${id}/services`,
+        { method: 'PUT', body: JSON.stringify(body) },
+        token
+      ),
+
     updateStatus: (id: number, body: UpdateLawyerStatusDTO, token?: string) =>
       apiRequest<LawyerListItem>(
         `/lawyers/${id}/status`,
@@ -1460,6 +1470,16 @@ export const api = {
   // ── Firm-level admin (Activity 25) ──────────────────────────────────────
   // Rutas /firms/* sin prefijo global. Todos requieren JWT Bearer (lo inyecta
   // resolveToken vía la cookie currentUser). El backend re-verifica rol/flags.
+  // Obs 33/35 — feed global de auditoría (solo admin).
+  audit: {
+    list: (filters?: AuditFilters, token?: string) =>
+      apiRequest<Paginated<AuditEvent>>(
+        `/audit${buildQuery(filters as Record<string, unknown>)}`,
+        { method: 'GET' },
+        token
+      ),
+  },
+
   firms: {
     // GET /firms/me — cualquier lawyer. `firm` puede ser null (pre-backfill).
     me: (token?: string) =>

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import toast from 'react-hot-toast';
-import { MdSmartToy, MdInfoOutline } from 'react-icons/md';
+import { MdSmartToy } from 'react-icons/md';
 import { api } from '@/services/database';
 import type { ChatbotSettings as ChatbotSettingsDTO } from '@/types/api.types';
 import { PageHead } from '@/components/ui';
@@ -312,13 +312,6 @@ export default function ChatbotSettings() {
                       thresholdInvalid ? 'border-customRed' : 'border-slate-200'
                     }`}
                   />
-                </div>
-                <div className='flex items-start gap-1.5 text-[11px] text-amber-600'>
-                  <MdInfoOutline size={13} className='mt-0.5 shrink-0' />
-                  <span>
-                    Saved to the DB, but not yet applied — the AI service reads
-                    the threshold from an env var. Pending a backend change.
-                  </span>
                 </div>
                 {thresholdInvalid ? (
                   <span className='text-[11px] font-medium text-customRed'>

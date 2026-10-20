@@ -10,7 +10,7 @@ import type { LeadDTO } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
 import useLoadingStore from '@/store/useLoadingStore';
 import { useLeadsStore } from '@/store/useLead.store';
-import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
+import { getServicesLawyer } from '@/utils/getNameServiceLawyer';
 import {
   Avatar,
   BulkActionBar,
@@ -74,14 +74,14 @@ const SelectLead = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const lawyerServices = useMemo(
-    () => getNameServiceLawyer(userDetail?.lawyersServices, services),
+    () => getServicesLawyer(userDetail, services),
     [userDetail, services]
   );
 
   const capacityTotal = useMemo(
     () =>
       lawyerServices.reduce(
-        (acc: number, curr: any) => acc + (curr.max_leads ?? 0),
+        (acc: number, curr: any) => acc + (curr?.max_leads ?? 0),
         0
       ),
     [lawyerServices]
