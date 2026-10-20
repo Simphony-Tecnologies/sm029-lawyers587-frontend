@@ -1290,7 +1290,8 @@ const LawyerManagement = () => {
               ? `unassignable: ${kpis.unassignable}`
               : kpis.pending === 0
               ? 'all onboarded'
-              : undefined
+              : // Renglón vacío: mantiene la tarjeta alineada con las demás.
+                ' '
           }
           icon={
             <svg

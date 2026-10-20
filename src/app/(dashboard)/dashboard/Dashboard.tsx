@@ -395,13 +395,21 @@ export const describeEvent = (ev: AuditEvent): JSX.Element => {
       // Obs 23 — nombre visible del status (el de las pills), no el código.
       const from = ev.old_value?.status;
       const to = ev.new_value?.status;
+      // Sin el status nuevo (eventos cuyo detalle se perdió en el backend) no se
+      // muestra "changed to —": solo "status changed".
+      if (!to) {
+        return (
+          <>
+            <strong className='font-bold text-slate-900'>{idLabel}</strong>{' '}
+            status changed
+          </>
+        );
+      }
       return (
         <>
           <strong className='font-bold text-slate-900'>{idLabel}</strong>{' '}
           status changed to{' '}
-          <strong className='font-bold text-slate-900'>
-            {to ? statusLabel(to) : '—'}
-          </strong>
+          <strong className='font-bold text-slate-900'>{statusLabel(to)}</strong>
           {from ? (
             <span className='text-slate-400'> (from {statusLabel(from)})</span>
           ) : null}
@@ -409,6 +417,9 @@ export const describeEvent = (ev: AuditEvent): JSX.Element => {
       );
     }
     case 'edit_denied':
+      // entity_id 0 = intento sin abogado válido (el viejo PUT /lawyers/undefined
+      // del login): no se muestra "Lawyer #0".
+      if (!Number(ev.entity_id)) return <>Edit denied</>;
       return (
         <>
           Edit denied on{' '}

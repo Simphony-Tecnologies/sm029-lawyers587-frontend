@@ -14,8 +14,10 @@ export const PageHead = forwardRef<HTMLDivElement, PageHeadProps>(
     <div
       ref={ref}
       className={cn(
-        'flex items-start justify-between gap-4',
-        !subtitle && 'items-center',
+        // En móvil las acciones bajan debajo del título (antes lo cortaban:
+        // "Law…" a 390 px). Desde sm, igual que siempre.
+        'flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4',
+        !subtitle && 'sm:items-center',
         className
       )}
       {...rest}

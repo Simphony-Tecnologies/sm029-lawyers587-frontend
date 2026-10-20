@@ -429,6 +429,15 @@ const renderAuditDetail = (ev: AuditEventDTO): React.ReactNode => {
       // Obs 23 — nombre visible del status (el de las pills), no el código.
       const from = ev.old_value?.status ? statusLabel(ev.old_value.status) : '—';
       const to = ev.new_value?.status ? statusLabel(ev.new_value.status) : '—';
+      // Sin ninguno de los dos (detalle perdido en el backend) no se pinta "— → —".
+      if (!ev.old_value?.status && !ev.new_value?.status) {
+        return (
+          <>
+            <strong className='font-bold text-slate-900'>{idLabel}</strong>:
+            status changed
+          </>
+        );
+      }
       return (
         <>
           <strong className='font-bold text-slate-900'>{idLabel}</strong>:{' '}
@@ -552,6 +561,8 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   const [perfPeriod, setPerfPeriod] = useState<PeriodKey>('month');
   const [perfRow, setPerfRow] = useState<LawyerPerformanceRow | null>(null);
   const [perfError, setPerfError] = useState<string | null>(null);
+  // Mientras carga no se muestra "—" (se confundía con "sin datos").
+  const [perfLoading, setPerfLoading] = useState(false);
 
   // Mismo período → rango (periodToRange) que PerformancePanel, filtrado a
   // este abogado: los números coinciden con su fila del ranking.
@@ -561,10 +572,12 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
     const days = DEFAULT_PERIODS.find((o) => o.key === perfPeriod)?.days ?? null;
     setPerfRow(null);
     setPerfError(null);
+    setPerfLoading(true);
     api.lawyers.metrics
       .performance({ ...periodToRange(days), lawyer_id: lawyerId })
       .then((res) => {
         if (!active) return;
+        setPerfLoading(false);
         if (res.success && res.data) {
           setPerfRow(res.data.lawyers.find((r) => r.lawyer_id === lawyerId) ?? null);
         } else {
@@ -1245,7 +1258,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
                 label={card.label}
                 tone={card.tone}
                 icon={card.icon}
-                value={perfRow ? card.value(perfRow) : '—'}
+                value={perfRow ? card.value(perfRow) : perfLoading ? '…' : '—'}
                 // "All time" no tiene período anterior comparable: sin variación.
                 trend={perfRow && perfPeriod !== 'all' ? card.trend?.(perfRow) : undefined}
               />

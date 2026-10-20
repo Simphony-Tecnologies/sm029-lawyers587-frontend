@@ -265,13 +265,17 @@ const SelectLead = () => {
       sortable: true,
       accessor: (r) => r.fullName,
       render: (r) => (
-        <div className='flex items-center gap-2.5'>
+        <div className='flex min-w-0 items-center gap-2.5'>
           <Avatar
             initials={r.fullName.slice(0, 2).toUpperCase() || '·'}
             tone={toneFromString(r.fullName) as any}
             size='sm'
           />
-          <span className='truncate text-[13px] font-bold text-slate-900'>
+          {/* En móvil el nombre se parte en dos líneas en vez de cortarse. */}
+          <span
+            title={r.fullName || undefined}
+            className='min-w-0 text-[13px] font-bold leading-tight text-slate-900 [overflow-wrap:anywhere] sm:truncate'
+          >
             {r.fullName || '—'}
           </span>
         </div>

@@ -768,7 +768,12 @@ export const LeadInfoModal = ({
                     {lead?.trashed_at ? (() => {
                       // Obs 43 — la fecha de purga viene calculada del backend (purge_at).
                       const purgeDate = purgeAt ?? dayjs(lead.trashed_at).add(TRASH_PURGE_DAYS, 'day');
-                      const daysLeft = Math.max(0, purgeDate.diff(dayjs(), 'day'));
+                      // Días de calendario, para que cuadre con la fecha mostrada
+                      // (antes contaba días de 24 h completos: 28 vs 29).
+                      const daysLeft = Math.max(
+                        0,
+                        purgeDate.startOf('day').diff(dayjs().startOf('day'), 'day')
+                      );
                       return (
                         <div className='flex items-start gap-2.5 rounded-[10px] border border-red-200/80 bg-red-50 px-3.5 py-3 text-xs font-medium leading-[1.5] text-slate-700'>
                           <span className='text-red-500'>&#128465;</span>
@@ -1326,8 +1331,9 @@ export const LeadInfoModal = ({
                 ) : null}
               </div>
 
-              {/* Footer */}
-              <div className='flex items-center justify-between gap-2 border-t border-slate-100 bg-white px-6 pb-5 pt-4'>
+              {/* Footer — en móvil el aviso va arriba y los botones abajo (antes
+                  "Save changes" quedaba cortado a 390 px en la vista de admin). */}
+              <div className='flex flex-col items-stretch gap-3 border-t border-slate-100 bg-white px-6 pb-5 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-2'>
                 <span className='inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500'>
                   {isReviewLead ? (
                     <><MdInfoOutline size={12} className='text-amber-500' />Flagged for spam review</>
@@ -1340,7 +1346,7 @@ export const LeadInfoModal = ({
                   )}
                 </span>
                 {!isSpecialStatus ? (
-                  <div className='flex flex-shrink-0 items-center gap-2'>
+                  <div className='flex flex-shrink-0 flex-wrap items-center justify-end gap-2'>
                     {onTrash && !isTrashedLead ? (
                       <button type='button' onClick={() => { setTrashReason(''); setConfirmTrash(true); }} disabled={loading}
                         className='inline-flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-red-200 bg-white px-3 text-[12px] font-bold text-red-600 transition-colors hover:bg-red-50 focus:outline-none disabled:opacity-50'
@@ -1432,7 +1438,7 @@ export const LeadInfoModal = ({
             onChange={(e) => setTrashReason(e.target.value.slice(0, REASON_MAX))}
             rows={2}
             disabled={loading}
-            placeholder='Why are these leads being trashed?'
+            placeholder='Why is this lead being trashed?'
             className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60'
           />
         </div>

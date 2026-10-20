@@ -462,15 +462,17 @@ export default function SpamSettings() {
       <PageHead title='Spam Settings' />
 
       {/* Tabs + action */}
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-2'>
+      <div className='flex flex-wrap items-center justify-between gap-2'>
+        <div className='flex flex-wrap items-center gap-2'>
           <FilterButton
+            className='shrink-0 whitespace-nowrap'
             label='Blacklist'
             active={tab === 'blacklist'}
             count={blacklist.length}
             onClick={() => setTab('blacklist')}
           />
           <FilterButton
+            className='shrink-0 whitespace-nowrap'
             label='Suspicious Patterns'
             active={tab === 'patterns'}
             count={patterns.length}
@@ -486,7 +488,7 @@ export default function SpamSettings() {
               setBlValue('');
               setBlDialogOpen(true);
             }}
-            className='inline-flex h-[34px] items-center gap-1.5 rounded-[9px] bg-slate-900 px-3.5 text-[12px] font-bold text-white hover:bg-slate-800'
+            className='inline-flex h-[34px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[9px] bg-slate-900 px-3.5 text-[12px] font-bold text-white hover:bg-slate-800'
           >
             <MdAdd size={16} />
             Add Entry
@@ -495,7 +497,7 @@ export default function SpamSettings() {
           <button
             type='button'
             onClick={() => openPatternDialog()}
-            className='inline-flex h-[34px] items-center gap-1.5 rounded-[9px] bg-slate-900 px-3.5 text-[12px] font-bold text-white hover:bg-slate-800'
+            className='inline-flex h-[34px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[9px] bg-slate-900 px-3.5 text-[12px] font-bold text-white hover:bg-slate-800'
           >
             <MdAdd size={16} />
             Add Pattern
