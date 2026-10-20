@@ -435,7 +435,7 @@ const AllLeads = () => {
     {
       key: 'id',
       label: 'ID',
-      width: '80px',
+      width: '70px',
       sortable: true,
       accessor: (r) => r.id,
       render: (r) => (
@@ -447,41 +447,44 @@ const AllLeads = () => {
     {
       key: 'fullName',
       label: 'Lead',
+      // Más ancha: el nombre se cortaba ("Ashley Ngu…", "T…" con "New Lead").
+      width: 'minmax(180px, 2fr)',
       sortable: true,
       accessor: (r) => r.fullName,
       render: (r) => (
-        <div className='flex items-center gap-2.5'>
+        <div className='flex min-w-0 items-center gap-2.5 pr-3'>
           <Avatar
             initials={r.fullName.slice(0, 2).toUpperCase() || '·'}
             tone={toneFromString(r.fullName) as any}
             size='sm'
           />
           <div className='flex min-w-0 flex-col'>
-            <span className='flex min-w-0 items-center gap-1.5'>
-              <span
-                title={r.fullName || undefined}
-                className='truncate text-[13px] font-bold text-slate-900'
+            <span
+              title={r.fullName || undefined}
+              className='line-clamp-2 text-[13px] font-bold leading-tight text-slate-900 [overflow-wrap:anywhere]'
+            >
+              {r.fullName || '—'}
+            </span>
+            {/* Fase 1 — "New Lead": link directo al detalle (?lead=<id>). Va en
+                el segundo renglón (en ASSIGNED el contacto está oculto) para no
+                quitarle espacio al nombre. */}
+            {r.status === 'ASSIGNED' ? (
+              <Link
+                href={leadHref(r.id)}
+                replace
+                scroll={false}
+                onClick={(e) => e.stopPropagation()}
+                className='mt-0.5 self-start rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-customRed/40'
               >
-                {r.fullName || '—'}
+                <Badge variant='new' size='sm' className='whitespace-nowrap'>
+                  New Lead
+                </Badge>
+              </Link>
+            ) : (
+              <span className='truncate text-[11px] text-slate-400'>
+                {canViewLeadContact(r.status, isAdmin) ? r.email : '—'}
               </span>
-              {/* Fase 1 — "New Lead": link directo al detalle (?lead=<id>). */}
-              {r.status === 'ASSIGNED' ? (
-                <Link
-                  href={leadHref(r.id)}
-                  replace
-                  scroll={false}
-                  onClick={(e) => e.stopPropagation()}
-                  className='shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-customRed/40'
-                >
-                  <Badge variant='new' size='sm' className='whitespace-nowrap'>
-                    New Lead
-                  </Badge>
-                </Link>
-              ) : null}
-            </span>
-            <span className='truncate text-[11px] text-slate-400'>
-              {canViewLeadContact(r.status, isAdmin) ? r.email : '—'}
-            </span>
+            )}
           </div>
         </div>
       ),
@@ -489,7 +492,7 @@ const AllLeads = () => {
     {
       key: 'phone',
       label: 'Phone',
-      width: '160px',
+      width: '140px',
       sortable: true,
       // L587-06 — el contacto solo se muestra al abogado en In Progress/
       // Waiting/Retained. El accessor también se enmascara para no ordenar por
@@ -500,14 +503,14 @@ const AllLeads = () => {
     {
       key: 'service',
       label: 'Service',
-      width: '180px',
+      width: '160px',
       sortable: true,
       accessor: (r) => r.service,
     },
     {
       key: 'status',
       label: 'Status',
-      width: '140px',
+      width: '130px',
       sortable: true,
       accessor: (r) => r.status,
       render: (r) => (
@@ -518,7 +521,7 @@ const AllLeads = () => {
       // Fase 1 — Score: urgencia IA (High/Medium/Low) y marca de posible spam.
       key: 'score',
       label: 'Score',
-      width: '96px',
+      width: '72px',
       sortable: true,
       accessor: (r) => scoreSortValue(r),
       render: (r) => <ScoreBadge urgency={r.ai_urgency} spamScore={r.spam_score} />,

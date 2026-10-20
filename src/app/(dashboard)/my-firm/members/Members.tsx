@@ -145,11 +145,16 @@ const Members = () => {
       accessor: (r) => `${r.firstName} ${r.lastName}`,
       sortable: true,
       render: (r) => (
-        <div>
-          <div className='font-semibold text-slate-800'>
+        <div className='min-w-0 pr-3'>
+          <div className='truncate font-semibold text-slate-800'>
             {r.firstName} {r.lastName}
           </div>
-          <div className='text-xs text-slate-400'>{r.email ?? '—'}</div>
+          <div
+            title={r.email ?? undefined}
+            className='truncate text-xs text-slate-400'
+          >
+            {r.email ?? '—'}
+          </div>
         </div>
       ),
     },

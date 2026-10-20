@@ -233,13 +233,15 @@ const LostLeads = () => {
         title='Lost Leads'
         action={
           <span className='text-[13px] font-medium tabular-nums text-slate-400'>
-            {rows.length} leads
+            {rows.length} {rows.length === 1 ? 'lead' : 'leads'}
           </span>
         }
       />
 
       <div className='flex flex-wrap items-center gap-2.5'>
         <SearchField
+          // Ancho para que el placeholder se lea completo (se cortaba en "...status or").
+          containerClassName='w-full sm:w-[340px]'
           placeholder='Search by name, email, lawyer, status or ID...'
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}

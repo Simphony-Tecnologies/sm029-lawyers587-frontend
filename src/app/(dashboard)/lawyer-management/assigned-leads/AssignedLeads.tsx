@@ -117,7 +117,7 @@ const AssignedLeads = () => {
     {
       key: 'phone number',
       label: 'Phone',
-      width: '130px',
+      width: '120px',
       render: (r) => (
         <span className='text-[11px] tabular-nums text-slate-600'>
           {r['phone number'] || '—'}
@@ -139,7 +139,7 @@ const AssignedLeads = () => {
     {
       key: 'lawyer',
       label: 'Assigned to',
-      width: '170px',
+      width: '160px',
       sortable: true,
       accessor: (r) => r.lawyer,
       render: (r) => {

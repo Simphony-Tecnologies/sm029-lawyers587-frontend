@@ -1880,7 +1880,7 @@ const LeadManagement = () => {
               Export CSV
             </button>
             <span className='text-[13px] font-medium tabular-nums text-slate-400'>
-              {filtered.length} leads
+              {filtered.length} {filtered.length === 1 ? 'lead' : 'leads'}
             </span>
           </div>
         }

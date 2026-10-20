@@ -113,6 +113,16 @@ export function DataTable<T>({
   const safePage = Math.min(page, pageCount);
   if (safePage !== page) setPage(safePage);
 
+  // "1 entry" / "1 lead" en vez de "1 entries" / "1 leads".
+  const countLabel =
+    sortedData.length === 1
+      ? totalLabel.endsWith('ies')
+        ? `${totalLabel.slice(0, -3)}y`
+        : totalLabel.endsWith('s')
+        ? totalLabel.slice(0, -1)
+        : totalLabel
+      : totalLabel;
+
   const gridTemplate = useMemo(() => {
     const colTemplate = columns
       .map((c) => c.width ?? 'minmax(120px, 1fr)')
@@ -206,8 +216,11 @@ export function DataTable<T>({
         className
       )}
     >
+      {/* Barra de desplazamiento siempre visible: en escritorio las columnas de
+          la derecha quedaban fuera de vista sin ninguna pista de que la tabla
+          se desplaza hacia los lados. */}
       <div
-        className='min-h-0 flex-1 overflow-auto'
+        className='min-h-0 flex-1 overflow-auto [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2'
         style={{ scrollbarGutter: 'stable' }}
       >
         <div
@@ -345,8 +358,8 @@ export function DataTable<T>({
       </div>
 
       {showFooter ? (
-        <div className='flex items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3'>
-          <div className='flex items-center gap-2 text-[11px] font-medium text-slate-500'>
+        <div className='flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3'>
+          <div className='flex items-center gap-2 whitespace-nowrap text-[11px] font-medium text-slate-500'>
             {pagination?.enabled ? (
               <>
                 Showing
@@ -358,11 +371,11 @@ export function DataTable<T>({
                   }}
                   options={pagination.pageSizes ?? [10, 20, 50, 100]}
                 />
-                of {sortedData.length} {totalLabel}
+                of {sortedData.length} {countLabel}
               </>
             ) : (
               <>
-                {sortedData.length} {totalLabel}
+                {sortedData.length} {countLabel}
               </>
             )}
           </div>
