@@ -21,7 +21,7 @@ import type { LeadDTO } from '@/types/api.types';
 import { useAuth } from '@/store/useAuth.store';
 import useLoadingStore from '@/store/useLoadingStore';
 import { statusFromSlug } from '@/constants/leadFilters';
-import { getNameServiceLawyer } from '@/utils/getNameServiceLawyer';
+import { getServicesLawyer } from '@/utils/getNameServiceLawyer';
 import {
   ActivityPanel,
   Avatar,
@@ -126,7 +126,7 @@ const DashboardLawyers = () => {
 
   const capacityTotal = maxLeadsAssigned
     ? maxLeadsAssigned.reduce(
-        (acc: number, curr: any) => acc + (curr.max_leads ?? 0),
+        (acc: number, curr: any) => acc + (curr?.max_leads ?? 0),
         0
       )
     : 0;
@@ -187,9 +187,7 @@ const DashboardLawyers = () => {
 
   useEffect(() => {
     if (!userId) return;
-    setMaxLeadsAssigned(
-      getNameServiceLawyer(userId?.lawyersServices, dataServiceType)
-    );
+    setMaxLeadsAssigned(getServicesLawyer(userId, dataServiceType));
   }, [userId, dataServiceType]);
 
   const countFor = (slug: string): number | string => {

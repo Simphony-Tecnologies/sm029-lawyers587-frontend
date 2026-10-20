@@ -122,6 +122,15 @@ export interface LeadDTO {
   ai_urgency?: number | null;
   /** ISO. Fecha en que el abogado tomó/recibió el lead (leads_assigned.assigned_at). */
   pull_date?: string | null;
+  // Observaciones 2026-10-19 (obs 25, 36, 43): solo en listados.
+  /** ISO. Fecha de borrado automático de la papelera (ya calculada por el backend). */
+  purge_at?: string | null;
+  /** Motivo con el que se devolvió el lead (SEND_BACK, LOST, EXPIRED). */
+  return_reason?: string | null;
+  /** Abogado que devolvió el lead (SEND_BACK, LOST, EXPIRED). */
+  previous_lawyer?: { id: number; firstName: string; lastName: string } | null;
+  /** Cuántas veces fue devuelto (R1, R2, …). */
+  return_count?: number;
 }
 
 /** Score del lead (contrato A1): high = urgencia 4–5, medium = 3, low = 1–2, spam = spam_score ≥ 1. */
@@ -177,6 +186,19 @@ export interface CommentFilters {
 }
 
 // ─── Audit log ───────────────────────────────────────────────────────────────
+
+/** GET /audit (solo admin) — feed global de actividad. */
+export interface AuditFilters {
+  entity_type?: string;
+  action_type?: string;
+  actor_id?: number;
+  /** Acciones a excluir, separadas por coma (p. ej. 'edit_denied'). */
+  exclude_actions?: string;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+  offset?: number;
+}
 
 export interface AuditEvent {
   id: number;
@@ -352,9 +374,27 @@ export interface LawyerListItem {
   is_active: boolean;
   role: { id: number; name: string };
   services: string[];
+  /** Áreas con su capacidad (obs 37/46/50). Aparte de `services`, que no se toca. */
+  services_capacity?: LawyerServiceCapacity[];
   active_assigned_leads: number;
   pulled_count: number;
   lost_count: number;
+}
+
+/** Fila de capacidad por área de un abogado (GET /lawyers, GET /lawyers/:id). */
+export interface LawyerServiceCapacity {
+  /** Id de la fila (la de menor id es la original si hay áreas repetidas). */
+  id: number;
+  service_type_id: number;
+  name: string;
+  max_leads: number;
+  /** Leads activos del abogado en esa área. */
+  active_assigned_leads: number;
+}
+
+/** PUT /lawyers/:id/services — lista completa (lo que no viene se elimina). */
+export interface UpdateLawyerServicesDTO {
+  services: Array<{ service_type_id: number; max_leads: number }>;
 }
 
 export interface LawyerFilters {

@@ -29,6 +29,8 @@ import { copyText } from '@/lib/clipboard';
 import { Badge } from '@/components/ui/atoms/Badge';
 import { IconButton } from '@/components/ui/atoms/IconButton';
 import { OriginBadge } from '@/components/ui/atoms/OriginBadge';
+import { statusLabel } from '@/components/ui/atoms/StatusPill';
+import { ConfirmationDialog } from '@/components/ui/organisms/ConfirmationDialog';
 import {
   getLeadStatusMeta,
   isDestructiveStatus,
@@ -79,6 +81,8 @@ export interface LeadInfoLead {
   spam_score?: number;
   spam_reasons?: string[] | null;
   trashed_at?: string | null;
+  /** ISO. Fecha de borrado automático de la papelera, calculada por el backend (obs 43). */
+  purge_at?: string | null;
   previous_status?: string | null;
 }
 
@@ -179,6 +183,11 @@ export const LeadInfoModal = ({
   const [newCommentType, setNewCommentType] = useState<NoteType>('internal');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Obs 31 — confirmación antes de guardar el paso a Retained.
+  const [confirmRetained, setConfirmRetained] = useState(false);
+  // Obs 42 — "Move to Trash" con confirmación y razón obligatoria (como el bulk).
+  const [confirmTrash, setConfirmTrash] = useState(false);
+  const [trashReason, setTrashReason] = useState('');
   // Fase 1 — pull date del detalle, export del historial y edición de comentarios.
   const [detailPullDate, setDetailPullDate] = useState<string | null>(null);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
@@ -217,6 +226,9 @@ export const LeadInfoModal = ({
     setAssignReason('');
     setAssignSearch('');
     setConfirmDelete(false);
+    setConfirmRetained(false);
+    setConfirmTrash(false);
+    setTrashReason('');
     setEditingCommentId(null);
     setEditDraft('');
     setReminderDate('');
@@ -440,6 +452,16 @@ export const LeadInfoModal = ({
     if (!lead) return;
     if (loading) return;
     if (reasonRequiredMissing) return;
+    // Obs 31 — pasar a Retained (CLOSED) pide confirmación antes de guardar.
+    if (statusChanged && selectedStatus.toUpperCase() === 'CLOSED') {
+      setConfirmRetained(true);
+      return;
+    }
+    await submitChanges();
+  };
+
+  const submitChanges = async () => {
+    if (!lead) return;
     await onSubmit({
       status: selectedStatus,
       comments: comment,
@@ -452,6 +474,15 @@ export const LeadInfoModal = ({
     const reason = assignReason.trim();
     if (reason.length === 0) return;
     await onAssign(Number(assignLawyerId), reason);
+  };
+
+  // Obs 42 — la razón va igual que en el bulk trash (POST /leads/:id/trash { comment }).
+  const handleTrashConfirm = async () => {
+    if (!lead || !onTrash || loading) return;
+    const reason = trashReason.trim();
+    if (reason.length === 0) return;
+    setConfirmTrash(false);
+    await onTrash(lead.id, reason);
   };
 
   // Fase 2 (2.4) — recordatorio de calendario. Destinatario: el propio abogado,
@@ -522,6 +553,10 @@ export const LeadInfoModal = ({
 
   if (!lead && !open) return null;
 
+  // Obs 43 — fecha real de borrado automático (purge_at del backend).
+  const purgeAt =
+    lead?.purge_at && dayjs(lead.purge_at).isValid() ? dayjs(lead.purge_at) : null;
+
   const accentClass = isDestructive
     ? 'bg-customRed'
     : isReviewLead
@@ -531,7 +566,8 @@ export const LeadInfoModal = ({
     : 'bg-sky-500';
 
   return (
-    <Transition show={open} as={Fragment}>
+    <>
+    <Transition show={open && !confirmRetained && !confirmTrash} as={Fragment}>
       <Dialog as='div' className='relative z-50' onClose={loading ? () => {} : onClose}>
         <TransitionChild
           as={Fragment}
@@ -730,7 +766,8 @@ export const LeadInfoModal = ({
                   <section className='flex flex-col gap-3'>
                     <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>Trash</span>
                     {lead?.trashed_at ? (() => {
-                      const purgeDate = dayjs(lead.trashed_at).add(TRASH_PURGE_DAYS, 'day');
+                      // Obs 43 — la fecha de purga viene calculada del backend (purge_at).
+                      const purgeDate = purgeAt ?? dayjs(lead.trashed_at).add(TRASH_PURGE_DAYS, 'day');
                       const daysLeft = Math.max(0, purgeDate.diff(dayjs(), 'day'));
                       return (
                         <div className='flex items-start gap-2.5 rounded-[10px] border border-red-200/80 bg-red-50 px-3.5 py-3 text-xs font-medium leading-[1.5] text-slate-700'>
@@ -1295,7 +1332,7 @@ export const LeadInfoModal = ({
                   {isReviewLead ? (
                     <><MdInfoOutline size={12} className='text-amber-500' />Flagged for spam review</>
                   ) : isTrashedLead ? (
-                    <><MdInfoOutline size={12} className='text-red-500' />In trash — will be auto-purged</>
+                    <><MdInfoOutline size={12} className='text-red-500' />In trash — will be auto-purged{purgeAt ? ` on ${purgeAt.format('MMM D, YYYY')}` : ''}</>
                   ) : isDestructive ? (
                     <><MdLock size={12} className='text-slate-400' />Logged &amp; sent to super admin review</>
                   ) : (
@@ -1305,7 +1342,7 @@ export const LeadInfoModal = ({
                 {!isSpecialStatus ? (
                   <div className='flex flex-shrink-0 items-center gap-2'>
                     {onTrash && !isTrashedLead ? (
-                      <button type='button' onClick={() => lead && onTrash(lead.id, comment || undefined)} disabled={loading}
+                      <button type='button' onClick={() => { setTrashReason(''); setConfirmTrash(true); }} disabled={loading}
                         className='inline-flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-red-200 bg-white px-3 text-[12px] font-bold text-red-600 transition-colors hover:bg-red-50 focus:outline-none disabled:opacity-50'
                         title='Move to Trash'>
                         Move to Trash
@@ -1344,6 +1381,64 @@ export const LeadInfoModal = ({
         </div>
       </Dialog>
     </Transition>
+
+    {/* Obs 31 — confirmación del paso a Retained. Va fuera del detalle (que se oculta
+        mientras tanto sin perder su estado): un Dialog anidado queda `inert` en
+        Headless UI 2.1 y no recibe clics. */}
+    <ConfirmationDialog
+      open={open && confirmRetained}
+      onClose={() => setConfirmRetained(false)}
+      title='Mark as Retained?'
+      cancelLabel='Cancel'
+      confirmLabel='Confirm'
+      onConfirm={() => {
+        setConfirmRetained(false);
+        void submitChanges();
+      }}
+      loading={loading}
+    >
+      <p className='text-[13px] font-medium leading-[1.5] text-slate-500'>
+        This lead will be marked as Retained. After this, a lawyer can only move it to Completed.
+      </p>
+    </ConfirmationDialog>
+
+    {/* Obs 42 — Move to Trash: mismo patrón y textos que el bulk trash. */}
+    {onTrash ? (
+      <ConfirmationDialog
+        open={open && confirmTrash}
+        onClose={() => setConfirmTrash(false)}
+        title='Move to Trash'
+        fields={[
+          { label: 'Action', value: 'Move to trash' },
+          { label: 'Leads affected', value: '1 lead' },
+          { label: 'IDs', value: `#${formatId(lead?.id ?? '')}` },
+        ]}
+        notice='Trashed leads can be restored before the purge date.'
+        confirmLabel='Move to Trash'
+        onConfirm={handleTrashConfirm}
+        loading={loading}
+        confirmDisabled={trashReason.trim().length === 0}
+      >
+        <div className='mt-2 flex flex-col gap-1.5'>
+          <label
+            htmlFor='lead-trash-reason'
+            className='text-[11px] font-semibold uppercase tracking-[0.04em] text-slate-500'
+          >
+            Reason (required)
+          </label>
+          <textarea
+            id='lead-trash-reason'
+            value={trashReason}
+            onChange={(e) => setTrashReason(e.target.value.slice(0, REASON_MAX))}
+            rows={2}
+            disabled={loading}
+            placeholder='Why are these leads being trashed?'
+            className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60'
+          />
+        </div>
+      </ConfirmationDialog>
+    ) : null}
+    </>
   );
 };
 LeadInfoModal.displayName = 'LeadInfoModal';
@@ -1848,9 +1943,10 @@ const TimelineRow = ({
         {/* Status transition (only for status_change) */}
         {entry.action_type === 'status_change' && from && to ? (
           <div className='flex items-center gap-1.5 text-[13px] font-bold text-slate-900'>
-            <span>{from}</span>
+            {/* Obs 23 — nombres visibles, no los códigos (IN PROGRESS → In progress). */}
+            <span>{statusLabel(from)}</span>
             <span className='text-slate-400'>→</span>
-            <span>{to}</span>
+            <span>{statusLabel(to)}</span>
           </div>
         ) : null}
 

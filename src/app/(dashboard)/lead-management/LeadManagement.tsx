@@ -18,7 +18,7 @@ import {
 import { toLeadRow, useLeadsStore } from '@/store/useLead.store';
 import { useSelectStatus } from '@/store/useSelectStatus';
 import { api, database, downloadBlob } from '@/services/database';
-import type { FirmListItem, LeadStatus } from '@/types/api.types';
+import type { FirmListItem, LawyerListItem, LeadStatus } from '@/types/api.types';
 import { statusSelectAll } from '@/constants/status';
 import { adminStatusFromSlug, adminSlugFromStatus } from '@/constants/leadFilters';
 import {
@@ -111,7 +111,12 @@ type LeadRow = {
   spam_score: number;
   spam_reasons: string[] | null;
   trashed_at: string | null;
+  purge_at?: string | null;
   previous_status: string | null;
+  // Obs 25 — devoluciones: motivo, abogado que lo devolvió y contador (R1, R2…).
+  return_reason?: string | null;
+  previous_lawyer?: { id: number; firstName: string; lastName: string } | null;
+  return_count?: number;
   // Fase 1 — score (urgencia IA), pull date y firma del abogado asignado.
   ai_urgency?: number | null;
   pull_date?: string | null;
@@ -163,7 +168,16 @@ const toContextLead = (r: LeadRow): QueueContextLead => ({
   status: r.status,
   lawyer: r.lawyer && !/no assigned/i.test(r.lawyer) ? r.lawyer : null,
   updatedAt: r.date_updated,
+  returnReason: r.return_reason ?? null,
+  previousLawyer: r.previous_lawyer ?? null,
 });
+// Obs 25 — contador de devoluciones (R1, R2…) junto al status "Sent back".
+const returnsBadge = (r: LeadRow) =>
+  (r.return_count ?? 0) >= 1 ? (
+    <Badge variant='count' className='whitespace-nowrap'>
+      R{r.return_count}
+    </Badge>
+  ) : null;
 const initialsOf = (name: string) =>
   name
     .split(' ')
@@ -244,6 +258,23 @@ interface LawyerOption {
   isActive: boolean;
 }
 
+// Obs 39 — abogado de GET /lawyers?service_type_id=… con la capacidad de ESA
+// área (services_capacity). Si el área está repetida (dato sucio) manda la fila
+// original, la de menor id; no se suman (la suma es la capacidad inflada).
+const toAreaLawyerOption = (l: LawyerListItem, serviceTypeId: number): LawyerOption => {
+  const area = (l.services_capacity ?? [])
+    .filter((s) => Number(s.service_type_id) === serviceTypeId)
+    .sort((a, b) => a.id - b.id)[0];
+  return {
+    id: l.id,
+    name: `${l.firstName ?? ''} ${l.lastName ?? ''}`.trim() || `Lawyer #${l.id}`,
+    services: l.services ?? [],
+    activeLeads: area?.active_assigned_leads ?? 0,
+    maxLeads: area?.max_leads ?? 0,
+    isActive: l.is_active ?? true,
+  };
+};
+
 const MAX_PREVIEW_NAMES = 3;
 const MAX_PREVIEW_IDS = 3;
 
@@ -278,6 +309,8 @@ const LeadManagement = () => {
   const lastSearchRef = useRef(urlSearch);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [serviceTypes, setServiceTypes] = useState<string[]>([]);
+  // Obs 39 — nombre del área (= texto `service` del lead) → id de /service_types.
+  const [serviceTypeIds, setServiceTypeIds] = useState<Map<string, number>>(new Map());
   const [firms, setFirms] = useState<FirmListItem[]>([]);
   // Nombre de cualquier firma (incluidas las fusionadas) para el export.
   const [firmNames, setFirmNames] = useState<Map<number, string>>(new Map());
@@ -300,6 +333,14 @@ const LeadManagement = () => {
   const [lawyers, setLawyers] = useState<LawyerOption[]>([]);
   const [singleAssignLoading, setSingleAssignLoading] = useState(false);
   const [lawyersLoading, setLawyersLoading] = useState(false);
+  // Obs 39 — abogados activos del área del lead (o de la selección bulk) con su
+  // capacidad EN esa área. null = sin área resuelta → lista general (`lawyers`).
+  const [areaLawyers, setAreaLawyers] = useState<{
+    serviceTypeId: number;
+    /** null mientras carga. */
+    list: LawyerOption[] | null;
+  } | null>(null);
+  const areaRequestRef = useRef(0);
 
   // ── Dedicated-tab state (REVIEW / TRASHED / ARCHIVED) ──
   const [dedicatedData, setDedicatedData] = useState<LeadRow[] | null>(null);
@@ -327,6 +368,17 @@ const LeadManagement = () => {
       return;
     }
     setDedicatedData(res.data.data.map((lead) => toLeadRow(lead) as LeadRow));
+  };
+
+  // Obs 40 — tras una acción la vista se refresca sin recargar la página. La
+  // pestaña dedicada tiene su propio dataset; la lista principal (store) se
+  // refresca también para que el lead aparezca donde corresponde al volver.
+  const refreshAfterAction = async () => {
+    if (isDedicatedTab(statusFilter)) {
+      await Promise.all([fetchDedicated(statusFilter), fetchLeads()]);
+    } else {
+      await fetchLeads();
+    }
   };
 
   const uniqueStatuses = useMemo<string[]>(() => {
@@ -357,12 +409,6 @@ const LeadManagement = () => {
       rowMatchesQueue(activeQueue, l, since)
     );
   }, [activeQueue, queuePeriod, sinceParam, dataLeads]);
-
-  // Returned: la lista de abogados resuelve el nombre de asignaciones masivas.
-  useEffect(() => {
-    if (activeQueue?.key === 'returned') void ensureLawyersLoaded();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeQueue]);
 
   const queueContextLeads = useMemo(
     () => (activeQueue?.context && queueRows ? queueRows.map(toContextLead) : []),
@@ -518,7 +564,11 @@ const LeadManagement = () => {
   // Fase 1 — catálogos para el panel (áreas de derecho y firmas).
   useEffect(() => {
     void api.serviceTypes.list().then((res) => {
-      if (res.success && res.data) setServiceTypes(res.data.map((t) => t.name).filter(Boolean));
+      if (!res.success || !res.data) return;
+      setServiceTypes(res.data.map((t) => t.name).filter(Boolean));
+      setServiceTypeIds(
+        new Map(res.data.filter((t) => t.name).map((t) => [t.name, Number(t.id)]))
+      );
     });
     void api.firms.list().then((res) => {
       if (!res.success || !res.data) return;
@@ -534,12 +584,19 @@ const LeadManagement = () => {
   const showLead = (row: LeadRow) => {
     setSelectedLead(row);
     setIsOpenLead(true);
-    // Issue #2: si el lead no está asignado, pre-cargamos lawyers para
-    // que el picker inline esté disponible sin click extra.
-    if (row.status === 'NEW' || row.status === 'EXPIRED' || row.status === 'SEND_BACK') {
-      void ensureLawyersLoaded();
-    }
   };
+
+  // Issue #2: si el lead no está asignado, pre-cargamos lawyers para que el
+  // picker inline esté disponible sin click extra. Obs 39: solo los del área
+  // del lead (se reintenta cuando llega el catálogo /service_types).
+  useEffect(() => {
+    const status = selectedLead?.status;
+    if (!isOpenLead || !(status === 'NEW' || status === 'EXPIRED' || status === 'SEND_BACK')) {
+      return;
+    }
+    void loadAssignLawyers(serviceTypeIdOf(selectedLead.service));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpenLead, selectedLead, serviceTypeIds]);
 
   useEffect(() => {
     if (!leadParam) {
@@ -606,7 +663,7 @@ const LeadManagement = () => {
     // Pre-check client-side de capacity para fail-fast con un mensaje
     // accionable. Backend valida igual server-side. Cubre el bug donde
     // editar áreas creaba lawyer-service con max_leads=0.
-    const target = lawyers.find((l) => l.id === lawyerId);
+    const target = assignLawyers.find((l) => l.id === lawyerId);
     if (target && target.maxLeads === 0) {
       toast.error(
         'This lawyer has no capacity configured. Edit the lawyer and set "No. Leads Allowed" >= 1.',
@@ -638,7 +695,7 @@ const LeadManagement = () => {
     }
     toast.success('Lead assigned successfully');
     setIsOpenLead(false);
-    fetchLeads();
+    void refreshAfterAction();
   };
 
   const handleSaveLead = async ({
@@ -664,7 +721,7 @@ const LeadManagement = () => {
       toast.success('Lead archived');
       setSelectedLead({});
       setIsOpenLead(false);
-      await fetchLeads();
+      await refreshAfterAction();
       return;
     }
 
@@ -690,7 +747,8 @@ const LeadManagement = () => {
     toast.success('Lead information updated successfully');
     setSelectedLead({});
     setIsOpenLead(false);
-    await fetchLeads();
+    // Obs 40 — p. ej. un lead archivado que vuelve a New sale de la pestaña Archived.
+    await refreshAfterAction();
     setLoading(false);
   };
 
@@ -707,8 +765,7 @@ const LeadManagement = () => {
     toast.success('Lead marked as valid — moved to New');
     setSelectedLead({});
     setIsOpenLead(false);
-    if (isDedicatedTab(statusFilter)) void fetchDedicated(statusFilter);
-    else await fetchLeads();
+    await refreshAfterAction();
   };
 
   const handleMarkSpam = async (id: number | string) => {
@@ -722,8 +779,7 @@ const LeadManagement = () => {
     toast.success('Lead confirmed as spam — moved to Trash');
     setSelectedLead({});
     setIsOpenLead(false);
-    if (isDedicatedTab(statusFilter)) void fetchDedicated(statusFilter);
-    else await fetchLeads();
+    await refreshAfterAction();
   };
 
   const handleRestore = async (id: number | string) => {
@@ -737,8 +793,7 @@ const LeadManagement = () => {
     toast.success('Lead restored successfully');
     setSelectedLead({});
     setIsOpenLead(false);
-    if (isDedicatedTab(statusFilter)) void fetchDedicated(statusFilter);
-    else await fetchLeads();
+    await refreshAfterAction();
   };
 
   const handleTrash = async (id: number | string, comment?: string) => {
@@ -752,7 +807,7 @@ const LeadManagement = () => {
     toast.success('Lead moved to trash');
     setSelectedLead({});
     setIsOpenLead(false);
-    await fetchLeads();
+    await refreshAfterAction();
   };
 
   const handleDeletePermanent = async (id: number | string) => {
@@ -768,8 +823,7 @@ const LeadManagement = () => {
     toast.success('Lead permanently deleted');
     setSelectedLead({});
     setIsOpenLead(false);
-    if (isDedicatedTab(statusFilter)) void fetchDedicated(statusFilter);
-    else await fetchLeads();
+    await refreshAfterAction();
   };
 
   const deleteLead = async () => {
@@ -846,6 +900,43 @@ const LeadManagement = () => {
     setLawyers(opts);
   };
 
+  // Obs 39 — área → id del catálogo, con el mismo criterio que el BE al asignar
+  // (nombre exacto del área). null = sin catálogo o área desconocida.
+  const serviceTypeIdOf = (service?: string | null): number | null =>
+    (service ? serviceTypeIds.get(service) : undefined) ?? null;
+
+  // Obs 39 — picker de asignación: solo abogados activos que cubren el área, con
+  // su capacidad en esa área. Sin área (o si falla) se usa la lista general.
+  const loadAssignLawyers = async (serviceTypeId: number | null) => {
+    const requestId = ++areaRequestRef.current;
+    if (!serviceTypeId) {
+      setAreaLawyers(null);
+      void ensureLawyersLoaded();
+      return;
+    }
+    setAreaLawyers({ serviceTypeId, list: null });
+    const res = await api.lawyers.list({
+      service_type_id: serviceTypeId,
+      is_active: true,
+      role_id: 2,
+      limit: 1000,
+    });
+    if (requestId !== areaRequestRef.current) return;
+    if (!res.success || !res.data) {
+      setAreaLawyers(null);
+      void ensureLawyersLoaded();
+      return;
+    }
+    setAreaLawyers({
+      serviceTypeId,
+      list: res.data.data
+        .map((l) => toAreaLawyerOption(l, serviceTypeId))
+        .filter((o) => Number.isFinite(o.id)),
+    });
+  };
+  const assignLawyers: LawyerOption[] = areaLawyers ? areaLawyers.list ?? [] : lawyers;
+  const assignLawyersLoading = areaLawyers ? areaLawyers.list === null : lawyersLoading;
+
   // Selected leads derived from current dataset
   const selectedLeads = useMemo<LeadRow[]>(() => {
     if (selectedIds.size === 0 || !dataLeads) return [];
@@ -860,7 +951,11 @@ const LeadManagement = () => {
     if (selectedIds.size === 0) return;
     if (type === 'assign') {
       setAssignLawyerId('');
-      void ensureLawyersLoaded();
+      // Obs 39 — si toda la selección es de una misma área, solo abogados de
+      // esa área; si no, la lista general de siempre.
+      const areas = new Set(selectedLeads.map((l) => l.service));
+      const oneArea = selectedLeads.length === selectedIds.size && areas.size === 1;
+      void loadAssignLawyers(oneArea ? serviceTypeIdOf(selectedLeads[0].service) : null);
     }
     if (type === 'status') {
       setBulkStatus('');
@@ -944,7 +1039,8 @@ const LeadManagement = () => {
   const finishBulk = () => {
     clearSelection();
     setBulkDialog(null);
-    fetchLeads();
+    // Obs 40 — también en las pestañas dedicadas (y tras una asignación masiva).
+    void refreshAfterAction();
   };
 
   // Fase 1 — el CSV contiene exactamente las filas visibles (status, cola,
@@ -990,7 +1086,7 @@ const LeadManagement = () => {
   };
 
   const handleConfirmAssign = async () => {
-    const lawyer = lawyers.find((l) => l.id === assignLawyerId);
+    const lawyer = assignLawyers.find((l) => l.id === assignLawyerId);
     if (!lawyer) return;
     const comment = bulkComment.trim();
     if (comment.length === 0) {
@@ -1138,7 +1234,7 @@ const LeadManagement = () => {
     {
       label: 'Assign to',
       value: (() => {
-        const lawyer = lawyers.find((l) => l.id === assignLawyerId);
+        const lawyer = assignLawyers.find((l) => l.id === assignLawyerId);
         return lawyer ? lawyer.name : '—';
       })(),
       highlight: !!assignLawyerId,
@@ -1310,7 +1406,17 @@ const LeadManagement = () => {
       width: '110px',
       sortable: true,
       accessor: (r) => r.status,
-      render: (r) => <StatusPill variant={variantFromStatus(r.status)} />,
+      render: (r) => {
+        const variant = variantFromStatus(r.status);
+        return (
+          <span className='inline-flex items-center gap-1'>
+            <StatusPill variant={variant} />
+            {/* Obs 25 — R1, R2…: veces que fue devuelto ("Sent back"). En la cola
+                Returned va en su propia columna "Returns". */}
+            {variant === 'lost' && activeQueue?.key !== 'returned' ? returnsBadge(r) : null}
+          </span>
+        );
+      },
     },
     {
       key: 'channel',
@@ -1470,6 +1576,16 @@ const LeadManagement = () => {
             </span>
           );
         },
+      },
+      {
+        // Obs 25 — contador de devoluciones (R1, R2…).
+        key: 'queue_returns',
+        label: 'Returns',
+        width: '80px',
+        sortable: true,
+        accessor: (r) => r.return_count ?? 0,
+        render: (r) =>
+          returnsBadge(r) ?? <span className='text-[11px] text-slate-400'>—</span>,
       },
     ],
     flagged: [timeColumn('Flagged on', eventTime, relativeCell), reasonColumn('Flag reason')],
@@ -1639,6 +1755,38 @@ const LeadManagement = () => {
     });
   };
 
+  // El detalle reinicia su estado cuando cambia `lead`: se memoiza para que un
+  // re-render de la página (p. ej. al llegar los abogados del área, obs 39) no
+  // borre el status / la razón que el admin está editando.
+  const modalLead = useMemo(
+    () =>
+      Object.keys(selectedLead).length > 0
+        ? {
+            id: selectedLead['lead id'],
+            name: selectedLead['lead name'],
+            email: selectedLead.email,
+            phone: selectedLead['phone number'],
+            service: selectedLead.service,
+            description: selectedLead['description lead'],
+            comments: selectedLead.comments,
+            selectedAt: selectedLead.date
+              ? dayjs
+                  .utc(selectedLead.date as string)
+                  .local()
+                  .format('MMM D, YYYY')
+              : undefined,
+            pullDate: formatDay(selectedLead.pull_date),
+            status: selectedLead.status,
+            spam_score: selectedLead.spam_score,
+            spam_reasons: selectedLead.spam_reasons,
+            trashed_at: selectedLead.trashed_at,
+            purge_at: selectedLead.purge_at,
+            previous_status: selectedLead.previous_status,
+          }
+        : null,
+    [selectedLead]
+  );
+
   if (loading) return <ReLoading />;
 
   return (
@@ -1647,31 +1795,7 @@ const LeadManagement = () => {
       <LeadInfoModal
         open={isOpenLead}
         onClose={() => setIsOpenLead(false)}
-        lead={
-          Object.keys(selectedLead).length > 0
-            ? {
-                id: selectedLead['lead id'],
-                name: selectedLead['lead name'],
-                email: selectedLead.email,
-                phone: selectedLead['phone number'],
-                service: selectedLead.service,
-                description: selectedLead['description lead'],
-                comments: selectedLead.comments,
-                selectedAt: selectedLead.date
-                  ? dayjs
-                      .utc(selectedLead.date as string)
-                      .local()
-                      .format('MMM D, YYYY')
-                  : undefined,
-                pullDate: formatDay(selectedLead.pull_date),
-                status: selectedLead.status,
-                spam_score: selectedLead.spam_score,
-                spam_reasons: selectedLead.spam_reasons,
-                trashed_at: selectedLead.trashed_at,
-                previous_status: selectedLead.previous_status,
-              }
-            : null
-        }
+        lead={modalLead}
         statusOptions={
           selectedLead.status === 'REVIEW' || selectedLead.status === 'TRASHED'
             ? []
@@ -1691,7 +1815,7 @@ const LeadManagement = () => {
         }
         onSubmit={handleSaveLead}
         loading={loading}
-        assignableLawyers={lawyers.map((l) => ({
+        assignableLawyers={assignLawyers.map((l) => ({
           id: l.id,
           name: l.name,
           services: l.services,
@@ -1975,8 +2099,8 @@ const LeadManagement = () => {
         confirmDisabled={!assignLawyerId || bulkComment.trim().length === 0}
       >
         <LawyerPicker
-          lawyers={lawyers}
-          loading={lawyersLoading}
+          lawyers={assignLawyers}
+          loading={assignLawyersLoading}
           value={assignLawyerId === '' ? null : Number(assignLawyerId)}
           onChange={(id) => setAssignLawyerId(id ?? '')}
         />
@@ -2040,7 +2164,7 @@ const LeadManagement = () => {
         }`}
         subtitle='Archived leads stay in the system but are hidden from the active list.'
         fields={archiveFields}
-        notice='You can restore archived leads from the Trash section at any time.'
+        notice='You can restore archived leads from the Archived section at any time.'
         confirmLabel='Archive'
         onConfirm={handleConfirmArchive}
         loading={bulkLoading}
@@ -2083,7 +2207,7 @@ const LeadManagement = () => {
         open={bulkDialog === 'trash'}
         onClose={closeBulkDialog}
         title='Move to Trash'
-        subtitle='These leads will be moved to trash and auto-purged after 30 days.'
+        subtitle='These leads will be moved to trash and auto-purged.'
         fields={[
           { label: 'Action', value: 'Move to trash' },
           {

@@ -30,7 +30,9 @@ export type LawyerStatusKey =
   | 'assignable'
   | 'capacity'
   | 'unassignable'
-  | 'pending';
+  | 'pending'
+  // Obs 46 — sin áreas/capacidad configuradas (no es "At capacity").
+  | 'pending_setup';
 
 export interface LawyerFormSpecialtyOption {
   value: number | string;
@@ -135,6 +137,11 @@ const STATUS_PILL: Record<
     wrap: 'bg-slate-100 text-slate-500 border-slate-200',
     dot: 'bg-slate-400',
     label: 'Pending',
+  },
+  pending_setup: {
+    wrap: 'bg-amber-50 text-amber-700 border-amber-200',
+    dot: 'bg-amber-500',
+    label: 'Pending setup',
   },
 };
 
@@ -802,7 +809,10 @@ const ActivityBlock = ({
 }: ActivityBlockProps) => {
   const pill = STATUS_PILL[status];
   const isWarning =
-    status === 'unassignable' || status === 'capacity' || status === 'pending';
+    status === 'unassignable' ||
+    status === 'capacity' ||
+    status === 'pending' ||
+    status === 'pending_setup';
   return (
     <div className='flex flex-col gap-3 rounded-[11px] border border-slate-200 bg-slate-50 px-4 py-3.5'>
       <div className='flex items-center justify-between'>

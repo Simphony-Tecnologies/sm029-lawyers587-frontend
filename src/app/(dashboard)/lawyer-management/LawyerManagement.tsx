@@ -1,7 +1,11 @@
 'use client';
 import Modal from '@/components/organisms/Modal';
 import { api, database, downloadBlob } from '@/services/database';
-import type { LawyerStats as LawyerStatsDTO } from '@/types/api.types';
+import { dedupeServicesCapacity as dedupeServices } from '@/utils/getNameServiceLawyer';
+import type {
+  LawyerServiceCapacity,
+  LawyerStats as LawyerStatsDTO,
+} from '@/types/api.types';
 import { useState, useEffect, useMemo } from 'react';
 import {
   MdAdd,
@@ -38,6 +42,14 @@ import {
   type LawyerStatusKey,
 } from '@/components/ui';
 
+// Obs 37/50 — una sola fila por área (la original); nunca sumar repetidas.
+const dedupeServicesCapacity = (rows: unknown): LawyerServiceCapacity[] =>
+  dedupeServices<LawyerServiceCapacity>(rows);
+
+// Capacidad total = suma de max_leads de las áreas ya deduplicadas.
+const capacityOf = (rows: LawyerServiceCapacity[]): number =>
+  rows.reduce((acc, s) => acc + (Number(s?.max_leads) || 0), 0);
+
 const LawyerManagement = () => {
   const [data, setData] = useState<any>(null);
   const [columns, setColumns] = useState([]);
@@ -59,6 +71,8 @@ const LawyerManagement = () => {
   const [statusToggleComment, setStatusToggleComment] = useState('');
   const [statusToggleLoading, setStatusToggleLoading] = useState(false);
   const [statsServer, setStatsServer] = useState<LawyerStatsDTO | null>(null);
+  // `total` de GET /lawyers (misma fuente que las filas de la tabla).
+  const [listTotal, setListTotal] = useState<number | null>(null);
   const [lawyerStats, setLawyerStats] = useState<{
     total: number;
     available: number;
@@ -115,17 +129,31 @@ const LawyerManagement = () => {
 
   const fetchData = async () => {
     try {
-      const response = await database.getData(
-        `${process.env.NEXT_PUBLIC_URL}/lawyers` || ''
-      );
-
-      if (!response.success) {
-        throw new Error('Network response was not ok');
-      }
-      const data = response.data;
+      // /lawyers pagina (default 20, id desc) y las tarjetas de KPI se calculan
+      // sobre estas filas → pedimos todas las páginas y usamos el `total` de
+      // la respuesta, no un conteo de otra fuente.
+      const PAGE_SIZE = 1000;
+      const data: any[] = [];
+      let total = 0;
+      do {
+        const response = await api.lawyers.list({
+          limit: PAGE_SIZE,
+          offset: data.length,
+        });
+        if (!response.success || !response.data) {
+          throw new Error('Network response was not ok');
+        }
+        const page = Array.isArray(response.data.data)
+          ? response.data.data
+          : [];
+        total = Number(response.data.total ?? page.length);
+        data.push(...page);
+        if (page.length === 0) break;
+      } while (data.length < total);
+      setListTotal(total);
       setWithOutFormat(data);
       getTotalLeads(data);
-      const dataFormat = data.map(formatResponse);
+      const dataFormat: any = data.map(formatResponse);
       setOriginalData(dataFormat);
       setData(dataFormat);
       if (data.length > 0) {
@@ -153,27 +181,12 @@ const LawyerManagement = () => {
 
   const getTotalLeads = (data: any) => {
     data.map(async (res: any) => {
-      if (!!res.lawyersServices && labelService) {
-        // const filterItemsServices = dataLawyerServices.filter(
-        //   (item: any) => item['lawyer_id'] === parseInt(res.id)
-        // );
-
-        const filtertypes = res.lawyersServices.map((item: any) => {
-          const matchingLabel = labelService.find(
-            (label: any) => label.value === item.service_type_id
-          );
-          return matchingLabel
-            ? { ...matchingLabel, max_leads: item.max_leads }
-            : null;
-        });
-        res.service_type = filtertypes;
-        res.max_leads = filtertypes
-          ? filtertypes.reduce(
-              (acc: number, curr: any) => acc + curr.max_leads,
-              0
-            )
-          : 0;
-      }
+      // Obs 37/47/50 — áreas y capacidad desde `services_capacity` (ya trae el
+      // nombre del área; `lawyersServices` ya no viene en /lawyers). Antes se
+      // cruzaba con /service_types y quedaban `null` si aún no había llegado.
+      const ownServices = dedupeServicesCapacity(res.services_capacity);
+      res.service_type = ownServices;
+      res.max_leads = capacityOf(ownServices);
 
       if (
         !!dataLeads &&
@@ -296,23 +309,29 @@ const LawyerManagement = () => {
         )
       : [];
 
-    if (!!withOutFormat[index].lawyersServices && labelService) {
-      const filtertypes = withOutFormat[index].lawyersServices.map(
-        (item: any) => {
-          const matchingLabel = labelService.find(
-            (label: any) => label.value === item.service_type_id
-          );
-          return matchingLabel
-            ? { ...matchingLabel, max_leads: item.max_leads }
-            : null;
-        }
-      );
-      setLawyerServiceRelacion(withOutFormat[index].lawyersServices);
-      setSelectedOptionsService(filtertypes);
-    } else {
-      setLawyerServiceRelacion([]);
-      setSelectedOptionsService([]);
-    }
+    // Obs 37/50 — precargar el modal con las áreas reales (`services_capacity`),
+    // una por área (deduplicadas: la fila original, de menor id).
+    const ownServices = dedupeServicesCapacity(
+      withOutFormat[index].services_capacity
+    );
+    setLawyerServiceRelacion(ownServices);
+    setSelectedOptionsService(
+      Array.isArray(labelService)
+        ? ownServices
+            .map((item) => {
+              const matchingLabel = labelService.find(
+                (label: any) => label.value === item.service_type_id
+              );
+              return matchingLabel
+                ? { ...matchingLabel, max_leads: item.max_leads }
+                : null;
+            })
+            .filter(Boolean)
+        : []
+    );
+    // Obs 46 — sin áreas (o capacidad 0) = nunca configurado, no "at capacity".
+    const totalMax = capacityOf(ownServices);
+    const notSetUp = ownServices.length === 0 || totalMax <= 0;
 
     if (!!dataLeads && dataLeads.length > 0) {
       const filterLeads = dataLeads.filter((item: any) =>
@@ -320,7 +339,6 @@ const LawyerManagement = () => {
           .map((filterItem: any) => filterItem.lead)
           .includes(item['lead id'])
       );
-      const totalMax = parseInt(withOutFormat[index].max_leads) || 0;
       const total = filterLeads.length;
       const available = Math.max(totalMax - total, 0);
       const active = filterLeads.filter(
@@ -342,10 +360,11 @@ const LawyerManagement = () => {
       setAssignable({
         isAssignable: available > 0,
         toBeAssigned: available,
+        notSetUp,
       });
     } else {
       setLawyerStats({ total: 0, available: 0, active: 0, lost: 0, missed: 0 });
-      setAssignable({ isAssignable: true, toBeAssigned: 0 });
+      setAssignable({ isAssignable: true, toBeAssigned: 0, notSetUp });
     }
   };
 
@@ -464,7 +483,8 @@ const LawyerManagement = () => {
       law_firm: payload.name_of_law_firm,
       notes: payload.notes,
       is_active: true,
-      profile_image_url: imageUrl,
+      // Sin foto no se manda el campo: el backend rechazaba "" (no es URL).
+      ...(imageUrl ? { profile_image_url: imageUrl } : {}),
     };
     const creating = await database.CreateLawyer(data);
     if (!creating.success) {
@@ -542,78 +562,54 @@ const LawyerManagement = () => {
       is_active: dataIndex.is_active,
       law_firm: payload.name_of_law_firm,
       notes: payload.notes,
-      updated_at: new Date(),
-      profile_image_url: imageUrl,
+      // Sin foto no se manda el campo: el backend rechazaba "" con 400 y el
+      // guardado de áreas nunca llegaba a enviarse.
+      ...(imageUrl ? { profile_image_url: imageUrl } : {}),
     };
     const updateData = await database.UpdateLawyer(data as any, dataIndex.id);
-    if (updateData.code === 401) {
-      toast.error(updateData.messages);
+    // Cualquier `success: false` es error (antes solo se miraba el 401 y se
+    // mostraba "updated successfully" aunque el backend hubiera rechazado).
+    if (!updateData.success || updateData.data?.success === false) {
+      const backendMsg = updateData.messages ?? updateData.data?.error;
+      toast.error(
+        Array.isArray(backendMsg)
+          ? backendMsg.join(', ')
+          : backendMsg || 'error updating lawyer'
+      );
       setLoadingModal(false);
       return;
     }
-    // ── Specialty / max_leads sync (multi-area) ──
-    // 1) Diff entre los services actuales del lawyer y los target.
-    // 2) Borrar los que sobran, crear los que faltan, actualizar
-    //    max_leads donde ya existían y cambió.
-    const services: any[] = Array.isArray(lawyerServiceRelacion)
-      ? lawyerServiceRelacion
-      : [];
-    const ownServices = services.filter(
-      (s: any) => Number(s.lawyer_id) === Number(dataIndex.id)
-    );
+    // ── Áreas / max_leads (multi-area) — obs 37, 49, 50, 51 ──
+    // Una sola llamada a PUT /lawyers/:id/services con la lista COMPLETA (no un
+    // diff): lo que no viene se elimina, es idempotente y normaliza las áreas
+    // duplicadas. Reemplaza las N llamadas a /lawyers-services que inflaban la
+    // capacidad.
     const targetIds: number[] = Array.isArray(payload.specialtyIds)
       ? payload.specialtyIds.map((v: any) => Number(v)).filter(Number.isFinite)
       : payload.specialtyId !== null && payload.specialtyId !== undefined
       ? [Number(payload.specialtyId)]
       : [];
-    const targetSet = new Set(targetIds);
-    const currentByServiceId = new Map<number, any>();
-    for (const svc of ownServices) {
-      const stId = Number(svc.service_type_id);
-      if (Number.isFinite(stId)) currentByServiceId.set(stId, svc);
-    }
     // L587-12 — capacidad por área (fallback al escalar legacy).
     const capFor = (id: number): number =>
       Number(payload.maxLeadsByArea?.[id] ?? payload.max_leads);
-
-    // Eliminar áreas que ya no están seleccionadas.
-    const toDelete = ownServices.filter(
-      (svc: any) => !targetSet.has(Number(svc.service_type_id))
-    );
-    // Agregar áreas nuevas.
-    const toAdd = targetIds.filter((id) => !currentByServiceId.has(id));
-    // Actualizar max_leads en áreas que persisten y cambiaron (por área).
-    const toUpdate = targetIds
-      .filter((id) => currentByServiceId.has(id))
-      .map((id) => currentByServiceId.get(id))
-      .filter(
-        (svc: any) =>
-          Number(svc.max_leads) !== capFor(Number(svc.service_type_id))
+    const servicesRes = await api.lawyers.updateServices(Number(dataIndex.id), {
+      services: Array.from(new Set(targetIds)).map((stId) => ({
+        service_type_id: stId,
+        max_leads: capFor(stId),
+      })),
+    });
+    if (!servicesRes.success) {
+      const backendMsg: unknown = servicesRes.message;
+      toast.error(
+        Array.isArray(backendMsg)
+          ? backendMsg.join(', ')
+          : (backendMsg as string) || 'Error updating value of service'
       );
-
-    await Promise.all([
-      ...toDelete.map((svc: any) =>
-        database.deleteData(
-          `${process.env.NEXT_PUBLIC_URL}/lawyers-services/${svc.id}`
-        )
-      ),
-      ...toAdd.map((stId) =>
-        database.postData(
-          `${process.env.NEXT_PUBLIC_URL}/lawyers-services`,
-          {
-            lawyer_id: dataIndex.id,
-            service_type_id: stId,
-            max_leads: capFor(stId),
-          }
-        )
-      ),
-      ...toUpdate.map((svc: any) =>
-        database.patchData(
-          `${process.env.NEXT_PUBLIC_URL}/lawyers-services/${svc.id}`,
-          { max_leads: capFor(Number(svc.service_type_id)) }
-        )
-      ),
-    ]);
+      // Los datos del perfil sí se guardaron: refrescar la lista igual.
+      fetchData();
+      setLoadingModal(false);
+      return;
+    }
     fetchData();
     getExtraData();
     toast.success('Lawyer updated successfully');
@@ -840,14 +836,6 @@ const LawyerManagement = () => {
 
   const lawyerRows = useMemo<LawyerRow[]>(() => {
     if (!Array.isArray(withOutFormat) || withOutFormat.length === 0) return [];
-    const servicesByLawyer: Record<number, any[]> = {};
-    if (Array.isArray(dataLawyerServices)) {
-      for (const s of dataLawyerServices as any[]) {
-        const lid = Number(s?.lawyer_id);
-        if (!Number.isFinite(lid)) continue;
-        (servicesByLawyer[lid] ||= []).push(s);
-      }
-    }
     return (withOutFormat as any[]).map((raw: any) => {
       const id = Number(raw.id);
       const isActive = raw.is_active === true;
@@ -858,22 +846,21 @@ const LawyerManagement = () => {
       );
       const pulled = Number(raw.pulled_count ?? raw.totalLeads ?? 0);
       const lost = Number(raw.lost_count ?? raw.lost ?? 0);
-      // max_leads NO viene en /lawyers v2; sumamos desde /lawyers-services.
-      const ownServices = servicesByLawyer[id] || [];
-      const maxLeads = ownServices.reduce(
-        (acc, s) => acc + Number(s?.max_leads ?? 0),
-        0
-      );
+      // Obs 37/50 — capacidad desde `services_capacity` (deduplicado por área:
+      // la fila original, de menor id; nunca la suma de las repetidas).
+      const ownServices = dedupeServicesCapacity(raw.services_capacity);
+      const maxLeads = capacityOf(ownServices);
       const lastLoginRaw = raw.last_login ?? null;
       let status: LawyerStatus;
       if (!isActive && !lastLoginRaw && pulled === 0) status = 'pending';
       else if (!isActive) status = 'unassignable';
-      else if (maxLeads <= 0 || activeLeads >= maxLeads) status = 'capacity';
+      // Obs 46 — sin áreas o con capacidad 0 = nunca configurado, no "at capacity".
+      else if (ownServices.length === 0 || maxLeads <= 0)
+        status = 'pending_setup';
+      else if (activeLeads >= maxLeads) status = 'capacity';
       else status = 'assignable';
 
-      const specialtyArr: any[] = Array.isArray(raw.service_type)
-        ? raw.service_type
-        : [];
+      const specialtyArr: any[] = ownServices;
       const specialty =
         specialtyArr.length === 0
           ? '—'
@@ -902,7 +889,7 @@ const LawyerManagement = () => {
         status,
       };
     });
-  }, [withOutFormat, dataLawyerServices]);
+  }, [withOutFormat]);
 
   // ── KPIs derived from the full lawyer list ──
   // Preferimos `statsServer` (autoritativo /lawyers/stats) cuando está
@@ -910,7 +897,9 @@ const LawyerManagement = () => {
   // miden capacidad/carga, no el conteo plano de cuentas.
   const kpis = useMemo(() => {
     const localTotal = lawyerRows.length;
-    const total = statsServer?.total ?? localTotal;
+    // El total sale de GET /lawyers (misma fuente que las filas sobre las que
+    // se calculan las demás tarjetas); /lawyers/stats queda de respaldo.
+    const total = listTotal ?? statsServer?.total ?? localTotal;
     const assignable = lawyerRows.filter((r) => r.status === 'assignable').length;
     const capacity = lawyerRows.filter((r) => r.status === 'capacity').length;
     const pending = lawyerRows.filter((r) => r.status === 'pending').length;
@@ -926,7 +915,7 @@ const LawyerManagement = () => {
           .map((s) => s.split(' +')[0])
       ).size;
     return { total, assignable, capacity, pending, unassignable, specialtyCount };
-  }, [lawyerRows, statsServer]);
+  }, [lawyerRows, statsServer, listTotal]);
 
   // ── filtered & search ──
   const filteredRows = useMemo<LawyerRow[]>(() => {
@@ -968,9 +957,13 @@ const LawyerManagement = () => {
     const first = services[0];
     let derivedStatus: LawyerStatusKey = 'assignable';
     if (!dataIndex.is_active) derivedStatus = 'unassignable';
+    // Obs 46 — sin áreas configuradas no es "at capacity".
+    else if (assignable?.notSetUp) derivedStatus = 'pending_setup';
     else if (assignable && !assignable.isAssignable) derivedStatus = 'capacity';
     let hint: string | undefined;
-    if (assignable) {
+    if (assignable?.notSetUp) {
+      hint = 'This lawyer has no areas of law set up yet.';
+    } else if (assignable) {
       hint = assignable.isAssignable
         ? `${assignable.toBeAssigned} ${
             assignable.toBeAssigned === 1 ? 'lead' : 'leads'

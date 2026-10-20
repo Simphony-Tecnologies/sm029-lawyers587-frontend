@@ -35,6 +35,7 @@ export async function middleware(req: any) {
     '/notification-settings',
     '/firm-admin',
     '/chatbot-settings',
+    '/audit-log',
   ];
   const protectedRoutesLawyer = [
     '/all-leads',

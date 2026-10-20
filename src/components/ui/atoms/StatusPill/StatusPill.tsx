@@ -85,6 +85,16 @@ const RAW_TO_VARIANT: Record<string, StatusPillVariant> = {
 export const variantFromStatus = (raw: string): StatusPillVariant =>
   RAW_TO_VARIANT[raw?.toUpperCase()] ?? 'closed';
 
+/**
+ * Obs 23 — nombre visible de un código de status (WAITING_ON_CLIENT → "Waiting on
+ * Client"), el mismo que muestran las pills de las listas. Un código desconocido
+ * se devuelve tal cual (nunca cae a "Retained").
+ */
+export const statusLabel = (raw?: string | null): string => {
+  const variant = RAW_TO_VARIANT[String(raw ?? '').toUpperCase()];
+  return variant ? LABELS[variant] : String(raw ?? '');
+};
+
 export const StatusPill = forwardRef<HTMLSpanElement, StatusPillProps>(
   ({ variant, className, children, ...rest }, ref) => (
     <span

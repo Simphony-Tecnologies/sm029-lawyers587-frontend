@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { useLeadsStore } from '@/store/useLead.store';
 import {
   Avatar,
+  Badge,
   DataTable,
   OriginBadge,
   PageHead,
@@ -31,6 +32,10 @@ type LeadRow = {
   channel?: string;
   source?: string;
   source_label?: string;
+  // Obs 25/36 — devolución: motivo, abogado que lo devolvió y contador.
+  return_reason?: string | null;
+  previous_lawyer?: { id: number; firstName: string; lastName: string } | null;
+  return_count?: number;
 };
 
 const LOST_STATUSES = new Set(['LOST', 'EXPIRED', 'DISABLED']);
@@ -45,6 +50,14 @@ const initialsOf = (name: string) =>
     .map((n) => n[0])
     .join('')
     .toUpperCase() || '·';
+
+// Obs 36 — el motivo y el abogado de la devolución vienen en el listado
+// (return_reason / previous_lawyer); `comments` y el asignado actual quedan
+// solo como respaldo para filas sin esos datos (p. ej. DISABLED).
+const reasonOf = (r: LeadRow) => r.return_reason || r.comments;
+const lawyerOf = (r: LeadRow) =>
+  `${r.previous_lawyer?.firstName ?? ''} ${r.previous_lawyer?.lastName ?? ''}`.trim() ||
+  r.lawyer;
 
 const LostLeads = () => {
   const { dataLeads, fetchLeads, error } = useLeadsStore();
@@ -67,7 +80,7 @@ const LostLeads = () => {
         l['lead name']?.toLowerCase().includes(q) ||
         l.email?.toLowerCase().includes(q) ||
         l['phone number']?.toLowerCase().includes(q) ||
-        l.lawyer?.toLowerCase().includes(q) ||
+        lawyerOf(l)?.toLowerCase().includes(q) ||
         l.status?.toLowerCase().includes(q) ||
         String(l['lead id']).includes(q)
     );
@@ -143,10 +156,10 @@ const LostLeads = () => {
       width: 'minmax(180px, 1fr)',
       render: (r) => (
         <span
-          title={r.comments}
+          title={reasonOf(r)}
           className='block truncate pr-3 text-xs text-slate-500'
         >
-          {r.comments || '—'}
+          {reasonOf(r) || '—'}
         </span>
       ),
     },
@@ -155,9 +168,10 @@ const LostLeads = () => {
       label: 'Was assigned to',
       width: '170px',
       sortable: true,
-      accessor: (r) => r.lawyer,
+      accessor: (r) => lawyerOf(r),
       render: (r) => {
-        const isAssigned = r.lawyer && !/no assigned|not assigned/i.test(r.lawyer);
+        const lawyer = lawyerOf(r);
+        const isAssigned = lawyer && !/no assigned|not assigned/i.test(lawyer);
         if (!isAssigned) {
           return (
             <span className='text-[11px] font-medium italic text-slate-400'>
@@ -169,11 +183,11 @@ const LostLeads = () => {
           <div className='flex min-w-0 items-center gap-2'>
             <Avatar
               size='xs'
-              tone={toneFromString(r.lawyer)}
-              initials={initialsOf(r.lawyer)}
+              tone={toneFromString(lawyer)}
+              initials={initialsOf(lawyer)}
             />
             <span className='truncate text-xs font-semibold text-slate-700'>
-              {r.lawyer}
+              {lawyer}
             </span>
           </div>
         );
@@ -185,7 +199,17 @@ const LostLeads = () => {
       width: '110px',
       sortable: true,
       accessor: (r) => r.status,
-      render: (r) => <StatusPill variant={variantFromStatus(r.status)} />,
+      // Obs 25 — contador de devoluciones (R1, R2…) junto al status.
+      render: (r) => (
+        <div className='flex items-center gap-1'>
+          <StatusPill variant={variantFromStatus(r.status)} />
+          {(r.return_count ?? 0) >= 1 ? (
+            <Badge variant='count' className='whitespace-nowrap'>
+              R{r.return_count}
+            </Badge>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: 'channel',

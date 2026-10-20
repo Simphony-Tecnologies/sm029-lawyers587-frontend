@@ -5,7 +5,9 @@ export type LawyerStatus =
   | 'assignable'
   | 'capacity'
   | 'unassignable'
-  | 'pending';
+  | 'pending'
+  // Obs 46 — activo pero sin áreas/capacidad configuradas (no es "At capacity").
+  | 'pending_setup';
 
 export interface LawyerStatusPillProps extends HTMLAttributes<HTMLSpanElement> {
   status: LawyerStatus;
@@ -32,6 +34,11 @@ const styleMap: Record<LawyerStatus, { wrap: string; dot: string; label: string 
     wrap: 'bg-slate-100 text-slate-500 border-slate-200',
     dot: 'bg-slate-400',
     label: 'Pending',
+  },
+  pending_setup: {
+    wrap: 'bg-amber-50 text-amber-700 border-amber-200',
+    dot: 'bg-amber-500',
+    label: 'Pending setup',
   },
 };
 
