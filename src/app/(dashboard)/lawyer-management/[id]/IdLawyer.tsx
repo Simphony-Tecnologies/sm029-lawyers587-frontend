@@ -517,7 +517,11 @@ const mapCommentToAuditRow = (
         </strong>{' '}
         — <em className='text-slate-600'>&ldquo;{truncated}&rdquo;</em>
         {authorName !== 'System' ? (
-          <span className='text-slate-400'> · {authorName}</span>
+          <span className='text-slate-400'>
+            {' '}
+            · {authorName}
+            {(c.author as { deleted?: boolean } | undefined)?.deleted ? ' (deleted account)' : ''}
+          </span>
         ) : null}
       </>
     ),
@@ -533,7 +537,8 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
 
   const [lawyer, setLawyer] = useState<LawyerDetail | null>(null);
   const [lawyerLeadsRaw, setLawyerLeadsRaw] = useState<LeadDTO[]>([]);
-  const [leadsLoading, setLeadsLoading] = useState(false);
+  // Arranca en true: sin esto las tarjetas mostraban 0 antes de la primera carga.
+  const [leadsLoading, setLeadsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
   const [searchText, setSearchText] = useState('');
   // L587-12 — catálogo de service_types (id → nombre) para el desglose por área.
@@ -562,7 +567,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   const [perfRow, setPerfRow] = useState<LawyerPerformanceRow | null>(null);
   const [perfError, setPerfError] = useState<string | null>(null);
   // Mientras carga no se muestra "—" (se confundía con "sin datos").
-  const [perfLoading, setPerfLoading] = useState(false);
+  const [perfLoading, setPerfLoading] = useState(true);
 
   // Mismo período → rango (periodToRange) que PerformancePanel, filtrado a
   // este abogado: los números coinciden con su fila del ranking.
@@ -620,7 +625,10 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
   // de los casos del lawyer, así que la mantenemos independiente del
   // store global (que filtra solo activos del admin general).
   const fetchLawyerLeads = async () => {
-    if (!Number.isFinite(lawyerId)) return;
+    if (!Number.isFinite(lawyerId)) {
+      setLeadsLoading(false);
+      return;
+    }
     setLeadsLoading(true);
     const res = await api.leads.list({
       assigned_to: lawyerId,
@@ -1154,7 +1162,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           label='Total assigned'
           tone={'sky' as KpiTone}
           icon={<MdArrowForward size={14} />}
-          value={kpis.total}
+          value={leadsLoading ? '…' : kpis.total}
           caption={
             <span className='text-[11px] font-medium text-slate-400'>
               Across all statuses
@@ -1165,7 +1173,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           label='Unassigned'
           tone={'amber' as KpiTone}
           icon={<MdArrowBack size={14} />}
-          value={kpis.unassigned}
+          value={leadsLoading ? '…' : kpis.unassigned}
           caption={
             <span className='text-[11px] font-medium text-slate-400'>
               Sent back · expired
@@ -1176,10 +1184,12 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           label='Last login'
           tone={'emerald' as KpiTone}
           icon={<MdCircle size={10} />}
-          value={lastLoginAt ? lastLoginAt.format('MMM DD, HH:mm') : 'Never'}
+          value={
+            !lawyer ? '…' : lastLoginAt ? lastLoginAt.format('MMM DD, HH:mm') : 'Never'
+          }
           caption={
             <span className='text-[11px] font-medium text-slate-400'>
-              {lastLoginAt ? lastLoginAt.fromNow() : 'Account pending'}
+              {!lawyer ? '' : lastLoginAt ? lastLoginAt.fromNow() : 'Account pending'}
             </span>
           }
         />
@@ -1187,10 +1197,10 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           label='Active leads'
           tone={'violet' as KpiTone}
           icon={<MdSquare size={12} />}
-          value={kpis.active}
+          value={leadsLoading ? '…' : kpis.active}
           caption={
             <span className='text-[11px] font-medium text-slate-400'>
-              of {capacity || '—'} capacity
+              of {lawyer ? capacity || '—' : '…'} capacity
             </span>
           }
         />

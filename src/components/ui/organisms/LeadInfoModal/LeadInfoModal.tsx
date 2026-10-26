@@ -1825,6 +1825,10 @@ const TimelineRow = ({
   const actorName =
     `${entry.actor?.firstName ?? ''} ${entry.actor?.lastName ?? ''}`.trim() ||
     'System';
+  // Cuenta borrada: el nombre viene del registro de borrados.
+  const deletedMark = (entry.actor as { deleted?: boolean } | null | undefined)?.deleted ? (
+    <span className='font-normal text-slate-400'> (deleted account)</span>
+  ) : null;
   const initials = initialsFromActor(entry.actor);
 
   if (entry.type === 'comment') {
@@ -1839,6 +1843,7 @@ const TimelineRow = ({
           <div className='flex items-center justify-between gap-2'>
             <span className='truncate text-[11px] font-bold text-slate-900'>
               {actorName}
+              {deletedMark}
             </span>
             <span className='inline-flex flex-shrink-0 items-center gap-2.5'>
               {own && !editing ? (
@@ -1966,6 +1971,7 @@ const TimelineRow = ({
         {/* Actor + role */}
         <p className='text-[11px] font-medium text-slate-500'>
           By: <span className='font-semibold text-slate-700'>{actorName}{roleSuffix}</span>
+          {deletedMark}
         </p>
 
         {/* Timestamp */}

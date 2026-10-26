@@ -31,7 +31,12 @@ export interface QueueContextLead {
   /** Returned: motivo de la última devolución (return_reason del listado). */
   returnReason?: string | null;
   /** Returned: abogado que devolvió el lead (previous_lawyer del listado). */
-  previousLawyer?: { id: number; firstName?: string | null; lastName?: string | null } | null;
+  previousLawyer?: {
+    id: number;
+    firstName?: string | null;
+    lastName?: string | null;
+    deleted?: boolean;
+  } | null;
 }
 
 const EXPIRED_REASON = 'Expired: no action within 48h';
@@ -62,7 +67,9 @@ const returnedContext = (lead: QueueContextLead): LeadQueueContext => {
   return {
     reason: lead.returnReason?.trim() || null,
     at: lead.updatedAt ?? null,
-    by: personName(lead.previousLawyer),
+    by: lead.previousLawyer?.deleted
+      ? `${personName(lead.previousLawyer) ?? ''} (deleted account)`.trim()
+      : personName(lead.previousLawyer),
     byId: lead.previousLawyer?.id ?? null,
   };
 };

@@ -189,6 +189,9 @@ const AuditLog = () => {
         <span className='block truncate pr-3 text-[11px] text-slate-500'>
           {actorRoleLabel(ev)}{' '}
           · <strong className='font-semibold text-slate-700'>{actorName(ev)}</strong>
+          {ev.actor?.deleted ? (
+            <span className='font-normal text-slate-400'> (deleted account)</span>
+          ) : null}
         </span>
       ),
     },
@@ -215,7 +218,7 @@ const AuditLog = () => {
         title='Audit log'
         action={
           <span className='text-[13px] font-medium tabular-nums text-slate-400'>
-            {total} events
+            {total} {total === 1 ? 'event' : 'events'}
           </span>
         }
       />
@@ -346,7 +349,7 @@ const AuditLog = () => {
               }}
               options={PAGE_SIZES}
             />
-            of {total} events
+            of {total} {total === 1 ? 'event' : 'events'}
           </div>
           <Pagination
             page={Math.min(page, pageCount)}
