@@ -2,6 +2,8 @@
 import Modal from '@/components/organisms/Modal';
 import { api, database, downloadBlob } from '@/services/database';
 import { dedupeServicesCapacity as dedupeServices } from '@/utils/getNameServiceLawyer';
+import { DeleteLawyerDialog, type DeleteTarget } from './DeleteLawyerDialog';
+import { DeletedAccounts } from './DeletedAccounts';
 import type {
   LawyerServiceCapacity,
   LawyerStats as LawyerStatsDTO,
@@ -14,7 +16,6 @@ import {
   MdFileDownload,
   MdPowerSettingsNew,
 } from 'react-icons/md';
-import Button from '@/components/atoms/Button';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
@@ -59,7 +60,11 @@ const LawyerManagement = () => {
   const [dataIndex, setDataIndex] = useState<any>();
   const [dataServiceType, setDataServiceType] = useState([]);
   const [withOutFormat, setWithOutFormat] = useState<any>([]);
-  const [isOpenDelete, setIsOpenDelete] = useState(false);
+  // Borrado definitivo: abogados en el diálogo de confirmación (vacío = cerrado).
+  const [deleteTargets, setDeleteTargets] = useState<DeleteTarget[]>([]);
+  // "Deleted accounts": total para el filtro y llave para recargar la tabla.
+  const [deletedTotal, setDeletedTotal] = useState<number | undefined>(undefined);
+  const [deletedReload, setDeletedReload] = useState(0);
   const [file, setFile] = useState<any>(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isOpenPassword, setIsopenPassword] = useState(false);
@@ -97,7 +102,7 @@ const LawyerManagement = () => {
   const [formValues, setFormValues] = useState(() => {});
   const { setSelecArray } = useSelectStatus();
   const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState<LawyerStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<LawyerStatus | 'all' | 'deleted'>('all');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [lawyerServiceRelacion, setLawyerServiceRelacion] = useState<any>([]);
   const [isOpenSession, setisOpenSession] = useState(false);
@@ -382,52 +387,42 @@ const LawyerManagement = () => {
     }
   };
 
-  const handleDelete = async (index: number) => {
-    const reviewLeads = withOutFormat[index].totalLeads;
-    if (reviewLeads > 0) {
-      return toast.error(
-        "You can't delete this lawyer because they have leads assigned."
-      );
-    }
-    setIsOpenDelete(true);
-    const dataId = await database.getLawyer(withOutFormat[index].id);
+  // Borrado definitivo: abre el diálogo que pide escribir DELETE. El backend
+  // decide si se puede (409 con leads abiertos, único admin de firma, etc.).
+  const handleDelete = (index: number) => {
+    const raw = withOutFormat[index];
+    if (!raw) return;
+    setDeleteTargets([
+      {
+        id: Number(raw.id),
+        name: `${raw.firstName ?? ''} ${raw.lastName ?? ''}`.trim() || `Lawyer #${raw.id}`,
+      },
+    ]);
+  };
 
-    if (!dataId.success) {
-      return toast.error('Error to get lawyer');
-    }
-    setDataIndex(dataId.data.data);
+  const openBulkDelete = () => {
+    const targets = lawyerRows
+      .filter((r) => selectedIds.has(r.id))
+      .map((r) => ({ id: r.id, name: r.name }));
+    if (targets.length > 0) setDeleteTargets(targets);
   };
-  const DeleteLawyer = async () => {
-    const dataDelete = await database.DeleteLawyer(dataIndex.id);
-    if (!dataDelete.success) {
-      return toast.error('Error to delete lawyer');
-    }
-    toast.success('Success to delete');
-    setIsOpenDelete(false);
-    fetchData();
-    // El abogado borrado libera sus leads al pool (playbook §2.3) → refrescar leads.
-    void useLeadsStore.getState().fetchLeads();
+
+  const fetchDeletedTotal = async () => {
+    const res = await api.lawyers.deleted({ limit: 1 });
+    setDeletedTotal(res.success && res.data ? Number(res.data.total ?? 0) : undefined);
   };
-  const ConfirmMultipleDelete = async () => {
-    if (selectedIds.size <= 0) {
-      setSelectedIds(new Set());
-      return;
-    }
-    const selectRow: any[] = (originalData as any[]).filter((item: any) =>
-      selectedIds.has(Number(item.code))
-    );
-    const promises = selectRow.map(async (item: any) => {
-      const leadId = item['code'];
-      const dataDelete = await database.DeleteLawyer(leadId);
-      if (!dataDelete.success) {
-        return toast.error(`Error to delete lawyer ${item['lawyer name']}`);
-      }
-      toast.success('Success to delete');
-      fetchData();
+
+  const handleLawyersDeleted = (ids: number[]) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
     });
-    await Promise.all(promises);
-    setSelectedIds(new Set());
-    // Cada abogado borrado libera sus leads al pool (playbook §2.3) → refrescar leads.
+    fetchData();
+    fetchLawyerStats();
+    void fetchDeletedTotal();
+    setDeletedReload((n) => n + 1);
+    // El abogado borrado libera sus leads al pool (playbook §2.3) → refrescar leads.
     void useLeadsStore.getState().fetchLeads();
   };
   const postImage = async () => {
@@ -905,6 +900,10 @@ const LawyerManagement = () => {
     });
   }, [withOutFormat]);
 
+  // Hasta que llega GET /lawyers las tarjetas y conteos muestran "…" (antes
+  // "0 lawyers" durante varios segundos, como si no hubiera abogados).
+  const listLoaded = listTotal !== null;
+
   // ── KPIs derived from the full lawyer list ──
   // Preferimos `statsServer` (autoritativo /lawyers/stats) cuando está
   // disponible; los KPIs derivados se mantienen client-side porque
@@ -1050,6 +1049,7 @@ const LawyerManagement = () => {
     getServiceType();
     getRole();
     fetchLawyerStats();
+    void fetchDeletedTotal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // Re-fetch cuando cambia el store global o cuando los buffers locales
@@ -1083,35 +1083,11 @@ const LawyerManagement = () => {
         onSubmit={handleCreateLawyer}
         loading={loadingModal}
       />
-      <Modal
-        title='Delete'
-        isOpen={isOpenDelete}
-        setIsOpen={setIsOpenDelete}
-        className='max-w-sm'
-      >
-        <div className='flex flex-col gap-4'>
-          <div className='flex justify-center text-center'>
-            <p>
-              Are you sure you want to delete the user{' '}
-              <span className='font-medium'>{dataIndex?.firstName}?</span>
-            </p>
-          </div>
-
-          <div className='flex justify-around'>
-            <Button
-              name='Cancel'
-              type='button'
-              onClick={() => setIsOpenDelete(false)}
-            />
-            <Button
-              name='Delete'
-              type='button'
-              color='bg-red-500'
-              onClick={DeleteLawyer}
-            />
-          </div>
-        </div>
-      </Modal>
+      <DeleteLawyerDialog
+        targets={deleteTargets}
+        onClose={() => setDeleteTargets([])}
+        onDeleted={handleLawyersDeleted}
+      />
       <LawyerPasswordModal
         open={isOpenPassword}
         onClose={() => setIsopenPassword(false)}
@@ -1191,18 +1167,24 @@ const LawyerManagement = () => {
       {/* ── Page header ── */}
       <PageHead
         title='Lawyer Management'
-        count={`${kpis.total} ${kpis.total === 1 ? 'lawyer' : 'lawyers'}`}
+        count={
+          listLoaded
+            ? `${kpis.total} ${kpis.total === 1 ? 'lawyer' : 'lawyers'}`
+            : '…'
+        }
         subtitle="Manage your firm's lawyers, monitor capacity, and track activity across areas of law."
         action={
           <div className='flex items-center gap-2'>
-            <button
-              type='button'
-              className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3.5 text-xs font-bold tracking-[-0.005em] text-slate-700 transition-colors hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300'
-              onClick={handleExportLawyers}
-            >
-              <MdFileDownload size={14} />
-              Export
-            </button>
+            {statusFilter !== 'deleted' ? (
+              <button
+                type='button'
+                className='inline-flex h-[38px] items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3.5 text-xs font-bold tracking-[-0.005em] text-slate-700 transition-colors hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300'
+                onClick={handleExportLawyers}
+              >
+                <MdFileDownload size={14} />
+                Export
+              </button>
+            ) : null}
             <button
               type='button'
               onClick={newLawyer}
@@ -1219,7 +1201,7 @@ const LawyerManagement = () => {
       <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4'>
         <StatCard
           label='Total lawyers'
-          value={kpis.total}
+          value={listLoaded ? kpis.total : '…'}
           tone='slate'
           sub={`across ${kpis.specialtyCount} ${
             kpis.specialtyCount === 1 ? 'area of law' : 'areas of law'
@@ -1243,7 +1225,7 @@ const LawyerManagement = () => {
         />
         <StatCard
           label='Assignable'
-          value={kpis.assignable}
+          value={listLoaded ? kpis.assignable : '…'}
           tone='emerald'
           sub='with available capacity'
           icon={
@@ -1262,7 +1244,7 @@ const LawyerManagement = () => {
         />
         <StatCard
           label='At capacity'
-          value={kpis.capacity}
+          value={listLoaded ? kpis.capacity : '…'}
           tone='slate'
           sub='need monitoring'
           icon={
@@ -1283,7 +1265,7 @@ const LawyerManagement = () => {
         />
         <StatCard
           label='Pending onboarding'
-          value={kpis.pending}
+          value={listLoaded ? kpis.pending : '…'}
           tone='coral'
           sub={
             kpis.unassignable > 0
@@ -1321,38 +1303,47 @@ const LawyerManagement = () => {
         <span aria-hidden className='hidden h-5 w-px bg-slate-200 sm:block' />
         <FilterButton
           label='All'
-          count={kpis.total}
+          count={listLoaded ? kpis.total : undefined}
           active={statusFilter === 'all'}
           onClick={() => setStatusFilter('all')}
         />
         <FilterButton
           label='Assignable'
-          count={kpis.assignable}
+          count={listLoaded ? kpis.assignable : undefined}
           active={statusFilter === 'assignable'}
           onClick={() => setStatusFilter('assignable')}
         />
         <FilterButton
           label='At capacity'
-          count={kpis.capacity}
+          count={listLoaded ? kpis.capacity : undefined}
           active={statusFilter === 'capacity'}
           onClick={() => setStatusFilter('capacity')}
         />
         <FilterButton
           label='Unassignable'
-          count={kpis.unassignable}
+          count={listLoaded ? kpis.unassignable : undefined}
           active={statusFilter === 'unassignable'}
           onClick={() => setStatusFilter('unassignable')}
         />
         <FilterButton
           label='Pending'
-          count={kpis.pending}
+          count={listLoaded ? kpis.pending : undefined}
           active={statusFilter === 'pending'}
           onClick={() => setStatusFilter('pending')}
+        />
+        <FilterButton
+          label='Deleted accounts'
+          count={deletedTotal}
+          active={statusFilter === 'deleted'}
+          onClick={() => {
+            setSelectedIds(new Set());
+            setStatusFilter('deleted');
+          }}
         />
       </div>
 
       {/* ── Bulk action strip (visible when rows selected) ── */}
-      {selectedIds.size > 0 ? (
+      {selectedIds.size > 0 && statusFilter !== 'deleted' ? (
         <div className='flex items-center justify-between gap-3 rounded-[10px] border border-slate-200 bg-slate-50 px-4 py-2.5'>
           <span className='text-xs font-semibold text-slate-700'>
             <span className='font-extrabold tabular-nums text-slate-900'>
@@ -1370,7 +1361,7 @@ const LawyerManagement = () => {
             </button>
             <button
               type='button'
-              onClick={() => ConfirmMultipleDelete()}
+              onClick={openBulkDelete}
               className='inline-flex h-[34px] items-center gap-1.5 rounded-lg border border-customRed bg-customRed px-3 text-[11px] font-semibold text-white transition-colors hover:bg-red-600'
             >
               <MdDeleteOutline size={13} />
@@ -1381,7 +1372,9 @@ const LawyerManagement = () => {
       ) : null}
 
       {/* ── Table ── */}
-      {error ? (
+      {statusFilter === 'deleted' ? (
+        <DeletedAccounts searchText={searchText} reloadKey={deletedReload} />
+      ) : error ? (
         <div className='flex items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-5 py-10 text-center'>
           <div className='flex flex-col gap-1'>
             <span className='text-[13px] font-semibold text-rose-700'>

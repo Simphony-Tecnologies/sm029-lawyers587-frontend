@@ -6,6 +6,8 @@ import type {
   AssignLeadResult,
   AuditEvent,
   AuditFilters,
+  DeletedLawyer,
+  DeletedLawyerFilters,
   BlacklistEntry,
   BulkArchiveDTO,
   BulkAssignDTO,
@@ -1258,6 +1260,23 @@ export const api = {
 
     stats: (token?: string) =>
       apiRequest<LawyerStats>(`/lawyers/stats`, { method: 'GET' }, token),
+
+    // Borrado definitivo: el backend exige la confirmación escrita "DELETE" y
+    // responde con su código real (400/403/404/409 con mensaje listo para mostrar).
+    remove: (id: number, token?: string) =>
+      apiRequest<{ id: number; deleted_at: string }>(
+        `/lawyers/${id}`,
+        { method: 'DELETE', body: JSON.stringify({ confirmation: 'DELETE' }) },
+        token
+      ),
+
+    // Registro de cuentas borradas (solo admin).
+    deleted: (filters?: DeletedLawyerFilters, token?: string) =>
+      apiRequest<Paginated<DeletedLawyer>>(
+        `/lawyers/deleted${buildQuery(filters as Record<string, unknown>)}`,
+        { method: 'GET' },
+        token
+      ),
 
     // Obs 37/50 — reemplaza áreas y capacidad (lista completa, idempotente).
     updateServices: (id: number, body: UpdateLawyerServicesDTO, token?: string) =>

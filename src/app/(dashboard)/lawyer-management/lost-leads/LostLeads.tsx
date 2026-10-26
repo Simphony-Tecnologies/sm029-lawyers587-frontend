@@ -34,7 +34,12 @@ type LeadRow = {
   source_label?: string;
   // Obs 25/36 — devolución: motivo, abogado que lo devolvió y contador.
   return_reason?: string | null;
-  previous_lawyer?: { id: number; firstName: string; lastName: string } | null;
+  previous_lawyer?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    deleted?: boolean;
+  } | null;
   return_count?: number;
 };
 
@@ -55,9 +60,12 @@ const initialsOf = (name: string) =>
 // (return_reason / previous_lawyer); `comments` y el asignado actual quedan
 // solo como respaldo para filas sin esos datos (p. ej. DISABLED).
 const reasonOf = (r: LeadRow) => r.return_reason || r.comments;
-const lawyerOf = (r: LeadRow) =>
-  `${r.previous_lawyer?.firstName ?? ''} ${r.previous_lawyer?.lastName ?? ''}`.trim() ||
-  r.lawyer;
+const lawyerOf = (r: LeadRow) => {
+  const prev = `${r.previous_lawyer?.firstName ?? ''} ${r.previous_lawyer?.lastName ?? ''}`.trim();
+  if (!prev) return r.lawyer;
+  // Cuenta borrada: el nombre viene del registro de borrados.
+  return r.previous_lawyer?.deleted ? `${prev} (deleted account)` : prev;
+};
 
 const LostLeads = () => {
   const { dataLeads, fetchLeads, error } = useLeadsStore();
@@ -74,6 +82,8 @@ const LostLeads = () => {
       LOST_STATUSES.has(l.status)
     );
     const q = searchText.trim().toLowerCase();
+    // El ID se muestra con ceros ("#00041"): se busca también sin "#" ni ceros.
+    const qId = q.replace(/^#/, '').replace(/^0+(?=\d)/, '');
     if (!q) return list;
     return list.filter(
       (l) =>
@@ -82,7 +92,7 @@ const LostLeads = () => {
         l['phone number']?.toLowerCase().includes(q) ||
         lawyerOf(l)?.toLowerCase().includes(q) ||
         l.status?.toLowerCase().includes(q) ||
-        String(l['lead id']).includes(q)
+        (qId !== '' && /^\d+$/.test(qId) && String(l['lead id']).includes(qId))
     );
   }, [dataLeads, searchText]);
 

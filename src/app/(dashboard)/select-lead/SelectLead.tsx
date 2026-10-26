@@ -265,7 +265,7 @@ const SelectLead = () => {
       sortable: true,
       accessor: (r) => r.fullName,
       render: (r) => (
-        <div className='flex min-w-0 items-center gap-2.5'>
+        <div className='flex min-w-0 items-center gap-2.5 pr-3'>
           <Avatar
             initials={r.fullName.slice(0, 2).toUpperCase() || '·'}
             tone={toneFromString(r.fullName) as any}

@@ -115,7 +115,12 @@ type LeadRow = {
   previous_status: string | null;
   // Obs 25 — devoluciones: motivo, abogado que lo devolvió y contador (R1, R2…).
   return_reason?: string | null;
-  previous_lawyer?: { id: number; firstName: string; lastName: string } | null;
+  previous_lawyer?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    deleted?: boolean;
+  } | null;
   return_count?: number;
   // Fase 1 — score (urgencia IA), pull date y firma del abogado asignado.
   ai_urgency?: number | null;

@@ -245,6 +245,10 @@ const Dashboard = () => {
                   <span className='truncate text-[11px] text-slate-500'>
                     {actorRoleLabel(ev)}{' '}
                     · <strong className='font-semibold text-slate-700'>{actorName(ev)}</strong>
+                    {/* Cuenta borrada: el nombre viene del registro de borrados. */}
+                    {ev.actor?.deleted ? (
+                      <span className='font-normal text-slate-400'> (deleted account)</span>
+                    ) : null}
                   </span>
                 </div>
                 <span className='flex-shrink-0 text-[10px] font-medium text-slate-400'>

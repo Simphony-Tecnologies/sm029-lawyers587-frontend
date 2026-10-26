@@ -65,6 +65,8 @@ export interface LawyerRef {
   email?: string;
   /** Fase 1 — firma del abogado (solo en `assigned_lawyer` del Lead DTO). */
   firm_id?: number | null;
+  /** La cuenta fue borrada: el nombre sale del registro de cuentas borradas. */
+  deleted?: boolean;
 }
 
 // ─── Leads ───────────────────────────────────────────────────────────────────
@@ -128,7 +130,13 @@ export interface LeadDTO {
   /** Motivo con el que se devolvió el lead (SEND_BACK, LOST, EXPIRED). */
   return_reason?: string | null;
   /** Abogado que devolvió el lead (SEND_BACK, LOST, EXPIRED). */
-  previous_lawyer?: { id: number; firstName: string; lastName: string } | null;
+  previous_lawyer?: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    /** La cuenta fue borrada (ver GET /lawyers/deleted). */
+    deleted?: boolean;
+  } | null;
   /** Cuántas veces fue devuelto (R1, R2, …). */
   return_count?: number;
 }
@@ -914,3 +922,27 @@ export type ChatbotSettingsUpdate = Partial<
     | 'confidence_threshold'
   >
 >;
+
+/** Cuenta de abogado borrada (GET /lawyers/deleted). Registro permanente. */
+export interface DeletedLawyer {
+  id: number;
+  code: string | null;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  role: string | null;
+  firm: { id: number; name: string } | null;
+  created_at: string | null;
+  last_login: string | null;
+  deleted_at: string;
+  deleted_by: { id: number; name: string } | null;
+  /** Leads que tenía asignados en el momento del borrado (no el total histórico). */
+  leads_handled: number;
+}
+
+export interface DeletedLawyerFilters {
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
