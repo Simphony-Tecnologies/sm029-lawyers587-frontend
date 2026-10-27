@@ -9,8 +9,10 @@ import { MdArrowBack } from 'react-icons/md';
 import Logo from '@/assets/587LAWYERS.COM.png';
 import { Stepper } from '@/components/ui/molecules';
 import { database } from '@/services/database';
+import { apiErrorText, apiText, GENERIC_ERROR_TEXT } from '@/lib/apiText';
 import {
   firstStepWithError,
+  mapBackendFileError,
   mapBackendMessages,
   validateLicense,
   validateStep,
@@ -89,16 +91,17 @@ const Signup = () => {
         setStep(firstStepWithError(mapped));
         return;
       }
-      toast.error(messages.join(', '));
+      toast.error(apiText(messages, GENERIC_ERROR_TEXT));
       return;
     }
-    if (code === 400 && typeof messages === 'string') {
-      setErrors({ file: messages });
+    if ((code === 400 && typeof messages === 'string') || code === 413) {
+      setErrors({ file: mapBackendFileError(code, messages) });
       setStep(LAST_INPUT_STEP);
       return;
     }
-    const text = Array.isArray(messages) ? messages.join(', ') : messages;
-    toast.error(text || 'Something went wrong. Please try again.');
+    // Sin conexión (0), timeout (504) o fallo del servidor (5xx): texto propio
+    // en vez de "Failed to fetch" o del cuerpo HTML de nginx.
+    toast.error(apiErrorText(code, messages, GENERIC_ERROR_TEXT));
   };
 
   const handleSubmit = async () => {

@@ -1,5 +1,6 @@
 import { ResponseEndpoint } from '@/types/Response/response.interface';
 import { setCookie, destroyCookie } from 'nookies';
+import { errorTextFor } from '@/lib/apiText';
 import type {
   ApiResult,
   AssignLeadDTO,
@@ -169,16 +170,58 @@ export const loginReturnPath = (
   return next;
 };
 
-// Wrapper de fetch que dispara el manejo global de 401. Toda llamada autenticada
-// del cliente pasa por aquí.
-const authedFetch = (input: string, init?: RequestInit): Promise<Response> =>
-  fetch(input, init).then((response) => {
-    if (response.status === 401) handleAuthFailure();
-    return response;
-  });
+// Límite de tiempo por petición. Sin él, una llamada a un backend colgado (pasó
+// en el signup con Redis caído) nunca termina: el spinner gira para siempre y
+// ningún manejador de error se ejecuta. Subidas de archivos y exportaciones
+// pueden tardar más con conexiones lentas.
+const REQUEST_TIMEOUT_MS = 60000;
+const LONG_REQUEST_TIMEOUT_MS = 120000;
+
+// Wrapper de fetch que dispara el manejo global de 401 y aplica el límite de
+// tiempo (al vencer rechaza con un TimeoutError). Toda llamada autenticada del
+// cliente pasa por aquí.
+const authedFetch = (
+  input: string,
+  init?: RequestInit,
+  timeoutMs = REQUEST_TIMEOUT_MS
+): Promise<Response> => {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  // Si quien llama trae su propia señal, se respeta también.
+  if (init?.signal?.aborted) controller.abort();
+  init?.signal?.addEventListener('abort', () => controller.abort(), { once: true });
+  return fetch(input, { ...init, signal: controller.signal })
+    .then((response) => {
+      if (response.status === 401) handleAuthFailure();
+      return response;
+    })
+    .catch((error) => {
+      if (!timedOut) throw error;
+      const timeout = new Error('Request timed out');
+      timeout.name = 'TimeoutError';
+      throw timeout;
+    })
+    .finally(() => clearTimeout(timer));
+};
+
+// Código para un fallo sin respuesta: timeout (504) o sin conexión (0). Además
+// del límite propio, nginx corta a los 60 s con un 504 sin cabeceras CORS que el
+// navegador reporta como error de red ("Failed to fetch"): si el fallo llega
+// tras una espera larga también es timeout, no falta de conexión.
+const SLOW_FAILURE_MS = 20000;
+const networkFailureCode = (startedAt: number, error?: unknown): number =>
+  (error as Error | undefined)?.name === 'TimeoutError' ||
+  Date.now() - startedAt >= SLOW_FAILURE_MS
+    ? 504
+    : 0;
 
 export const database = {
   auth: async (email: string, password: string) => {
+    const startedAt = Date.now();
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/auth/login`;
 
@@ -219,11 +262,15 @@ export const database = {
 
       return { success: true, code: 200, data };
     } catch (error: any) {
+      // Sin respuesta (red o timeout) o 5xx: texto propio. Un 4xx trae el del
+      // backend si es apto ("Invalid credentials"); si es técnico, la pantalla
+      // usa el suyo.
+      const code = error.statusCode ?? networkFailureCode(startedAt, error);
       return {
         success: false,
-        code: error.statusCode || 500,
+        code,
         data: null,
-        messages: error.message || 'An unexpected error occurred',
+        messages: errorTextFor(code, error.statusCode ? error.message : undefined),
       };
     }
   },
@@ -233,6 +280,7 @@ export const database = {
   // NO se fija Content-Type: el browser pone el boundary del multipart.
   // Los 400/409 se manejan en la pantalla, no en un interceptor global.
   signup: async (payload: SignupRequest): Promise<SignupResult> => {
+    const startedAt = Date.now();
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/auth/signup`;
       const fd = new FormData();
@@ -245,7 +293,11 @@ export const database = {
       fd.append('law_firm', payload.law_firm);
       fd.append('file', payload.file);
 
-      const response = await authedFetch(url, { method: 'POST', body: fd });
+      const response = await authedFetch(
+        url,
+        { method: 'POST', body: fd },
+        LONG_REQUEST_TIMEOUT_MS
+      );
       const body = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -266,7 +318,7 @@ export const database = {
     } catch (error: any) {
       return {
         success: false,
-        code: 0,
+        code: networkFailureCode(startedAt, error),
         data: null,
         messages: error?.message || 'An unexpected error occurred',
       };
@@ -667,6 +719,7 @@ export const database = {
     sendData: object,
     token?: string
   ): Promise<ResponseEndpoint> => {
+    const startedAt = Date.now();
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers`;
       const response = await authedFetch(url, {
@@ -683,7 +736,8 @@ export const database = {
     } catch (error) {
       return {
         success: false,
-        code: 400,
+        // Sin conexión o timeout (no un 400): la pantalla muestra su texto.
+        code: networkFailureCode(startedAt, error),
         data: [],
         messages: 'error connecting to database',
       };
@@ -837,6 +891,7 @@ export const database = {
     id?: number | undefined,
     token?: string
   ): Promise<ResponseEndpoint> => {
+    const startedAt = Date.now();
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
       const response = await authedFetch(url, {
@@ -854,7 +909,8 @@ export const database = {
     } catch (error) {
       return {
         success: false,
-        code: 400,
+        // Sin conexión o timeout (no un 400): la pantalla muestra su texto.
+        code: networkFailureCode(startedAt, error),
         data: [],
         messages: 'error updating lawyer',
       };
@@ -935,11 +991,16 @@ const buildQuery = (params?: Record<string, unknown>): string => {
 
 const unwrapApi = <T>(body: any, ok: boolean, status: number): ApiResult<T> => {
   const success = ok && body?.success !== false;
+  const code = body?.statusCode ?? status;
   return {
     success,
-    code: body?.statusCode ?? status,
+    code,
     data: success ? ((body?.data ?? body) as T) : null,
-    message: body?.message || body?.error,
+    // En error el mensaje ya sale apto para el usuario (timeout/5xx con texto
+    // propio; uno técnico del backend → undefined y la pantalla usa el suyo).
+    message: success
+      ? body?.message || body?.error
+      : errorTextFor(code, body?.message || body?.error),
   };
 };
 
@@ -969,6 +1030,7 @@ async function apiRequest<T>(
   /** Devuelve el body completo como `data` (sin desenvolver). */
   raw = false
 ): Promise<ApiResult<T>> {
+  const startedAt = Date.now();
   try {
     const response = await authedFetch(`${baseUrl()}${path}`, {
       ...init,
@@ -982,12 +1044,13 @@ async function apiRequest<T>(
     const result = unwrapApi<T>(body, response.ok, response.status);
     if (raw && result.success) result.data = body as T;
     return result;
-  } catch (error: any) {
+  } catch (error) {
+    const code = networkFailureCode(startedAt, error);
     return {
       success: false,
-      code: 0,
+      code,
       data: null,
-      message: error?.message || 'network error',
+      message: errorTextFor(code, undefined),
     };
   }
 }
@@ -997,29 +1060,35 @@ async function apiBlob(
   token?: string,
   accept?: string
 ): Promise<ApiResult<Blob>> {
+  const startedAt = Date.now();
   try {
-    const response = await authedFetch(`${baseUrl()}${path}`, {
-      method: 'GET',
-      headers: buildHeaders(resolveToken(token), accept ? { Accept: accept } : {}),
-      cache: 'no-store',
-    });
+    const response = await authedFetch(
+      `${baseUrl()}${path}`,
+      {
+        method: 'GET',
+        headers: buildHeaders(resolveToken(token), accept ? { Accept: accept } : {}),
+        cache: 'no-store',
+      },
+      LONG_REQUEST_TIMEOUT_MS
+    );
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       return {
         success: false,
         code: response.status,
         data: null,
-        message: body?.message || body?.error || response.statusText,
+        message: errorTextFor(response.status, body?.message || body?.error),
       };
     }
     const blob = await response.blob();
     return { success: true, code: response.status, data: blob };
-  } catch (error: any) {
+  } catch (error) {
+    const code = networkFailureCode(startedAt, error);
     return {
       success: false,
-      code: 0,
+      code,
       data: null,
-      message: error?.message || 'network error',
+      message: errorTextFor(code, undefined),
     };
   }
 }

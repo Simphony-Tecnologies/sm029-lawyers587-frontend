@@ -1,10 +1,14 @@
 import type { SignupFieldErrors, SignupFormValues } from '@/types/signup.types';
+import { apiText } from '@/lib/apiText';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const MIN_PASSWORD_LENGTH = 8;
 export const MAX_FILE_MB = 10;
 export const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
+const FILE_REQUIRED_TEXT = 'Upload your license document';
+const FILE_TYPE_TEXT = 'File must be an image (PNG, JPG, WEBP) or a PDF';
+const FILE_SIZE_TEXT = `File must be ${MAX_FILE_MB} MB or smaller`;
 export const ACCEPTED_MIME = [
   'image/png',
   'image/jpeg',
@@ -61,13 +65,26 @@ export const validateLicense = (
 ): SignupFieldErrors => {
   const errors: SignupFieldErrors = {};
   if (!values.file) {
-    errors.file = 'Upload your license document';
+    errors.file = FILE_REQUIRED_TEXT;
   } else if (!ACCEPTED_MIME.includes(values.file.type)) {
-    errors.file = 'File must be an image (PNG, JPG, WEBP) or a PDF';
+    errors.file = FILE_TYPE_TEXT;
   } else if (values.file.size > MAX_FILE_BYTES) {
-    errors.file = `File must be ${MAX_FILE_MB} MB or smaller`;
+    errors.file = FILE_SIZE_TEXT;
   }
   return errors;
+};
+
+// Un 400 de texto (o un 413) en el signup es un problema con el archivo. Los
+// mensajes de ParseFilePipe son técnicos ("Validation failed (expected type
+// is …)"): se traducen a los mismos textos de la validación del navegador.
+export const mapBackendFileError = (
+  code: number,
+  messages: string | string[]
+): string => {
+  const raw = Array.isArray(messages) ? messages.join(' ') : messages;
+  if (code === 413 || /size|too large/i.test(raw)) return FILE_SIZE_TEXT;
+  if (/type/i.test(raw)) return FILE_TYPE_TEXT;
+  return apiText(raw, FILE_REQUIRED_TEXT);
 };
 
 const STEP_VALIDATORS: Array<(v: SignupFormValues) => SignupFieldErrors> = [
