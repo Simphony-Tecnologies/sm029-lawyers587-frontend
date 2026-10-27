@@ -185,6 +185,8 @@ export const LeadInfoModal = ({
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Obs 31 — confirmación antes de guardar el paso a Retained.
   const [confirmRetained, setConfirmRetained] = useState(false);
+  // El paso a Disabled también se confirma (documento de flujo del cliente).
+  const [confirmDisable, setConfirmDisable] = useState(false);
   // Obs 42 — "Move to Trash" con confirmación y razón obligatoria (como el bulk).
   const [confirmTrash, setConfirmTrash] = useState(false);
   const [trashReason, setTrashReason] = useState('');
@@ -227,6 +229,7 @@ export const LeadInfoModal = ({
     setAssignSearch('');
     setConfirmDelete(false);
     setConfirmRetained(false);
+    setConfirmDisable(false);
     setConfirmTrash(false);
     setTrashReason('');
     setEditingCommentId(null);
@@ -429,9 +432,11 @@ export const LeadInfoModal = ({
     Array.isArray(assignableLawyers) &&
     !isSpecialStatus &&
     // SEND_BACK vuelve al pool y el BE lo acepta en assign (cola "Returned to Admin").
+    // DISABLED solo lo reasigna el admin: el pull del abogado no lo acepta.
     (leadStatusUpper === 'NEW' ||
       leadStatusUpper === 'EXPIRED' ||
-      leadStatusUpper === 'SEND_BACK');
+      leadStatusUpper === 'SEND_BACK' ||
+      (isAdmin && leadStatusUpper === 'DISABLED'));
 
   const filteredLawyers = useMemo(() => {
     if (!assignableLawyers) return [];
@@ -455,6 +460,10 @@ export const LeadInfoModal = ({
     // Obs 31 — pasar a Retained (CLOSED) pide confirmación antes de guardar.
     if (statusChanged && selectedStatus.toUpperCase() === 'CLOSED') {
       setConfirmRetained(true);
+      return;
+    }
+    if (statusChanged && selectedStatus.toUpperCase() === 'DISABLED') {
+      setConfirmDisable(true);
       return;
     }
     await submitChanges();
@@ -567,7 +576,7 @@ export const LeadInfoModal = ({
 
   return (
     <>
-    <Transition show={open && !confirmRetained && !confirmTrash} as={Fragment}>
+    <Transition show={open && !confirmRetained && !confirmDisable && !confirmTrash} as={Fragment}>
       <Dialog as='div' className='relative z-50' onClose={loading ? () => {} : onClose}>
         <TransitionChild
           as={Fragment}
@@ -1362,10 +1371,13 @@ export const LeadInfoModal = ({
                     >
                       Cancel
                     </button>
+                    {/* Sin opciones de status (p. ej. el abogado en un lead que ya no
+                        puede trabajar) no hay nada que guardar: el backend lo
+                        rechazaría con 403. */}
                     <button
                       type='button'
                       onClick={handleSubmit}
-                      disabled={loading || reasonRequiredMissing}
+                      disabled={loading || reasonRequiredMissing || statusOptions.length === 0}
                       className={cn(
                         'inline-flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[9px] border px-4 text-[13px] font-bold tracking-[-0.005em] text-white transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60',
                         isDestructive
@@ -1405,6 +1417,24 @@ export const LeadInfoModal = ({
     >
       <p className='text-[13px] font-medium leading-[1.5] text-slate-500'>
         This lead will be marked as Retained. After this, a lawyer can only move it to Completed.
+      </p>
+    </ConfirmationDialog>
+
+    {/* Paso a Disabled: mismo patrón que la confirmación de Retained. */}
+    <ConfirmationDialog
+      open={open && confirmDisable}
+      onClose={() => setConfirmDisable(false)}
+      title='Mark as Disabled?'
+      cancelLabel='Cancel'
+      confirmLabel='Confirm'
+      onConfirm={() => {
+        setConfirmDisable(false);
+        void submitChanges();
+      }}
+      loading={loading}
+    >
+      <p className='text-[13px] font-medium leading-[1.5] text-slate-500'>
+        This lead will be marked as Disabled.
       </p>
     </ConfirmationDialog>
 
