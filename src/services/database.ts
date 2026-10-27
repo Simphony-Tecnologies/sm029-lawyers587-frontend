@@ -177,9 +177,15 @@ export const loginReturnPath = (
 const REQUEST_TIMEOUT_MS = 60000;
 const LONG_REQUEST_TIMEOUT_MS = 120000;
 
-// Wrapper de fetch que dispara el manejo global de 401 y aplica el límite de
-// tiempo (al vencer rechaza con un TimeoutError). Toda llamada autenticada del
-// cliente pasa por aquí.
+// Se emite en `window` tras cada escritura exitosa (POST/PUT/PATCH/DELETE).
+// Con él los contadores del sidebar se recalculan al instante después de
+// aprobar un signup, cambiar un status, tomar un lead, etc., sin que cada
+// pantalla tenga que avisar.
+export const DATA_CHANGED_EVENT = 'app:data-changed';
+
+// Wrapper de fetch que dispara el manejo global de 401, aplica el límite de
+// tiempo (al vencer rechaza con un TimeoutError) y emite DATA_CHANGED_EVENT.
+// Toda llamada autenticada del cliente pasa por aquí.
 const authedFetch = (
   input: string,
   init?: RequestInit,
@@ -197,6 +203,15 @@ const authedFetch = (
   return fetch(input, { ...init, signal: controller.signal })
     .then((response) => {
       if (response.status === 401) handleAuthFailure();
+      const method = (init?.method ?? 'GET').toUpperCase();
+      if (
+        response.ok &&
+        method !== 'GET' &&
+        method !== 'HEAD' &&
+        typeof window !== 'undefined'
+      ) {
+        window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
+      }
       return response;
     })
     .catch((error) => {

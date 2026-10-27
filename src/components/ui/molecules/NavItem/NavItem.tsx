@@ -62,7 +62,10 @@ export const NavItem = forwardRef<
         {expandable ? (
           <MdChevronRight
             className={cn(
-              'ml-auto text-slate-400 transition-transform duration-150',
+              // Con badge, el badge ya empuja a la derecha: la flecha va pegada
+              // a él (dos ml-auto lo dejarían flotando en el medio).
+              badge ? 'shrink-0' : 'ml-auto',
+              'text-slate-400 transition-transform duration-150',
               expanded && 'rotate-90'
             )}
             size={14}

@@ -20,7 +20,11 @@ import { useSelectStatus } from '@/store/useSelectStatus';
 import { api, database, downloadBlob } from '@/services/database';
 import type { FirmListItem, LawyerListItem, LeadStatus } from '@/types/api.types';
 import { statusSelectAll } from '@/constants/status';
-import { adminStatusFromSlug, adminSlugFromStatus } from '@/constants/leadFilters';
+import {
+  adminStatusFromSlug,
+  adminSlugFromStatus,
+  DEFAULT_NEW_WINDOW_HOURS,
+} from '@/constants/leadFilters';
 import {
   EMPTY_ADVANCED_FILTERS,
   SCORE_OPTIONS,
@@ -321,7 +325,9 @@ const LeadManagement = () => {
   const [firmNames, setFirmNames] = useState<Map<number, string>>(new Map());
   const [view, setView] = useState<'grid' | 'list'>('grid');
   // L587-09 — ventana de tiempo (horas) para leads NEW en la vista admin.
-  const [newWindowHours, setNewWindowHours] = useState<24 | 36 | 48>(24);
+  const [newWindowHours, setNewWindowHours] = useState<24 | 36 | 48>(
+    DEFAULT_NEW_WINDOW_HOURS
+  );
 
   const [isOpenLead, setIsOpenLead] = useState(false);
   const [isOpenDelete, setIsOpenDelete] = useState(false);
