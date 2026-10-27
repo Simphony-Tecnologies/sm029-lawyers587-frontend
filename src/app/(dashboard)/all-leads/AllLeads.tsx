@@ -123,6 +123,18 @@ const STATUS_OPTIONS_COMPLETED: LeadStatusOption[] = [
   { name: 'Completed', value: 'COMPLETED' },
 ];
 
+// Statuses desde los que el backend deja al abogado mover un lead suyo. En los
+// demás (Disabled, Expired, Archived…) sigue apareciendo como asignado, pero
+// cualquier cambio de status responde 403: no se ofrece el selector.
+const LAWYER_WORKABLE_STATUSES = new Set([
+  'ASSIGNED',
+  'IN PROGRESS',
+  'WAITING_ON_CLIENT',
+  'PROBLEMATIC',
+  'CLOSED',
+  'COMPLETED',
+]);
+
 const ASSIGNED_FRESHNESS_HOURS = 48;
 
 // Backend is the authority on expiration (cron moves ASSIGNED→EXPIRED after 48h).
@@ -741,7 +753,9 @@ const AllLeads = () => {
         }
         linkBasePath={MY_LEADS_PATH}
         statusOptions={
-          selectedLead?.status === 'CLOSED'
+          !LAWYER_WORKABLE_STATUSES.has(String(selectedLead?.status ?? '').toUpperCase())
+            ? []
+            : selectedLead?.status === 'CLOSED'
             ? STATUS_OPTIONS_CLOSED
             : selectedLead?.status === 'COMPLETED'
             ? STATUS_OPTIONS_COMPLETED

@@ -231,7 +231,16 @@ const STATUS_OPTIONS_NEW = [
   { name: 'Disabled', value: 'DISABLED' },
   { name: 'Archive', value: 'ARCHIVED' },
 ];
+// Lead Disabled (documento de flujo del cliente): se asigna a un abogado (panel
+// "Assign to lawyer") o se marca Flagged. Ya trabajado, nunca vuelve a New, y
+// Send back no aplica porque no tiene abogado.
 const STATUS_OPTIONS_DISABLED = [
+  { name: 'Flagged', value: 'PROBLEMATIC' },
+  { name: 'Disabled', value: 'DISABLED' },
+  { name: 'Archive', value: 'ARCHIVED' },
+];
+// Lead LOST: conserva las opciones que antes compartía con Disabled.
+const STATUS_OPTIONS_LOST = [
   { name: 'New', value: 'NEW' },
   { name: 'Send Back', value: 'LOST' },
   { name: 'Disabled', value: 'DISABLED' },
@@ -597,12 +606,16 @@ const LeadManagement = () => {
     setIsOpenLead(true);
   };
 
-  // Issue #2: si el lead no está asignado, pre-cargamos lawyers para que el
-  // picker inline esté disponible sin click extra. Obs 39: solo los del área
-  // del lead (se reintenta cuando llega el catálogo /service_types).
+  // Issue #2: si el lead no está asignado (o está Disabled, que el admin puede
+  // reasignar), pre-cargamos lawyers para que el picker inline esté disponible
+  // sin click extra. Obs 39: solo los del área del lead (se reintenta cuando
+  // llega el catálogo /service_types).
   useEffect(() => {
     const status = selectedLead?.status;
-    if (!isOpenLead || !(status === 'NEW' || status === 'EXPIRED' || status === 'SEND_BACK')) {
+    if (
+      !isOpenLead ||
+      !(status === 'NEW' || status === 'EXPIRED' || status === 'SEND_BACK' || status === 'DISABLED')
+    ) {
       return;
     }
     void loadAssignLawyers(serviceTypeIdOf(selectedLead.service));
@@ -1812,9 +1825,10 @@ const LeadManagement = () => {
             ? []
             : selectedLead.status === 'ARCHIVED'
             ? STATUS_OPTIONS_ARCHIVED
-            : selectedLead.status === 'DISABLED' ||
-              selectedLead.status === 'LOST'
+            : selectedLead.status === 'DISABLED'
             ? STATUS_OPTIONS_DISABLED
+            : selectedLead.status === 'LOST'
+            ? STATUS_OPTIONS_LOST
             : selectedLead.status === 'NEW' ||
               selectedLead.status === 'EXPIRED' ||
               selectedLead.status === 'SEND_BACK'
