@@ -14,10 +14,11 @@ const columns: DataTableColumn<DeletedLawyer>[] = [
     label: 'Code',
     width: '130px',
     sortable: true,
-    accessor: (r) => r.code ?? String(r.id),
+    // `||`: hay abogados viejos con `code` vacío ('') y `??` no lo cubre.
+    accessor: (r) => r.code || String(r.id),
     render: (r) => (
       <span className='font-mono text-xs text-slate-500'>
-        {r.code ?? `#${String(r.id).padStart(5, '0')}`}
+        {r.code || `#${String(r.id).padStart(5, '0')}`}
       </span>
     ),
   },

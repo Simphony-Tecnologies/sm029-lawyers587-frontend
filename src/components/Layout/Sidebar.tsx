@@ -1,12 +1,17 @@
 'use client';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Logo from '@/assets/Logo.svg';
 import { useAuth } from '@/store/useAuth.store';
 import { useMobileStatus } from '@/store/useMobileStatus.store';
 import { useAssignedLeads } from '@/store/useAssignedLeads.store';
-import { api, database } from '@/services/database';
+import {
+  ADMIN_PENDING_LEAD_SLUGS,
+  useNavCounts,
+  type AdminPendingLeadSlug,
+} from '@/store/useNavCounts.store';
+import { api, database, DATA_CHANGED_EVENT } from '@/services/database';
 import { routesSidebar } from '@/routes/routes';
 import type { dataItem, NavGate, NavGroup, rol } from '@/types/routes.interface';
 import { cn } from '@/lib/cn';
@@ -37,6 +42,16 @@ const isRouteActive = (current: string, route: string) => {
   return current.startsWith(`${route}/`);
 };
 
+// Cada cuánto se recalculan los contadores con la pestaña visible. Además se
+// recalculan al volver a la pestaña y tras cada escritura (DATA_CHANGED_EVENT).
+const NAV_COUNTS_POLL_MS = 30000;
+
+const CountBadge = ({ value }: { value: number }) => (
+  <span className='inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-customRed px-1.5 text-[10px] font-bold tabular-nums text-white'>
+    {value}
+  </span>
+);
+
 export default function Sidebar() {
   const router = useRouter();
   const { user } = useAuth();
@@ -66,20 +81,72 @@ export default function Sidebar() {
     return true;
   };
 
-  // Lawyer sidebar: open dropdown by default + fetch pool count
+  // Lawyer sidebar: open dropdown by default
   const [poolCount, setPoolCount] = useState<number | null>(null);
   useEffect(() => {
     if (role !== 'lawyer') return;
     setOpenDropdown('/all-leads');
+  }, [role]);
+
+  // Conteos del abogado: leads en el pool y L587-02, ASSIGNED para el badge
+  // del submenú "My Leads".
+  const refreshLawyerCounts = useCallback(() => {
     api.leads.pool({ limit: 1 }).then((res) => {
       if (res.success && res.data) {
         setPoolCount(res.data.total ?? res.data.data?.length ?? 0);
       }
     });
-    // L587-02: sembrar el conteo de ASSIGNED para el badge del submenú "My Leads".
     if (user?.id) void fetchCount(Number(user.id));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, user?.id]);
+  }, [user?.id, fetchCount]);
+
+  const {
+    verification: verificationCount,
+    leads: leadCounts,
+    refreshAdmin,
+  } = useNavCounts();
+
+  // Contadores al día sin recargar: al montar, cada 30 s con la pestaña
+  // visible, al volver a la pestaña y tras cada escritura. Los disparos
+  // seguidos (foco + visibilidad, acciones masivas) se agrupan en uno.
+  useEffect(() => {
+    if (role !== 'admin' && role !== 'lawyer') return;
+    const refresh = role === 'admin' ? refreshAdmin : refreshLawyerCounts;
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      clearTimeout(pending);
+      pending = setTimeout(() => void refresh(), 300);
+    };
+    const onVisible = () => {
+      if (!document.hidden) schedule();
+    };
+    void refresh();
+    const interval = setInterval(onVisible, NAV_COUNTS_POLL_MS);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    window.addEventListener(DATA_CHANGED_EVENT, schedule);
+    return () => {
+      clearTimeout(pending);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+      window.removeEventListener(DATA_CHANGED_EVENT, schedule);
+    };
+  }, [role, refreshAdmin, refreshLawyerCounts]);
+
+  // Contador de un item del admin (0 = sin badge): Verification y los filtros
+  // de Leads que esperan una acción suya.
+  const adminCountFor = (route: string): number => {
+    if (role !== 'admin') return 0;
+    if (route === '/lawyer-management/verification') return verificationCount;
+    const [base, slug] = route.split('?status=');
+    if (
+      base === '/lead-management' &&
+      (ADMIN_PENDING_LEAD_SLUGS as readonly string[]).includes(slug)
+    ) {
+      return leadCounts[slug as AdminPendingLeadSlug] ?? 0;
+    }
+    return 0;
+  };
 
   const grouped = useMemo(() => {
     const map: Record<NavGroup, dataItem[]> = {
@@ -182,6 +249,18 @@ export default function Sidebar() {
                 const Icon = item.icon;
                 const showDividerBefore =
                   groupName === 'Management' && idx === items.length - 1 && !item.children;
+                // Cerrado, el padre muestra la suma de sus hijos (abierto,
+                // cada hijo muestra el suyo).
+                const collapsedCount =
+                  expandable && !expanded
+                    ? item.children!.reduce(
+                        (sum, child) =>
+                          role && child.rol.includes(role) && passesGate(child.gate)
+                            ? sum + adminCountFor(child.route)
+                            : sum,
+                        0
+                      )
+                    : 0;
                 return (
                   <Fragment key={item.route}>
                     {showDividerBefore ? <Divider /> : null}
@@ -193,6 +272,11 @@ export default function Sidebar() {
                         expandable
                         expanded={expanded}
                         onClick={() => handleParentClick(item)}
+                        badge={
+                          collapsedCount > 0 ? (
+                            <CountBadge value={collapsedCount} />
+                          ) : undefined
+                        }
                       />
                     ) : (
                       <NavItem
@@ -203,9 +287,7 @@ export default function Sidebar() {
                         onClick={handleNavigate}
                         badge={
                           item.route === '/select-lead' && poolCount != null ? (
-                            <span className='inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-customRed px-1.5 text-[10px] font-bold tabular-nums text-white'>
-                              {poolCount}
-                            </span>
+                            <CountBadge value={poolCount} />
                           ) : undefined
                         }
                       />
@@ -231,15 +313,13 @@ export default function Sidebar() {
                               : pathName === child.route;
 
                           // L587-02: badge de conteo en el filtro "Assigned (New)"
-                          // del abogado (no aplica al submenú admin).
+                          // del abogado; en el admin, lo pendiente de cada item.
+                          const childCount =
+                            childBasePath === '/all-leads' && childSlug === 'assigned'
+                              ? assignedCount
+                              : adminCountFor(child.route);
                           const badge =
-                            childBasePath === '/all-leads' &&
-                            childSlug === 'assigned' &&
-                            assignedCount > 0 ? (
-                              <span className='inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-customRed px-1.5 text-[10px] font-bold tabular-nums text-white'>
-                                {assignedCount}
-                              </span>
-                            ) : undefined;
+                            childCount > 0 ? <CountBadge value={childCount} /> : undefined;
 
                           return (
                             <NavSubItem

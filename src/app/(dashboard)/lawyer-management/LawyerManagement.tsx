@@ -1,6 +1,7 @@
 'use client';
 import Modal from '@/components/organisms/Modal';
 import { api, database, downloadBlob } from '@/services/database';
+import { apiErrorText, apiText } from '@/lib/apiText';
 import { dedupeServicesCapacity as dedupeServices } from '@/utils/getNameServiceLawyer';
 import { DeleteLawyerDialog, type DeleteTarget } from './DeleteLawyerDialog';
 import { DeletedAccounts } from './DeletedAccounts';
@@ -497,17 +498,18 @@ const LawyerManagement = () => {
     };
     const creating = await database.CreateLawyer(data);
     if (!creating.success) {
-      const backendMsg = (creating.data as any)?.message;
+      // Nunca la lista cruda de validación del backend ("property firstName
+      // should not exist, …"): texto apto o el genérico; el detalle va a consola.
       const msg =
         creating.code === 409
           ? 'This email is already registered'
           : creating.code === 403
           ? 'You do not have permission to create lawyers'
-          : typeof backendMsg === 'string'
-          ? backendMsg
-          : Array.isArray(backendMsg)
-          ? backendMsg.join(', ')
-          : 'Could not create lawyer. Please try again.';
+          : apiErrorText(
+              creating.code,
+              (creating.data as any)?.message,
+              'Could not create lawyer. Please try again.'
+            );
       toast.error(msg);
       setLoadingModal(false);
       return;
@@ -523,21 +525,35 @@ const LawyerManagement = () => {
       : [];
     const capFor = (id: number): number =>
       Number(payload.maxLeadsByArea?.[id] ?? payload.max_leads);
-    if (newLawyerId && targetIds.length > 0) {
-      await Promise.all(
-        targetIds.map((stId) =>
-          database.insertData(
-            `${process.env.NEXT_PUBLIC_URL}/lawyers-services`,
-            {
-              lawyer_id: newLawyerId,
-              service_type_id: stId,
-              max_leads: capFor(stId),
-            }
+    // El resultado de las áreas antes no se miraba: si fallaban, el abogado
+    // quedaba sin áreas y aun así salía "created successfully".
+    let areasSaved = true;
+    if (targetIds.length > 0) {
+      if (!newLawyerId) {
+        areasSaved = false;
+      } else {
+        const areaResults = await Promise.all(
+          targetIds.map((stId) =>
+            database.insertData(
+              `${process.env.NEXT_PUBLIC_URL}/lawyers-services`,
+              {
+                lawyer_id: newLawyerId,
+                service_type_id: stId,
+                max_leads: capFor(stId),
+              }
+            )
           )
-        )
+        );
+        areasSaved = areaResults.every((r) => r.success);
+      }
+    }
+    if (areasSaved) {
+      toast.success('Lawyer created successfully');
+    } else {
+      toast.error(
+        "Lawyer created, but their areas of law couldn't be saved. Edit the lawyer to add them."
       );
     }
-    toast.success('Lawyer created successfully');
     setFile(null);
     setAdditionalValues({});
     setFormValues(() => {});
@@ -579,11 +595,12 @@ const LawyerManagement = () => {
     // Cualquier `success: false` es error (antes solo se miraba el 401 y se
     // mostraba "updated successfully" aunque el backend hubiera rechazado).
     if (!updateData.success || updateData.data?.success === false) {
-      const backendMsg = updateData.messages ?? updateData.data?.error;
       toast.error(
-        Array.isArray(backendMsg)
-          ? backendMsg.join(', ')
-          : backendMsg || 'error updating lawyer'
+        apiErrorText(
+          updateData.code,
+          updateData.messages ?? updateData.data?.error,
+          'error updating lawyer'
+        )
       );
       setLoadingModal(false);
       return;
@@ -608,12 +625,7 @@ const LawyerManagement = () => {
       })),
     });
     if (!servicesRes.success) {
-      const backendMsg: unknown = servicesRes.message;
-      toast.error(
-        Array.isArray(backendMsg)
-          ? backendMsg.join(', ')
-          : (backendMsg as string) || 'Error updating value of service'
-      );
+      toast.error(apiText(servicesRes.message, 'Error updating value of service'));
       // Los datos del perfil sí se guardaron: refrescar la lista igual.
       fetchData();
       setLoadingModal(false);

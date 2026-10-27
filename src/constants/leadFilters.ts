@@ -69,7 +69,11 @@ export const ADMIN_LEAD_FILTERS: LeadFilterDef[] = [
   { slug: 'archived', label: 'Archived', status: 'ARCHIVED' },
 ];
 
-export const adminStatusFromSlug = (slug?: string | null): LeadStatus | null => {
+// L587-09 — ventana con la que abre la pestaña New (24/36/48 h sobre la fecha
+// de entrada). La comparte el contador del sidebar para mostrar el mismo número.
+export const DEFAULT_NEW_WINDOW_HOURS = 24;
+
+export const adminStatusFromSlug =(slug?: string | null): LeadStatus | null => {
   if (!slug || slug === 'all') return null;
   return ADMIN_LEAD_FILTERS.find((f) => f.slug === slug)?.status ?? null;
 };
