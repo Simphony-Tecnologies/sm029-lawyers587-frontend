@@ -30,6 +30,38 @@ const HIDDEN_STATUSES = new Set(['DEDUPLICATED', 'SKIPPED_PREFERENCE']);
 const arrivedAt = (n: NotificationItem) =>
   new Date(n.scheduled_at ?? n.created_at).getTime();
 
+// Header y HeaderMobile montan este hook a la vez y la lista del admin llega a
+// tardar ~30 s (el backend la devuelve completa): comparten una sola consulta y
+// no se arranca otra mientras hay una en curso o si la última empezó hace
+// menos de SHARED_TTL_MS. `force` (tras marcar leído) siempre consulta de nuevo.
+type FetchResult = Awaited<ReturnType<typeof database.fetchData>>;
+const SHARED_TTL_MS = 30000;
+let shared: {
+  url: string;
+  at: number;
+  done: boolean;
+  promise: Promise<FetchResult>;
+} | null = null;
+const fetchShared = (url: string, force = false): Promise<FetchResult> => {
+  if (
+    !force &&
+    shared &&
+    shared.url === url &&
+    (!shared.done || Date.now() - shared.at < SHARED_TTL_MS)
+  ) {
+    return shared.promise;
+  }
+  const entry = { url, at: Date.now(), done: false } as NonNullable<typeof shared>;
+  entry.promise = database.fetchData(url).then((res) => {
+    entry.done = true;
+    // Un fallo no se reutiliza: la próxima llamada vuelve a intentar.
+    if (!res.success && shared === entry) shared = null;
+    return res;
+  });
+  shared = entry;
+  return entry.promise;
+};
+
 /**
  * Hook central de notificaciones. Antes vivía duplicado en Header.tsx y
  * HeaderMobile.tsx con la rama admin comentada — eso rompió las
@@ -54,14 +86,14 @@ export function useNotifications() {
   const role = user?.role?.name?.toLowerCase?.() ?? '';
   const isAdmin = role === 'admin' || role === 'super admin';
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (force = false) => {
     if (!user || Object.keys(user).length === 0 || !user.id) return;
     const url = isAdmin
       ? `${process.env.NEXT_PUBLIC_URL}/notifications`
       : `${process.env.NEXT_PUBLIC_URL}/notifications/lawyer/${user.id}`;
 
     setLoading(true);
-    const res = await database.fetchData(url);
+    const res = await fetchShared(url, force);
     setLoading(false);
 
     if (!res.success) {
@@ -120,7 +152,7 @@ export function useNotifications() {
         toast.error('Could not mark notification as read');
         return false;
       }
-      await fetchAll();
+      await fetchAll(true);
       return true;
     },
     [fetchAll]
