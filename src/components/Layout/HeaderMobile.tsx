@@ -85,7 +85,7 @@ function HeaderMobile() {
                   >
                     <div className='flex items-center justify-between'>
                       <p className='text-xs text-gray-500'>
-                        {formatDate(res.created_at)}
+                        {formatDate(res.scheduled_at ?? res.created_at)}
                       </p>
                       {!res.seen && (
                         <span className='h-2 w-2 bg-blue-500 rounded-full'></span>
