@@ -217,6 +217,9 @@ export const LeadInfoModal = ({
   // `comment` (razón de auditoría) siempre arranca vacío — sólo se llena
   // cuando el user cambia a un status crítico y escribe la razón. No tomamos
   // lead.comments (campo distinto, persiste en la entidad lead).
+  // Depende del id y del status, no del objeto: My Leads arma `lead` de nuevo
+  // en cada render (sondeo del sidebar, foco de la ventana, ?lead= en la URL) y
+  // eso borraba el status elegido, la razón y el recordatorio (obs 3 nov).
   useEffect(() => {
     if (!open || !lead) return;
     setSelectedStatus(lead.status ?? '');
@@ -237,7 +240,8 @@ export const LeadInfoModal = ({
     setReminderDate('');
     setReminderTime('');
     setReminderNote('');
-  }, [open, lead]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, lead?.id, lead?.status]);
 
   // Pull date: la fila de la lista puede traerla vacía; el detalle usa como
   // respaldo el último ASSIGN del historial (contrato A2). Fase 2 — al admin el
@@ -408,9 +412,9 @@ export const LeadInfoModal = ({
   const isSpecialStatus = isReviewLead || isTrashedLead;
 
   // L587-05 — el contacto se revela solo en In Progress/Waiting/Retained.
-  // Gating sobre selectedStatus (dropdown en vivo) → aparece al cambiar de
-  // estado sin cerrar el card. El admin siempre lo ve.
-  const contactVisible = canViewLeadContact(selectedStatus, isAdmin);
+  // Gating sobre el status guardado (lead.status): elegir otro estado en el
+  // menú sin guardar ya no lo muestra (obs 3 nov). El admin siempre lo ve.
+  const contactVisible = canViewLeadContact(lead?.status, isAdmin);
   const myId = Number(user?.id);
 
   // Fase 1 (1.2 / 1.3) — encabezado: Entry date + Pull date, badge "New Lead"
@@ -541,6 +545,8 @@ export const LeadInfoModal = ({
       toast.error(GENERIC_ERROR);
       return;
     }
+    // Obs 3 nov — confirmación con la misma fecha que muestra la lista de abajo.
+    toast.success(`Reminder scheduled for ${formatTs(reminderAt.toISOString())}`);
     setReminderDate('');
     setReminderTime('');
     setReminderNote('');
@@ -1081,7 +1087,7 @@ export const LeadInfoModal = ({
                       <strong className='font-bold text-slate-900'>
                         This action is permanent.
                       </strong>{' '}
-                      Once marked as lost, the lead will not be reinstated to
+                      Once sent back, the lead will not be reinstated to
                       the active queue and will be reviewed by the super admin.
                     </span>
                   </div>
@@ -1388,7 +1394,7 @@ export const LeadInfoModal = ({
                       {loading
                         ? 'Saving\u2026'
                         : isDestructive
-                        ? 'Mark as Lost'
+                        ? 'Send back'
                         : 'Save changes'}
                     </button>
                   </div>

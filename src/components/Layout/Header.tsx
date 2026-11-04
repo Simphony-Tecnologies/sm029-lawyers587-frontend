@@ -178,7 +178,7 @@ const Header = () => {
                       >
                         <div className='flex items-center justify-between'>
                           <span className='text-[10px] font-medium text-slate-400'>
-                            {formatDate(res.created_at)}
+                            {formatDate(res.scheduled_at ?? res.created_at)}
                           </span>
                           {!res.seen ? (
                             <span
