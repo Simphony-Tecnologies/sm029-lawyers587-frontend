@@ -8,6 +8,8 @@ export interface LeadFilterDef {
   slug: string;
   label: string;
   status: LeadStatus | null;
+  /** Statuses que el mismo filtro incluye además de `status`. */
+  extraStatuses?: LeadStatus[];
 }
 
 export const LAWYER_LEAD_FILTERS: LeadFilterDef[] = [
@@ -48,6 +50,25 @@ export const canViewLeadContact = (
     String(status ?? '').toUpperCase() as LeadStatus
   );
 
+// Fuente única de los statuses desde los que el super admin asigna o reasigna
+// un lead (PATCH /leads/:id/assign y bulk). Misma lista que
+// ADMIN_ASSIGNABLE_STATUSES del backend. Quedan fuera Assigned, In Progress,
+// Waiting on Client, Retained, Completed, Review y Trash.
+export const ADMIN_ASSIGNABLE_STATUSES: LeadStatus[] = [
+  'NEW',
+  'EXPIRED',
+  'SEND_BACK',
+  'DISABLED',
+  'PROBLEMATIC',
+  'LOST',
+  'ARCHIVED',
+];
+
+export const canAdminAssign = (status: string | null | undefined): boolean =>
+  ADMIN_ASSIGNABLE_STATUSES.includes(
+    String(status ?? '').toUpperCase() as LeadStatus
+  );
+
 // L587-10 — Set + orden canónico de filtros de leads del admin. Lo usan el
 // submenú del sidebar (Lead Management) y la filter bar de /lead-management,
 // para que compartan slugs y la URL sea la única fuente de verdad. Incluye las
@@ -59,7 +80,10 @@ export const ADMIN_LEAD_FILTERS: LeadFilterDef[] = [
   { slug: 'in-progress', label: 'In Progress', status: 'IN PROGRESS' },
   { slug: 'waiting', label: 'Waiting on Client', status: 'WAITING_ON_CLIENT' },
   { slug: 'flagged', label: 'Flagged', status: 'PROBLEMATIC' },
-  { slug: 'sent-back', label: 'Sent Back', status: 'LOST' },
+  // Sent Back agrupa los dos "Send back" del abogado: el del modal (LOST) y el
+  // de la fila, que lo devuelve al pool (SEND_BACK). Así la tarjeta "Returned
+  // to Admin" del dashboard = Sent Back + Expired.
+  { slug: 'sent-back', label: 'Sent Back', status: 'LOST', extraStatuses: ['SEND_BACK'] },
   { slug: 'retained', label: 'Retained', status: 'CLOSED' },
   { slug: 'completed', label: 'Completed', status: 'COMPLETED' },
   { slug: 'disabled', label: 'Disabled', status: 'DISABLED' },
@@ -78,8 +102,19 @@ export const adminStatusFromSlug =(slug?: string | null): LeadStatus | null => {
   return ADMIN_LEAD_FILTERS.find((f) => f.slug === slug)?.status ?? null;
 };
 
+// Todos los statuses que filtra un slug (`status` + `extraStatuses`).
+export const adminStatusesFromSlug = (slug?: string | null): LeadStatus[] => {
+  if (!slug || slug === 'all') return [];
+  const def = ADMIN_LEAD_FILTERS.find((f) => f.slug === slug);
+  return def?.status ? [def.status, ...(def.extraStatuses ?? [])] : [];
+};
+
 export const adminSlugFromStatus = (status?: string | null): string => {
   if (!status) return 'all';
-  const up = String(status).toUpperCase();
-  return ADMIN_LEAD_FILTERS.find((f) => f.status === up)?.slug ?? 'all';
+  const up = String(status).toUpperCase() as LeadStatus;
+  return (
+    ADMIN_LEAD_FILTERS.find(
+      (f) => f.status === up || (f.extraStatuses ?? []).includes(up)
+    )?.slug ?? 'all'
+  );
 };

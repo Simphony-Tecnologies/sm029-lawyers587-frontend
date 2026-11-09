@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { api, database } from '@/services/database';
-import { adminStatusFromSlug, DEFAULT_NEW_WINDOW_HOURS } from '@/constants/leadFilters';
+import {
+  adminStatusFromSlug,
+  adminStatusesFromSlug,
+  DEFAULT_NEW_WINDOW_HOURS,
+} from '@/constants/leadFilters';
 import { toLeadRow } from '@/store/useLead.store';
 
 // Contadores del sidebar del admin: solo lo que espera una acción suya. Cada
@@ -37,7 +41,15 @@ const countLeads = async (slug: AdminPendingLeadSlug): Promise<number | null> =>
       return !Number.isNaN(t) && t >= cutoff;
     }).length;
   }
-  return totalOf(await api.leads.list({ status, limit: 1 }));
+  // Un slug puede cubrir varios statuses (sent-back = LOST + SEND_BACK): se
+  // suma el total de cada uno, igual que la lista que abre el item.
+  const totals = await Promise.all(
+    adminStatusesFromSlug(slug).map(async (st) =>
+      totalOf(await api.leads.list({ status: st, limit: 1 }))
+    )
+  );
+  if (totals.length === 0 || totals.some((n) => n === null)) return null;
+  return totals.reduce<number>((sum, n) => sum + (n ?? 0), 0);
 };
 
 interface NavCountsStore {
