@@ -21,8 +21,9 @@ import { api, database, downloadBlob } from '@/services/database';
 import type { FirmListItem, LawyerListItem, LeadStatus } from '@/types/api.types';
 import { statusSelectAll } from '@/constants/status';
 import {
-  adminStatusFromSlug,
+  adminStatusesFromSlug,
   adminSlugFromStatus,
+  canAdminAssign,
   DEFAULT_NEW_WINDOW_HOURS,
 } from '@/constants/leadFilters';
 import {
@@ -531,7 +532,11 @@ const LeadManagement = () => {
       p.delete('since');
       p.delete('status');
       if (next.length === 0) p.set('status', 'all');
-      else next.forEach((st) => p.append('status', adminSlugFromStatus(st)));
+      // Sin repetir: LOST y SEND_BACK comparten el slug sent-back.
+      else
+        Array.from(new Set(next.map((st) => adminSlugFromStatus(st)))).forEach((slug) =>
+          p.append('status', slug)
+        );
     });
   };
 
@@ -565,9 +570,10 @@ const LeadManagement = () => {
       return;
     }
     if (!hasStatusParam) return;
-    const tokens = statusSlugs
-      .map((slug) => adminStatusFromSlug(slug))
-      .filter((t): t is LeadStatus => !!t);
+    // Un slug puede cubrir varios statuses (sent-back = LOST + SEND_BACK).
+    const tokens = Array.from(
+      new Set(statusSlugs.flatMap((slug) => adminStatusesFromSlug(slug)))
+    );
     const regular = tokens.filter((t) => !isDedicatedTab(t));
     const dedicated = tokens.find((t) => isDedicatedTab(t));
     setSelecArray([]);
@@ -606,16 +612,13 @@ const LeadManagement = () => {
     setIsOpenLead(true);
   };
 
-  // Issue #2: si el lead no está asignado (o está Disabled, que el admin puede
-  // reasignar), pre-cargamos lawyers para que el picker inline esté disponible
-  // sin click extra. Obs 39: solo los del área del lead (se reintenta cuando
-  // llega el catálogo /service_types).
+  // Issue #2: si el admin puede asignar el lead (canAdminAssign, misma regla que
+  // el panel del modal y el backend), pre-cargamos lawyers para que el picker
+  // inline esté disponible sin click extra. Obs 39: solo los del área del lead
+  // (se reintenta cuando llega el catálogo /service_types).
   useEffect(() => {
     const status = selectedLead?.status;
-    if (
-      !isOpenLead ||
-      !(status === 'NEW' || status === 'EXPIRED' || status === 'SEND_BACK' || status === 'DISABLED')
-    ) {
+    if (!isOpenLead || !canAdminAssign(status)) {
       return;
     }
     void loadAssignLawyers(serviceTypeIdOf(selectedLead.service));
@@ -1705,7 +1708,13 @@ const LeadManagement = () => {
           key: `status-${st}`,
           label: 'Status',
           value: statusLabel(st),
-          onRemove: () => handlePanelStatus(regularStatusFilters.filter((x) => x !== st)),
+          // Quita el filtro completo: LOST y SEND_BACK salen juntos (sent-back).
+          onRemove: () =>
+            handlePanelStatus(
+              regularStatusFilters.filter(
+                (x) => adminSlugFromStatus(x) !== adminSlugFromStatus(st)
+              )
+            ),
         }))),
     ...advanced.services.map((v) => ({
       key: `service-${v}`,

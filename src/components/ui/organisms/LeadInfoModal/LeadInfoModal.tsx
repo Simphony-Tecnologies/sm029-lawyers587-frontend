@@ -45,7 +45,7 @@ import {
 import dayjs from 'dayjs';
 import { api, downloadBlob } from '@/services/database';
 import { useAuth } from '@/store/useAuth.store';
-import { canViewLeadContact } from '@/constants/leadFilters';
+import { canAdminAssign, canViewLeadContact } from '@/constants/leadFilters';
 import type {
   CalendarReminderDTO,
   ExportFormat,
@@ -187,6 +187,9 @@ export const LeadInfoModal = ({
   const [confirmRetained, setConfirmRetained] = useState(false);
   // El paso a Disabled también se confirma (documento de flujo del cliente).
   const [confirmDisable, setConfirmDisable] = useState(false);
+  // Reasignar un lead que ya tiene otro abogado se lo quita (y el backend le
+  // avisa): el admin lo confirma antes.
+  const [confirmReassign, setConfirmReassign] = useState(false);
   // Obs 42 — "Move to Trash" con confirmación y razón obligatoria (como el bulk).
   const [confirmTrash, setConfirmTrash] = useState(false);
   const [trashReason, setTrashReason] = useState('');
@@ -199,6 +202,7 @@ export const LeadInfoModal = ({
   // Fase 2 (2.4) — recordatorio de calendario. `detailLawyerId`: abogado asignado
   // según el detalle (solo admin; undefined = aún cargando, null = sin asignar).
   const [detailLawyerId, setDetailLawyerId] = useState<number | null | undefined>(undefined);
+  const [detailLawyerName, setDetailLawyerName] = useState<string | null>(null);
   // Fase 4 — origen del lead (Chatbot / Web Form) según el detalle.
   const [detailSource, setDetailSource] = useState<{
     source: string | null;
@@ -233,6 +237,7 @@ export const LeadInfoModal = ({
     setConfirmDelete(false);
     setConfirmRetained(false);
     setConfirmDisable(false);
+    setConfirmReassign(false);
     setConfirmTrash(false);
     setTrashReason('');
     setEditingCommentId(null);
@@ -250,6 +255,7 @@ export const LeadInfoModal = ({
   useEffect(() => {
     setDetailPullDate(null);
     setDetailLawyerId(undefined);
+    setDetailLawyerName(null);
     setDetailSource(null);
     if (!open || !lead) return;
     const id = Number(lead.id);
@@ -259,6 +265,12 @@ export const LeadInfoModal = ({
       if (cancelled) return;
       setDetailLawyerId(
         res.data?.assigned_lawyer_id ?? res.data?.assigned_lawyer?.id ?? null
+      );
+      const assigned = res.data?.assigned_lawyer;
+      setDetailLawyerName(
+        assigned
+          ? `${assigned.firstName ?? ''} ${assigned.lastName ?? ''}`.trim() || null
+          : null
       );
       if (res.success && res.data) {
         setDetailSource({
@@ -403,8 +415,6 @@ export const LeadInfoModal = ({
     !!lead && (lead.status ?? '').toUpperCase() !==
       (selectedStatus ?? '').toUpperCase();
 
-  // Issue #2: el lead se considera asignable cuando está en NEW o EXPIRED
-  // (alineado con la regla del backend en PATCH /leads/:id/assign).
   const leadStatusUpper = (lead?.status ?? '').toUpperCase();
   const isReviewLead = leadStatusUpper === 'REVIEW';
   const isTrashedLead = leadStatusUpper === 'TRASHED';
@@ -431,16 +441,14 @@ export const LeadInfoModal = ({
     else window.prompt('Copy link', url);
   };
 
+  // Solo Lead Management (admin) pasa onAssign. Los statuses salen de la misma
+  // regla del backend (canAdminAssign): New, Expired, Send back al pool,
+  // Disabled, Flagged, Sent back y Archived.
   const canAssign =
     !!onAssign &&
     Array.isArray(assignableLawyers) &&
     !isSpecialStatus &&
-    // SEND_BACK vuelve al pool y el BE lo acepta en assign (cola "Returned to Admin").
-    // DISABLED solo lo reasigna el admin: el pull del abogado no lo acepta.
-    (leadStatusUpper === 'NEW' ||
-      leadStatusUpper === 'EXPIRED' ||
-      leadStatusUpper === 'SEND_BACK' ||
-      (isAdmin && leadStatusUpper === 'DISABLED'));
+    canAdminAssign(leadStatusUpper);
 
   const filteredLawyers = useMemo(() => {
     if (!assignableLawyers) return [];
@@ -482,12 +490,26 @@ export const LeadInfoModal = ({
     });
   };
 
+  const submitAssign = async () => {
+    if (!onAssign || assignLawyerId === '') return;
+    await onAssign(Number(assignLawyerId), assignReason.trim());
+  };
+
   const handleAssignSubmit = async () => {
     if (!onAssign || assignLawyerId === '' || assignLoading) return;
-    const reason = assignReason.trim();
-    if (reason.length === 0) return;
-    await onAssign(Number(assignLawyerId), reason);
+    if (assignReason.trim().length === 0) return;
+    // Ya tiene otro abogado: se le quita el lead y el backend le avisa.
+    if (typeof detailLawyerId === 'number' && detailLawyerId !== Number(assignLawyerId)) {
+      setConfirmReassign(true);
+      return;
+    }
+    await submitAssign();
   };
+  // Nombres para la confirmación (respaldo con el id, como en Lead Management).
+  const reassignFrom = detailLawyerName || `Lawyer #${detailLawyerId}`;
+  const reassignTo =
+    assignableLawyers?.find((l) => l.id === Number(assignLawyerId))?.name ||
+    `Lawyer #${assignLawyerId}`;
 
   // Obs 42 — la razón va igual que en el bulk trash (POST /leads/:id/trash { comment }).
   const handleTrashConfirm = async () => {
@@ -582,7 +604,10 @@ export const LeadInfoModal = ({
 
   return (
     <>
-    <Transition show={open && !confirmRetained && !confirmDisable && !confirmTrash} as={Fragment}>
+    <Transition
+      show={open && !confirmRetained && !confirmDisable && !confirmReassign && !confirmTrash}
+      as={Fragment}
+    >
       <Dialog as='div' className='relative z-50' onClose={loading ? () => {} : onClose}>
         <TransitionChild
           as={Fragment}
@@ -951,7 +976,7 @@ export const LeadInfoModal = ({
 
                 {/* Assign-to-lawyer picker — right after status for quick
                     workflow: pick status → assign lawyer → done. Only visible
-                    when the lead is NEW/EXPIRED and parent provides context. */}
+                    when canAssign (canAdminAssign + parent provides context). */}
                 {canAssign ? (
                   <section className='flex flex-col gap-2'>
                     <div className='flex items-center justify-between'>
@@ -1441,6 +1466,24 @@ export const LeadInfoModal = ({
     >
       <p className='text-[13px] font-medium leading-[1.5] text-slate-500'>
         This lead will be marked as Disabled.
+      </p>
+    </ConfirmationDialog>
+
+    {/* Reasignar un lead que ya tiene abogado: mismo patrón que Retained / Disabled. */}
+    <ConfirmationDialog
+      open={open && confirmReassign}
+      onClose={() => setConfirmReassign(false)}
+      title='Reassign this lead?'
+      cancelLabel='Cancel'
+      confirmLabel='Confirm'
+      onConfirm={() => {
+        setConfirmReassign(false);
+        void submitAssign();
+      }}
+      loading={assignLoading}
+    >
+      <p className='text-[13px] font-medium leading-[1.5] text-slate-500'>
+        This lead will be reassigned from {reassignFrom} to {reassignTo}. {reassignFrom} will be notified.
       </p>
     </ConfirmationDialog>
 
