@@ -49,6 +49,7 @@ import {
   StatusPill,
   channelKey,
   channelLabel,
+  statusLabel as statusName,
   toneFromString,
   variantFromStatus,
   type ActiveFilterChip,
@@ -633,7 +634,7 @@ const AllLeads = () => {
         const contact = canViewLeadContact(r.status, isAdmin);
         return [
           r.id, r.date, r.fullName, contact ? r.email : '', contact ? r.phone : '',
-          r.service, r.status, r.date_updated, r.code, channelLabel(r.channel),
+          r.service, statusName(r.status), r.date_updated, r.code, channelLabel(r.channel),
           r.pull_date ? new Date(r.pull_date) : '', scoreText(r), r.ai_urgency ?? '',
         ];
       });

@@ -1,3 +1,5 @@
+import { statusLabel } from '@/components/ui/atoms/StatusPill';
+
 export type LeadStatusKey =
   | 'NEW'
   | 'ASSIGNED'
@@ -7,8 +9,10 @@ export type LeadStatusKey =
   | 'CLOSED'
   | 'COMPLETED'
   | 'LOST'
+  | 'SEND_BACK'
   | 'EXPIRED'
   | 'DISABLED'
+  | 'ARCHIVED'
   | 'REVIEW'
   | 'TRASHED';
 
@@ -97,6 +101,17 @@ export const LEAD_STATUS_META: Record<LeadStatusKey, LeadStatusMeta> = {
     triggerHoverClass: 'hover:bg-rose-100 hover:border-rose-300',
     triggerMetaClass: 'text-rose-600/70',
   },
+  // L2 — SEND_BACK y ARCHIVED no estaban: caían a "Disabled". Mismo nombre y
+  // color que su pill en las listas.
+  SEND_BACK: {
+    label: 'Sent back',
+    dotClass: 'bg-rose-500',
+    textClass: 'text-rose-600',
+    badgeBgClass: 'bg-rose-50',
+    triggerClass: 'bg-rose-50 border-rose-200 text-rose-600',
+    triggerHoverClass: 'hover:bg-rose-100 hover:border-rose-300',
+    triggerMetaClass: 'text-rose-600/70',
+  },
   EXPIRED: {
     label: 'Expired',
     dotClass: 'bg-stone-400',
@@ -108,6 +123,15 @@ export const LEAD_STATUS_META: Record<LeadStatusKey, LeadStatusMeta> = {
   },
   DISABLED: {
     label: 'Disabled',
+    dotClass: 'bg-slate-400',
+    textClass: 'text-slate-500',
+    badgeBgClass: 'bg-slate-100',
+    triggerClass: 'bg-slate-50 border-slate-200 text-slate-600',
+    triggerHoverClass: 'hover:bg-slate-100 hover:border-slate-300',
+    triggerMetaClass: 'text-slate-500',
+  },
+  ARCHIVED: {
+    label: 'Archived',
     dotClass: 'bg-slate-400',
     textClass: 'text-slate-500',
     badgeBgClass: 'bg-slate-100',
@@ -135,9 +159,20 @@ export const LEAD_STATUS_META: Record<LeadStatusKey, LeadStatusMeta> = {
   },
 };
 
+// Un status sin entrada propia ya no se pinta como "Disabled" (L2): estilo
+// neutro con su nombre visible (o el código, si tampoco lo conoce statusLabel).
+const UNKNOWN_STATUS_META: Omit<LeadStatusMeta, 'label'> = {
+  dotClass: 'bg-slate-400',
+  textClass: 'text-slate-600',
+  badgeBgClass: 'bg-slate-100',
+  triggerClass: 'bg-slate-50 border-slate-200 text-slate-600',
+  triggerHoverClass: 'hover:bg-slate-100 hover:border-slate-300',
+  triggerMetaClass: 'text-slate-500',
+};
+
 export const getLeadStatusMeta = (raw?: string): LeadStatusMeta => {
   const key = (raw ?? '').toUpperCase() as LeadStatusKey;
-  return LEAD_STATUS_META[key] ?? LEAD_STATUS_META.DISABLED;
+  return LEAD_STATUS_META[key] ?? { ...UNKNOWN_STATUS_META, label: statusLabel(raw) };
 };
 
 // Friendly labels for machine-generated spam reason codes.

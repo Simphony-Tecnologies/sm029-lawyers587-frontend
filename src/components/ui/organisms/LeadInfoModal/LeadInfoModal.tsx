@@ -187,6 +187,8 @@ export const LeadInfoModal = ({
   const [confirmRetained, setConfirmRetained] = useState(false);
   // El paso a Disabled también se confirma (documento de flujo del cliente).
   const [confirmDisable, setConfirmDisable] = useState(false);
+  // M5 — Send back (LOST / SEND_BACK) es permanente: también se confirma.
+  const [confirmSendBack, setConfirmSendBack] = useState(false);
   // Reasignar un lead que ya tiene otro abogado se lo quita (y el backend le
   // avisa): el admin lo confirma antes.
   const [confirmReassign, setConfirmReassign] = useState(false);
@@ -237,6 +239,7 @@ export const LeadInfoModal = ({
     setConfirmDelete(false);
     setConfirmRetained(false);
     setConfirmDisable(false);
+    setConfirmSendBack(false);
     setConfirmReassign(false);
     setConfirmTrash(false);
     setTrashReason('');
@@ -478,6 +481,10 @@ export const LeadInfoModal = ({
       setConfirmDisable(true);
       return;
     }
+    if (statusChanged && isDestructive) {
+      setConfirmSendBack(true);
+      return;
+    }
     await submitChanges();
   };
 
@@ -605,7 +612,14 @@ export const LeadInfoModal = ({
   return (
     <>
     <Transition
-      show={open && !confirmRetained && !confirmDisable && !confirmReassign && !confirmTrash}
+      show={
+        open &&
+        !confirmRetained &&
+        !confirmDisable &&
+        !confirmSendBack &&
+        !confirmReassign &&
+        !confirmTrash
+      }
       as={Fragment}
     >
       <Dialog as='div' className='relative z-50' onClose={loading ? () => {} : onClose}>
@@ -822,7 +836,7 @@ export const LeadInfoModal = ({
                             <br />
                             <span className='text-slate-500'>
                               Trashed on {dayjs(lead.trashed_at).format('MMM D, YYYY')}
-                              {lead.previous_status ? ` \u00b7 Previously: ${lead.previous_status}` : ''}
+                              {lead.previous_status ? ` \u00b7 Previously: ${statusLabel(lead.previous_status)}` : ''}
                             </span>
                           </span>
                         </div>
@@ -1178,9 +1192,13 @@ export const LeadInfoModal = ({
                       className='inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'
                     >
                       Reason for {getLeadStatusMeta(selectedStatus).label.toLowerCase()}
-                      <span className='rounded bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-customRed'>
-                        Required
-                      </span>
+                      {/* L6 — la marca solo donde el motivo es obligatorio (mismo
+                          criterio que bloquea el botón Save). */}
+                      {isReasonRequired(selectedStatus) ? (
+                        <span className='rounded bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-customRed'>
+                          Required
+                        </span>
+                      ) : null}
                     </label>
                     <textarea
                       id='lead-comment'
@@ -1466,6 +1484,28 @@ export const LeadInfoModal = ({
     >
       <p className='text-[13px] font-medium leading-[1.5] text-slate-500'>
         This lead will be marked as Disabled.
+      </p>
+    </ConfirmationDialog>
+
+    {/* M5 — Send back: mismo patrón que Retained / Disabled, con el título y el
+        botón del atajo "Send lead back" de My Leads y el aviso del propio modal. */}
+    <ConfirmationDialog
+      open={open && confirmSendBack}
+      onClose={() => setConfirmSendBack(false)}
+      variant='danger'
+      title='Send lead back'
+      subtitle={lead ? `${lead.name} · #${formatId(lead.id)}` : undefined}
+      confirmLabel='Send back'
+      onConfirm={() => {
+        setConfirmSendBack(false);
+        void submitChanges();
+      }}
+      loading={loading}
+    >
+      <p className='text-[13px] font-medium leading-[1.5] text-slate-500'>
+        <strong className='font-bold text-slate-900'>This action is permanent.</strong>{' '}
+        Once sent back, the lead will not be reinstated to the active queue and
+        will be reviewed by the super admin.
       </p>
     </ConfirmationDialog>
 

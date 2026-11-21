@@ -90,6 +90,11 @@ const SelectLead = () => {
     [lawyerServices]
   );
 
+  // H4 — perfil ya cargado sin áreas o con capacidad 0: falta la configuración
+  // del admin. Mientras carga (userDetail null) no se afirma nada.
+  const needsSetup =
+    userDetail != null && (lawyerServices.length === 0 || capacityTotal <= 0);
+
   // Activos = los que el backend cuenta contra la capacidad (active_assigned_leads
   // por área en services_capacity, una fila por área). El total de
   // /leads?assigned_to incluía Retained, Disabled, etc. (28 en vez de 9) y podía
@@ -413,11 +418,22 @@ const SelectLead = () => {
         }}
         totalLabel='leads in pool'
         emptyState={
-          <EmptyStateBox
-            icon={<MdInfoOutline size={18} />}
-            title='No leads available'
-            description='There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.'
-          />
+          // H4 — sin áreas o con capacidad 0 el pool nunca se llena: se dice
+          // qué falta en vez de "Please wait" (misma regla que "Pending setup"
+          // en la lista de Lawyers).
+          needsSetup ? (
+            <EmptyStateBox
+              icon={<MdInfoOutline size={18} />}
+              title='Your practice areas are not set up yet'
+              description='An administrator needs to set your practice areas and capacity before leads can appear here.'
+            />
+          ) : (
+            <EmptyStateBox
+              icon={<MdInfoOutline size={18} />}
+              title='No leads available'
+              description='There are no leads to assign to your service type lawyer yet. Please wait; they will be available soon.'
+            />
+          )
         }
       />
 

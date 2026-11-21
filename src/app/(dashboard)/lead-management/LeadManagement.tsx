@@ -75,6 +75,7 @@ import {
   ViewToggle,
   channelKey,
   channelLabel,
+  statusLabel as statusName,
   reasonPlaceholderFor,
   toneFromString,
   variantFromStatus,
@@ -1085,7 +1086,7 @@ const LeadManagement = () => {
     const lines = rows.map((r) => {
       const line: unknown[] = [
         r['lead id'], r.date, r['lead name'], r.email, r['phone number'],
-        r.service, r.status, /no assigned/i.test(r.lawyer) ? '' : r.lawyer, r.date_updated,
+        r.service, statusName(r.status), /no assigned/i.test(r.lawyer) ? '' : r.lawyer, r.date_updated,
       ];
       if (activeQueue?.context) {
         const ctx = contextOf(r);

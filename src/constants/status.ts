@@ -20,6 +20,12 @@ export const statusSelectAll = [
     name: 'Send back',
     value: 'LOST',
   },
+  // M3 — sin esta entrada el chip de filtro mostraba el código "SEND_BACK".
+  // Mismo nombre que su pill en la tabla.
+  {
+    name: 'Sent back',
+    value: 'SEND_BACK',
+  },
   {
     name: 'Retained',
     value: 'CLOSED',
