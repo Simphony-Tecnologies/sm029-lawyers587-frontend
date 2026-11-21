@@ -14,6 +14,7 @@ import {
   SearchField,
   channelKey,
   channelLabel,
+  statusLabel as statusName,
   type ActiveFilterChip,
   type DataTableColumn,
   type MultiSelectOption,
@@ -81,11 +82,11 @@ const statusFromParam = (value: string): LeadStatus | null =>
   ) ?? null;
 
 // Nombre visible del status en el panel y las chips: los mismos de My Leads
-// (y, si no está ahí, los de Lead Management).
+// (y, si no está ahí, los de Lead Management; si tampoco, el de las pills).
 const statusLabel = (st: string): string =>
   LAWYER_LEAD_FILTERS.find((f) => f.status === st)?.label ??
   ADMIN_LEAD_FILTERS.find((f) => f.status === st)?.label ??
-  st;
+  statusName(st);
 
 const formatId = (id: number | string) => String(id).padStart(5, '0');
 const lawyerName = (l: { id: number; firstName?: string; lastName?: string }) =>
@@ -286,7 +287,7 @@ const FirmLeads = () => {
             r.status
           )}`}
         >
-          {r.status}
+          {statusName(r.status)}
         </span>
       ),
     },
@@ -327,7 +328,7 @@ const FirmLeads = () => {
       const contact = canViewLeadContact(r.status, isAdmin);
       return [
         r.id, new Date(r.created_at), r.fullName, contact ? r.email : '', contact ? r.phone : '',
-        r.service, r.status, r.assigned_lawyer ? lawyerName(r.assigned_lawyer) : '',
+        r.service, statusName(r.status), r.assigned_lawyer ? lawyerName(r.assigned_lawyer) : '',
         r.updated_at ? new Date(r.updated_at) : '', r.code, r.source_label || sourceLabel(r.source),
         channelLabel(r.channel), r.pull_date ? new Date(r.pull_date) : '', scoreText(r),
       ];

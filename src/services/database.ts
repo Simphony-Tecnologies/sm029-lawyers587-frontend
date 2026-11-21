@@ -554,14 +554,19 @@ export const database = {
     }
   },
 
-  authIdRol: async (id: any, token?: string) => {
+  // `timeoutMs`: el middleware usa un límite propio, más corto que el general.
+  authIdRol: async (id: any, token?: string, timeoutMs?: number) => {
     try {
       const url = `${process.env.NEXT_PUBLIC_URL}/lawyers/${id}`;
-      const response = await authedFetch(url, {
-        method: 'GET',
-        headers: jsonHeaders(resolveToken(token)),
-        cache: 'no-store',
-      });
+      const response = await authedFetch(
+        url,
+        {
+          method: 'GET',
+          headers: jsonHeaders(resolveToken(token)),
+          cache: 'no-store',
+        },
+        timeoutMs
+      );
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const error: any = new Error(

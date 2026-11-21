@@ -346,13 +346,17 @@
 
       if ( !isset($_POST['submit_form']) ) return;
 
-      // Preserve submitted values for repopulating the form
+      // Preserve submitted values for repopulating the form.
+      // wp_unslash(): WordPress agrega "\" antes de ' y " en $_POST (O'Brien llega
+      // como O\'Brien). Sin quitarla, la validación del nombre rechazaba el
+      // apóstrofo y el texto se guardaba con la barra (don\'t). Mismo trato que
+      // ya tienen los campos de atribución más abajo.
       $lf_old = array(
-          'full_name'   => isset($_POST['full_name']) ? sanitize_text_field($_POST['full_name']) : '',
-          'number'      => isset($_POST['number']) ? sanitize_text_field($_POST['number']) : '',
-          'email'       => isset($_POST['email']) ? sanitize_email($_POST['email']) : '',
-          'lawyer_type' => isset($_POST['lawyer_type']) ? sanitize_text_field($_POST['lawyer_type']) : '',
-          'description' => isset($_POST['description']) ? sanitize_textarea_field($_POST['description']) : '',
+          'full_name'   => isset($_POST['full_name']) ? sanitize_text_field( wp_unslash( $_POST['full_name'] ) ) : '',
+          'number'      => isset($_POST['number']) ? sanitize_text_field( wp_unslash( $_POST['number'] ) ) : '',
+          'email'       => isset($_POST['email']) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '',
+          'lawyer_type' => isset($_POST['lawyer_type']) ? sanitize_text_field( wp_unslash( $_POST['lawyer_type'] ) ) : '',
+          'description' => isset($_POST['description']) ? sanitize_textarea_field( wp_unslash( $_POST['description'] ) ) : '',
       );
 
       // Honeypot — silent block, no error shown

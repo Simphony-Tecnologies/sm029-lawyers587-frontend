@@ -46,7 +46,12 @@ const Verification = () => {
     const res = await database.verifyLawyer(item.id, { action: 'verify' });
     setBusyId(null);
     if (res.success) {
-      toast.success(`${item.firstName} ${item.lastName} approved`);
+      // H4 — sin áreas ni capacidad el abogado aprobado no ve leads: se le
+      // recuerda al admin el paso que falta (más tiempo en pantalla para leerlo).
+      toast.success(
+        `${item.firstName} ${item.lastName} approved. Set their practice areas and capacity so they can receive leads.`,
+        { duration: 6000 }
+      );
       setRows((prev) => prev.filter((r) => r.id !== item.id));
     } else {
       toast.error(res.messages || 'Approval failed');
@@ -165,6 +170,10 @@ const Verification = () => {
                       {item.firstName} {item.lastName}
                     </div>
                     <div className='text-xs text-slate-400'>{item.email}</div>
+                    {/* L3 — el teléfono que el abogado dio en el registro. */}
+                    {item.phone ? (
+                      <div className='text-xs text-slate-400'>{item.phone}</div>
+                    ) : null}
                   </td>
                   <td className='px-4 py-3 text-slate-600'>{item.law_firm}</td>
                   <td className='px-4 py-3 font-mono text-xs text-slate-600'>

@@ -152,7 +152,6 @@ const STATUS_OPTIONS_RETAINED: LeadStatusOption[] = [
 ];
 
 const ACTIVE_STATUSES = new Set(['ASSIGNED', 'IN PROGRESS', 'WAITING_ON_CLIENT']);
-const LOST_STATUSES = new Set(['LOST', 'EXPIRED']);
 
 // Etiquetas legibles para los chips de status del lawyer detail.
 const LEAD_STATUS_LABEL: Partial<Record<LeadStatus, string>> = {
@@ -836,17 +835,19 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
 
   const stats = useMemo(() => {
     const total = lawyerLeads.length;
-    const lost = lawyerLeads.filter((l) => LOST_STATUSES.has(l.status)).length;
     const active = lawyerLeads.filter((l) => ACTIVE_STATUSES.has(l.status))
       .length;
-    return { total, lost, active };
+    return { total, active };
   }, [lawyerLeads]);
 
   const kpis = useMemo(() => {
     const s = history?.summary;
     return {
       total: stats.total,
-      unassigned: stats.lost,
+      // M7 — desasignaciones registradas en el historial del abogado: la misma
+      // fuente que el registro de actividad de esta página. Contar sus leads
+      // actuales en LOST/EXPIRED daba 0, porque al devolver un lead se le quita.
+      unassigned: s ? s.leads_unassigned ?? 0 : null,
       active: stats.active,
       lastLogin: s?.last_login ?? lawyer?.last_login ?? null,
     };
@@ -1173,7 +1174,7 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
           label='Unassigned'
           tone={'amber' as KpiTone}
           icon={<MdArrowBack size={14} />}
-          value={leadsLoading ? '…' : kpis.unassigned}
+          value={kpis.unassigned ?? (historyLoading ? '…' : '—')}
           caption={
             <span className='text-[11px] font-medium text-slate-400'>
               Sent back · expired
