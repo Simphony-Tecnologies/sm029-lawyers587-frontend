@@ -461,7 +461,7 @@ const SelectLead = () => {
         title='Confirm pull'
         subtitle='These leads will move to your "My Leads" section once pulled.'
         fields={pullFields}
-        notice='You will have 48 hours to act on each lead before it expires back to the pool.'
+        notice='You will have 48 hours to act on each lead. After that it is disabled and returned to the administrator.'
         confirmLabel={
           pulling
             ? 'Pulling…'

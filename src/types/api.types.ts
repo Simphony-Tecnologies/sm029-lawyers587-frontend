@@ -446,6 +446,23 @@ export interface LawyerHistoryResponse {
   events: Paginated<AuditEvent>;
 }
 
+// ─── Conversación del chatbot (M1) — GET /leads/:id/conversation ─────────────
+export interface LeadConversationMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+export interface LeadConversation {
+  available: boolean;
+  // 'no_conversation' = el lead no vino del chatbot; 'contact_hidden' = quien
+  // pide aún no puede ver el contacto (misma regla del correo y el teléfono).
+  reason: 'no_conversation' | 'contact_hidden' | null;
+  conversation_id: number | null;
+  language: string | null;
+  started_at: string | null;
+  messages: LeadConversationMessage[];
+}
+
 // ─── Notifications ──────────────────────────────────────────────────────────
 
 export type NotificationType =

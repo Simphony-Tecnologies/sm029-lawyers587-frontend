@@ -1849,6 +1849,8 @@ const LeadManagement = () => {
             : STATUS_OPTIONS_SELECT
         }
         onSubmit={handleSaveLead}
+        // Aquí handleSaveLead rechaza cualquier cambio de status sin motivo.
+        reasonAlwaysRequired
         loading={loading}
         assignableLawyers={assignLawyers.map((l) => ({
           id: l.id,
