@@ -39,6 +39,7 @@ import type {
   PoolFilters,
   PullLeadDTO,
   SuspiciousPattern,
+  LeadConversation,
   TimelineEntry,
   TimelineFilters,
   TrashLeadDTO,
@@ -1153,6 +1154,14 @@ export const api = {
       apiRequest<AssignLeadResult>(
         `/leads/${id}/unassign`,
         { method: 'PATCH', body: JSON.stringify(body) },
+        token
+      ),
+
+    // M1 — conversación del chatbot que originó el lead.
+    conversation: (id: number, token?: string) =>
+      apiRequest<LeadConversation>(
+        `/leads/${id}/conversation`,
+        { method: 'GET' },
         token
       ),
 

@@ -693,7 +693,10 @@ const IdLawyer = ({ params }: { params: { id: string } }) => {
       return;
     }
     const params: Record<string, unknown> = { limit: 50 };
-    if (actionTypes && actionTypes.length === 1) {
+    // Con dos tipos (assignments = assign + unassign) esta llamada trae el
+    // primero y la de más abajo el segundo. Antes venía sin filtro: el filtro
+    // "Assignments" mostraba todos los eventos y repetía los unassign.
+    if (actionTypes && actionTypes.length >= 1) {
       params.action_type = actionTypes[0];
     }
     const res = await api.lawyers.history(lawyerId, params as any);

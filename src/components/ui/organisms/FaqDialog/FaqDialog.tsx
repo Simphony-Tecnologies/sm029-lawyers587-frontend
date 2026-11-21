@@ -36,7 +36,7 @@ export const DEFAULT_FAQS: FaqEntry[] = [
   {
     question: 'What happens to a lead after it expires?',
     answer:
-      'An ASSIGNED lead has a 48-hour freshness window. If the lawyer doesn\'t move it forward in that time, the lead becomes EXPIRED and returns to the pool — any lawyer with capacity for that service can pull it. The audit log keeps the previous assignment so the history isn\'t lost.',
+      'An ASSIGNED lead has a 48-hour window. If the lawyer doesn\'t move it forward in that time, the lead becomes Disabled, is removed from the lawyer\'s list and goes to the administrator, who can reassign it. The change is recorded in the lead history.',
   },
   {
     question: 'How do I recover an archived lead?',

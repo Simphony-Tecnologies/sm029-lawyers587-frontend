@@ -1328,15 +1328,34 @@ function l587_assistant_render() {
 	}
 
 	/* ---- Cierre ---- */
+	/* Tarjeta final en el idioma de la conversación. El backend lo informa en
+	   `language` cuando termina el chat; si no llega, queda en inglés. */
+	var CLOSING = {
+		en: {
+			title: "You're in the queue.",
+			body: "A lawyer from our Alberta network will contact you shortly. Your conversation is attached to your file, so you won't have to repeat yourself.",
+			ref: "Reference",
+			again: "Start a new inquiry"
+		},
+		es: {
+			title: "Ya estás en la fila.",
+			body: "Un abogado de nuestra red de Alberta te contactará pronto. Tu conversación queda adjunta a tu expediente, así que no tendrás que repetirla.",
+			ref: "Referencia",
+			again: "Iniciar una nueva consulta"
+		}
+	};
+
 	function finish(data) {
 		state.done = true;
 		clearInput();
 		var ref = (data && data.reference) ? String(data.reference) : state.sessionId.toUpperCase();
+		var lang = (data && data.language) ? String(data.language).slice(0, 2).toLowerCase() : "en";
+		var T = CLOSING[lang] || CLOSING.en;
 		var card = el("div", "l587-card");
-		card.appendChild(el("h4", null, "You're in the queue."));
-		card.appendChild(el("p", null, "A lawyer from our Alberta network will contact you shortly. Your conversation is attached to your file, so you won't have to repeat yourself."));
+		card.appendChild(el("h4", null, T.title));
+		card.appendChild(el("p", null, T.body));
 		var dl = el("dl");
-		dl.appendChild(el("dt", null, "Reference"));
+		dl.appendChild(el("dt", null, T.ref));
 		dl.appendChild(el("dd", null, ref));
 		card.appendChild(dl);
 		log.appendChild(card);
@@ -1344,7 +1363,7 @@ function l587_assistant_render() {
 		scroll();
 		bar.style.width = "100%";
 
-		var again = el("button", "l587-restart", "Start a new inquiry");
+		var again = el("button", "l587-restart", T.again);
 		again.type = "button";
 		again.addEventListener("click", reset);
 		inputEl.appendChild(again);

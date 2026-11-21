@@ -49,6 +49,7 @@ import { canAdminAssign, canViewLeadContact } from '@/constants/leadFilters';
 import type {
   CalendarReminderDTO,
   ExportFormat,
+  LeadConversation,
   NoteType,
   TimelineEntry,
 } from '@/types/api.types';
@@ -132,6 +133,9 @@ export interface LeadInfoModalProps {
   onDeletePermanent?: (id: number | string) => Promise<void> | void;
   /** Ruta del link directo (`<ruta>?lead=<id>`). Por defecto según el rol. */
   linkBasePath?: string;
+  /** Leads Manage (admin) exige motivo en TODO cambio de status; el resto de
+   *  pantallas, solo en los statuses de `isReasonRequired`. */
+  reasonAlwaysRequired?: boolean;
 }
 
 const formatId = (id: number | string) =>
@@ -164,6 +168,7 @@ export const LeadInfoModal = ({
   onTrash,
   onDeletePermanent,
   linkBasePath,
+  reasonAlwaysRequired = false,
 }: LeadInfoModalProps) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [comment, setComment] = useState<string>('');
@@ -289,6 +294,29 @@ export const LeadInfoModal = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, lead?.id, lead?.pullDate, isAdmin]);
+
+  // M1 — conversación del chatbot. Solo se pide en leads que entraron por el
+  // chatbot; si el servidor aún no tiene la ruta (o falla), no se muestra nada.
+  const [conversation, setConversation] = useState<LeadConversation | null>(null);
+  useEffect(() => {
+    setConversation(null);
+    if (!open || !lead || detailSource?.source !== 'chatbot') return;
+    const id = Number(lead.id);
+    if (!Number.isFinite(id)) return;
+    let cancelled = false;
+    void api.leads.conversation(id).then((res) => {
+      if (!cancelled && res.success && res.data) setConversation(res.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, lead?.id, lead?.status, detailSource?.source]);
+  const conversationHidden = conversation?.reason === 'contact_hidden';
+  const conversationMessages =
+    conversation?.available && Array.isArray(conversation.messages)
+      ? conversation.messages.filter((m) => String(m?.text ?? '').trim().length > 0)
+      : [];
 
   const fetchTimeline = async (
     leadId: number | string,
@@ -465,8 +493,12 @@ export const LeadInfoModal = ({
   }, [assignableLawyers, assignSearch]);
 
   const reasonLength = comment.length;
+  // Un solo criterio para la marca "Required", el aviso y el botón Save: el de
+  // la pantalla que guarda. Así la marca nunca promete algo distinto a lo que
+  // pasa al guardar (L6).
+  const reasonRequired = reasonAlwaysRequired || isReasonRequired(selectedStatus);
   const reasonRequiredMissing =
-    statusChanged && isReasonRequired(selectedStatus) && reasonLength === 0;
+    statusChanged && reasonRequired && reasonLength === 0;
 
   const handleSubmit = async () => {
     if (!lead) return;
@@ -1182,6 +1214,41 @@ export const LeadInfoModal = ({
                   </div>
                 </section>
 
+                {/* M1 — conversación del chatbot que originó el lead. Sigue la
+                    regla del contacto: el servidor la entrega solo cuando el
+                    correo y el teléfono ya son visibles. */}
+                {conversationMessages.length > 0 || conversationHidden ? (
+                  <section className='flex flex-col gap-2'>
+                    <span className='text-[11px] font-bold uppercase tracking-[0.04em] text-slate-700'>
+                      Chatbot conversation
+                    </span>
+                    {conversationHidden ? (
+                      <div className='rounded-[11px] border border-slate-200 bg-slate-50 px-4 py-3 text-[13px] font-medium italic text-slate-400'>
+                        {CONTACT_HIDDEN_LABEL}
+                      </div>
+                    ) : (
+                      <div className='flex max-h-[300px] flex-col gap-2 overflow-y-auto rounded-[11px] border border-slate-200 bg-slate-50 p-3'>
+                        {conversationMessages.map((m, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              'max-w-[86%] rounded-[10px] px-3 py-2 text-[12.5px] font-medium leading-[1.5]',
+                              m.role === 'user'
+                                ? 'self-end bg-slate-900 text-white'
+                                : 'self-start border border-slate-200 bg-white text-slate-700'
+                            )}
+                          >
+                            <span className='mb-0.5 block text-[9px] font-bold uppercase tracking-[0.06em] opacity-70'>
+                              {m.role === 'user' ? 'Client' : 'Assistant'}
+                            </span>
+                            <span className='whitespace-pre-wrap break-words'>{m.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                ) : null}
+
                 {/* Reason for status change — visible for ALL status changes
                     for legal/audit compliance. Destructive statuses (LOST,
                     PROBLEMATIC, SEND_BACK) get red styling; others get neutral. */}
@@ -1194,7 +1261,7 @@ export const LeadInfoModal = ({
                       Reason for {getLeadStatusMeta(selectedStatus).label.toLowerCase()}
                       {/* L6 — la marca solo donde el motivo es obligatorio (mismo
                           criterio que bloquea el botón Save). */}
-                      {isReasonRequired(selectedStatus) ? (
+                      {reasonRequired ? (
                         <span className='rounded bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-customRed'>
                           Required
                         </span>
